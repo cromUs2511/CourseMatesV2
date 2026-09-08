@@ -1,9 +1,12 @@
 // Clean Web Audio synthesizer for subtle tactile feedback
+let audioContext: AudioContext | null = null;
 export function playChime(type: 'match' | 'message' | 'timer' | 'purge' | 'click') {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    if (type === 'click') return;
+    const ctx = audioContext ??= new AudioCtx();
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
 
     if (type === 'match') {
       // Pleasant rising harmonic chime

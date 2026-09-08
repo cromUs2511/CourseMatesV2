@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Loader2, Bot, ArrowRight, Plus, Check, Shield, Sparkles, Hash } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
+import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 
 interface MatchmakingQueueProps {
@@ -9,6 +10,7 @@ interface MatchmakingQueueProps {
   onMatched: (peer: ActivePeerInfo, topic: string, ws?: WebSocket, roomId?: string) => void;
   onRerollHandle: () => void;
   isDarkMode: boolean;
+  autoSearch?: boolean;
 }
 
 export const AVAILABLE_INTERESTS = [
@@ -31,222 +33,152 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   onMatched,
   onRerollHandle,
   isDarkMode,
+  autoSearch = false,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
-  const [showSimulateOption, setShowSimulateOption] = useState(false);
-
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([
-    'Coding, DSA & Software',
-  ]);
+  const [error, setError] = useState('');
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(session.interests.length ? session.interests : ['Coding, DSA & Software']);
   const [customInterestInput, setCustomInterestInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customList, setCustomList] = useState<string[]>([]);
-
   const wsRef = useRef<WebSocket | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const attemptRef = useRef(0);
+  const searchingRef = useRef(false);
   const isMatchedRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const showSimulateOption = isSearching && queueTime >= 3;
 
+  const clearPolling = () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    pollIntervalRef.current = null;
+  };
+  const closeSocket = () => {
+    const ws = wsRef.current;
+    wsRef.current = null;
+    if (ws) { ws.onopen = null; ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); }
+  };
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isSearching) {
-      interval = setInterval(() => {
-        setQueueTime((prev) => prev + 1);
-      }, 1000);
-    } else {
-      setQueueTime(0);
-      setShowSimulateOption(false);
-    }
-    return () => clearInterval(interval);
+    if (!isSearching) { setQueueTime(0); return; }
+    const timer = setInterval(() => setQueueTime(t => t + 1), 1000);
+    return () => clearInterval(timer);
   }, [isSearching]);
-
-  useEffect(() => {
-    if (isSearching && queueTime >= 3) {
-      setShowSimulateOption(true);
+  useEffect(() => () => {
+    ++attemptRef.current;
+    clearPolling();
+    // The chat owns the socket after a match.
+    if (!isMatchedRef.current) {
+      closeSocket();
+      if (searchingRef.current) void apiRequest('/api/match/cancel', session.token, {}).catch(() => {});
     }
-  }, [isSearching, queueTime]);
+  }, [session.token]);
 
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleMatchSuccess = (data: {
-    roomId: string;
-    peer: {
-      sessionId?: string;
-      handle: string;
-      avatar: string;
-      campus?: string;
-      discipline?: string;
-      interests?: string[];
-    };
-    topic?: string;
-  }) => {
-    if (isMatchedRef.current) return;
+  const handleMatchSuccess = (data: any) => {
+    if (isMatchedRef.current || !searchingRef.current) return;
     isMatchedRef.current = true;
-
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-
+    searchingRef.current = false;
+    clearPolling();
     playChime('match');
     const matchedPeer: ActivePeerInfo = {
-      sessionId: data.peer.sessionId || 'peer-anon',
-      handle: data.peer.handle,
-      avatar: data.peer.avatar,
-      campus: data.peer.campus as Campus | undefined,
-      discipline: data.peer.discipline as AcademicDiscipline | undefined,
-      interests: data.peer.interests || [],
-      topic: data.topic || 'General Peer Discovery',
-      matchedAt: Date.now(),
+      ...data.peer, sessionId: data.peer.sessionId, interests: data.peer.interests || [],
+      topic: data.topic || 'General Peer Discovery', matchedAt: Date.now(),
     };
-
-    onMatched(matchedPeer, matchedPeer.topic, wsRef.current || undefined, data.roomId);
+    const socket = wsRef.current;
+    if (socket) { socket.onmessage = null; socket.onerror = null; socket.onclose = null; }
+    onMatched(matchedPeer, matchedPeer.topic, socket || undefined, data.roomId);
   };
-
-  const startMatchmaking = async () => {
+  const startMatchmaking = () => {
+    if (searchingRef.current) return;
+    setError('');
     setIsSearching(true);
+    searchingRef.current = true;
     isMatchedRef.current = false;
-    playChime('click');
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        ws.send(
-          JSON.stringify({
-            type: 'JOIN_QUEUE',
-            session: {
-              id: session.token,
-              handle: session.sessionHandle,
-              avatar: session.sessionAvatar,
-              discipline: session.discipline,
-              campus: session.campus,
-              interests: selectedInterests,
-            },
-          })
-        );
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'matched') {
-            handleMatchSuccess({
-              roomId: msg.roomId,
-              peer: msg.peer,
-              topic: msg.topic,
-            });
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      };
-
-      ws.onerror = () => {
-        startHttpPolling();
-      };
-    } catch {
-      startHttpPolling();
-    }
-  };
-
-  const startHttpPolling = () => {
-    fetch('/api/match/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: session.token,
-        handle: session.sessionHandle,
-        avatar: session.sessionAvatar,
-        discipline: session.discipline,
-        campus: session.campus,
-        interests: selectedInterests,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === 'matched') {
-          handleMatchSuccess(data);
-        } else {
-          pollIntervalRef.current = setInterval(checkMatchStatus, 2000);
-        }
-      })
-      .catch(() => {});
-  };
-
-  const checkMatchStatus = async () => {
-    if (isMatchedRef.current) return;
-    try {
-      const res = await fetch(`/api/match/status?sessionId=${session.token}`);
-      const data = await res.json();
-      if (data.status === 'matched') {
-        handleMatchSuccess(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const cancelMatchmaking = async () => {
-    playChime('click');
-    setIsSearching(false);
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (wsRef.current) {
-      try {
-        wsRef.current.send(JSON.stringify({ type: 'LEAVE_QUEUE' }));
-      } catch (e) {}
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    try {
-      await fetch('/api/match/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session.token }),
-      });
-    } catch (e) {}
-  };
-
-  const pairWithSimulatedPeer = () => {
-    isMatchedRef.current = true;
-    setIsSearching(false);
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    if (wsRef.current) wsRef.current.close();
-
-    playChime('match');
-
-    const randomPeer = SIMULATED_PEERS[Math.floor(Math.random() * SIMULATED_PEERS.length)];
-    const primaryTopic = selectedInterests.length > 0 ? selectedInterests[0] : 'Engineering Review';
-
-    const simPeer: ActivePeerInfo = {
-      sessionId: `sim_${Date.now()}`,
-      handle: randomPeer.handle,
-      avatar: randomPeer.avatar,
-      campus: randomPeer.campus,
-      discipline: randomPeer.discipline,
-      interests: randomPeer.interests,
-      topic: primaryTopic,
-      matchedAt: Date.now(),
-      isSimulated: true,
+    const attempt = ++attemptRef.current;
+    const current = () => attemptRef.current === attempt && searchingRef.current;
+    let polling = false;
+    let busy = false;
+    const fail = (err: unknown) => {
+      if (!current()) return;
+      setError(err instanceof Error ? err.message : 'Unable to connect. Please try again.');
+      searchingRef.current = false;
+      setIsSearching(false);
+      clearPolling();
+      closeSocket();
+      void apiRequest('/api/match/cancel', session.token, {}).catch(() => {});
     };
-
-    onMatched(simPeer, primaryTopic, undefined, `sim_room_${Date.now()}`);
+    const poll = async () => {
+      if (!current() || busy) return;
+      busy = true;
+      try {
+        const data = await apiRequest('/api/match/poll', session.token);
+        if (!current()) return;
+        if (data.status === 'matched') handleMatchSuccess(data);
+        else if (data.status === 'idle') fail(new Error('Your queue entry expired. Please try again.'));
+      } catch (err) { fail(err); }
+      finally { busy = false; }
+    };
+    const fallback = async () => {
+      if (!current() || polling) return;
+      polling = true;
+      closeSocket();
+      try {
+        const data = await apiRequest('/api/match/join', session.token, { interests: selectedInterests });
+        if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
+        if (data.status === 'matched') handleMatchSuccess(data);
+        else pollIntervalRef.current = setInterval(poll, 1500);
+      } catch (err) { fail(err); }
+    };
+    try {
+      const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/chat');
+      wsRef.current = ws;
+      const connectionTimeout = setTimeout(() => { if (current() && ws.readyState !== WebSocket.OPEN) void fallback(); }, 4000);
+      ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        if (!current()) { closeSocket(); return; }
+        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: selectedInterests }));
+        // Poll the same state as the socket; this also keeps the queue lease alive.
+        pollIntervalRef.current = setInterval(poll, 1500);
+      };
+      ws.onmessage = event => {
+        if (!current()) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'matched') handleMatchSuccess(data);
+          else if (data.type === 'error') fail(new Error(data.error));
+        } catch { fail(new Error('Invalid matchmaking response.')); }
+      };
+      ws.onerror = () => { clearTimeout(connectionTimeout); clearPolling(); void fallback(); };
+      ws.onclose = event => {
+        clearTimeout(connectionTimeout); clearPolling();
+        if (event.code === 1008) fail(new Error('Your session expired. Sign out and try again.'));
+        else void fallback();
+      };
+    } catch { void fallback(); }
   };
+  const cancelMatchmaking = async () => {
+    ++attemptRef.current;
+    searchingRef.current = false;
+    clearPolling();
+    closeSocket();
+    try { await apiRequest('/api/match/cancel', session.token, {}); }
+    catch (err) { setError((err as Error).message); }
+    setIsSearching(false);
+  };
+  const pairWithSimulatedPeer = async () => {
+    await cancelMatchmaking();
+    isMatchedRef.current = true;
+    const randomPeer = SIMULATED_PEERS[Math.floor(Math.random() * SIMULATED_PEERS.length)];
+    const primaryTopic = selectedInterests[0] || 'Engineering Review';
+    onMatched({
+      ...randomPeer, sessionId: 'sim_' + Date.now(), topic: primaryTopic,
+      matchedAt: Date.now(), isSimulated: true,
+    }, primaryTopic, undefined, 'sim_room_' + Date.now());
+  };
+  useEffect(() => {
+    if (!autoSearch) return;
+    const timer = setTimeout(startMatchmaking, 0);
+    return () => clearTimeout(timer);
+  }, [autoSearch]);
 
   const toggleInterest = (interestLabel: string) => {
     if (isSearching) return;
@@ -263,7 +195,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const handleAddCustomInterest = (e: React.FormEvent) => {
     e.preventDefault();
     const val = customInterestInput.trim();
-    if (!val) return;
+    if (!val || isSearching || val.length > 100 || selectedInterests.length >= 16) return;
 
     if (!selectedInterests.includes(val)) {
       setSelectedInterests((prev) => [...prev, val]);
@@ -276,7 +208,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 w-full h-full flex flex-col justify-center items-center p-4 sm:p-6 overflow-y-auto select-none">
+    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center p-4 sm:p-6 overflow-y-auto select-none">
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
         <div
@@ -294,6 +226,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 </span>
                 <button
                   onClick={onRerollHandle}
+                  disabled={isSearching}
                   title="Randomize Persona Handle"
                   className="p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
                 >
@@ -305,7 +238,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 <span className="truncate">{session.discipline || 'Engineering & Architecture'}</span>
                 <span>•</span>
                 <span className="text-[#991B1B] dark:text-[#F87171] font-semibold">
-                  Mapúa Verified
+                  {session.isVerified ? 'Mapúa verified' : 'Demo access'}
                 </span>
               </div>
             </div>
@@ -313,7 +246,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
           <div className="text-left sm:text-right shrink-0 text-xs border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto border-stone-200 dark:border-stone-800 font-mono">
             <span className="text-[10px] text-stone-400 block uppercase tracking-wider font-semibold">
-              Authenticated Session
+              Private session
             </span>
             <span className="font-medium text-stone-700 dark:text-stone-300">
               {session.email}
@@ -404,6 +337,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCustomInput(true)}
+                  disabled={isSearching}
                   className="px-3 py-1.5 border border-dashed border-stone-300 dark:border-stone-700 text-xs font-mono text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer flex items-center space-x-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -414,6 +348,8 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   <input
                     type="text"
                     autoFocus
+                    maxLength={100}
+                    aria-label="Custom study topic"
                     value={customInterestInput}
                     onChange={(e) => setCustomInterestInput(e.target.value)}
                     placeholder="e.g. CS102, PHY012, THESIS-1"
@@ -439,6 +375,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             </div>
           </div>
 
+          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           {/* Action Button Area */}
           <div className="border-t border-stone-200 dark:border-stone-800 pt-5 text-center space-y-3">
             {!isSearching ? (
@@ -454,7 +391,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 </button>
                 <div className="text-[11px] font-mono text-stone-400 flex items-center justify-center space-x-1.5">
                   <Shield className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#F87171]" />
-                  <span>Ephemeral RAM matching • Zero logs stored • SHA-256 hashed</span>
+                  <span>Private rooms • Messages cleared when the chat ends</span>
                 </div>
               </div>
             ) : (
@@ -491,7 +428,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       className="w-full sm:w-auto px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Bot className="w-4 h-4" />
-                      <span>Instant Match with Mapúan AI Partner</span>
+                      <span>Try a simulated study partner</span>
                     </button>
                   )}
                 </div>

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Shield, ArrowRight, AlertTriangle, CheckCircle2, Lock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, AlertTriangle, Lock } from 'lucide-react';
 import { StudentSession, AcademicDiscipline, Campus } from '../types';
-import { playChime } from '../utils/sound';
+import { apiRequest } from '../utils/api';
 
 interface AccessGatewayProps {
   onVerified: (session: StudentSession) => void;
@@ -25,71 +25,36 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
   const [campus, setCampus] = useState<Campus>('Intramuros');
   const [discipline, setDiscipline] = useState<AcademicDiscipline>('Computer Science & IT');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successNotice, setSuccessNotice] = useState<string | null>(null);
-
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      setError('Please enter your official Mapúa student email.');
-      return;
-    }
-    const isMapuaDomain =
-      cleanEmail.endsWith('@mymail.mapua.edu.ph') ||
-      cleanEmail.endsWith('@mymapua.edu.ph') ||
-      cleanEmail.endsWith('@mapua.edu.ph');
-    
-    if (!isMapuaDomain) {
-      setError('ACCESS DENIED: Please use your official Mapúa school email (@mymail.mapua.edu.ph, @mymapua.edu.ph, or @mapua.edu.ph).');
-      return;
-    }
-    
-    setError(null);
+  const [config, setConfig] = useState<{ microsoftEnabled: boolean; allowDemo: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(() => new URLSearchParams(location.search).get('auth_error'));
+  const submitting = useRef(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    apiRequest('/api/auth/config', undefined, undefined, controller.signal).then(setConfig)
+      .catch(err => { if (!controller.signal.aborted) setError(err.message); });
+    if (location.search.includes('auth_error=')) history.replaceState(null, '', location.pathname);
+    return () => controller.abort();
+  }, []);
+  const handleSubmit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (submitting.current || !config?.allowDemo) return;
+    submitting.current = true;
     setLoading(true);
-    
-    try {
-      const response = await fetch('/api/auth/school-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanEmail,
-          campus,
-          discipline,
-          interests: ['Coding, DSA & Software'],
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Institutional verification failed.');
-      }
-      setSuccessNotice(`Mapúa Identity Verified: ${data.session.email}`);
-      playChime('match');
-      setTimeout(() => {
-        onVerified(data.session);
-      }, 400);
-    } catch (err: any) {
-      setError(err.message || 'Verification service error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickFill = (presetEmail: string) => {
-    setEmail(presetEmail);
     setError(null);
+    try {
+      const data = await apiRequest('/api/auth/school-email', undefined, {
+        email: email.trim().toLowerCase(), campus, discipline, interests: ['Coding, DSA & Software'],
+      });
+      onVerified(data.session);
+    } catch (err) { setError((err as Error).message); }
+    finally { submitting.current = false; setLoading(false); }
   };
-
-  const strokeColor = isDarkMode ? "#fde047" : "#44403c";
-  const gridPattern = isDarkMode
-    ? 'linear-gradient(rgba(253, 224, 71, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(253, 224, 71, 0.08) 1px, transparent 1px)'
-    : 'linear-gradient(rgba(87, 83, 78, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(87, 83, 78, 0.15) 1px, transparent 1px)';
-
+  const handleQuickFill = (value: string) => { setEmail(value); setError(null); };
   return (
     <div className={`flex h-full min-h-0 w-full overflow-y-auto font-sans transition-colors ${isDarkMode ? 'bg-[#101112] text-stone-300' : 'bg-[#f5f3ef] text-stone-800'}`}>
       <section className="relative hidden min-h-full flex-1 overflow-hidden lg:flex">
         <div className={`absolute inset-0 ${isDarkMode ? 'bg-[radial-gradient(circle_at_20%_15%,#542020_0,transparent_38%),linear-gradient(135deg,#17191b,#0d0e0f)]' : 'bg-[radial-gradient(circle_at_20%_15%,#ffe2d0_0,transparent_38%),linear-gradient(135deg,#fffaf5,#eee9e2)]'}`} />
-        <div className="relative z-10 flex w-full flex-col justify-between p-12 xl:p-16">
+        <div className="relative z-10 flex w-full flex-col justify-between gap-8 p-12 xl:p-16">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#991B1B] text-lg font-black text-white shadow-lg shadow-red-900/20">CM</div>
@@ -105,7 +70,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
             <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.24em] text-[#991B1B]">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]" /> Anonymous study network
             </p>
-            <h1 className={`text-6xl font-black leading-[0.95] tracking-[-0.06em] xl:text-8xl ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>
+            <h1 className={`text-[clamp(2.75rem,4.4vw,4rem)] font-black leading-[1.05] tracking-[-0.05em] ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>
               Find your next<br /><span className="text-[#991B1B]">study advantage.</span>
             </h1>
             <p className={`mt-7 max-w-lg text-base leading-7 ${isDarkMode ? 'text-stone-400' : 'text-stone-600'}`}>
@@ -113,7 +78,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
             </p>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-3">
               {[
-                ['01', 'Verified peers'],
+                ['01', 'Study peers'],
                 ['02', 'Private rooms'],
                 ['03', 'Zero transcripts'],
               ].map(([number, label]) => (
@@ -129,7 +94,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
         </div>
       </section>
 
-      <section className={`flex w-full items-center justify-center px-5 py-8 sm:px-8 lg:w-[520px] lg:shrink-0 xl:w-[580px] ${isDarkMode ? 'bg-[#151617]' : 'bg-white'}`}>
+      <section className={`flex w-full items-start justify-center px-5 py-8 sm:px-8 lg:w-[520px] lg:shrink-0 xl:w-[580px] ${isDarkMode ? 'bg-[#151617]' : 'bg-white'}`}>
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center justify-between lg:hidden">
             <div className="flex items-center gap-2">
@@ -142,22 +107,28 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           <div className={`rounded-[1.5rem] border p-6 shadow-2xl sm:p-8 ${isDarkMode ? 'border-white/10 bg-[#1c1e20] shadow-black/20' : 'border-stone-200 bg-white shadow-stone-200/70'}`}>
             <div className="mb-8 flex items-start justify-between">
               <div>
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#991B1B]">Mapúa University SSO</p>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#991B1B]">Mapúa study network</p>
                 <h2 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>Welcome back.</h2>
-                <p className={`mt-2 text-sm ${isDarkMode ? 'text-stone-400' : 'text-stone-500'}`}>Verify your student identity to enter.</p>
+                <p className={`mt-2 text-sm ${isDarkMode ? 'text-stone-400' : 'text-stone-500'}`}>Choose your campus and connect with a study partner.</p>
               </div>
               <span className={`rounded-full border px-2.5 py-1 text-[10px] font-mono ${isDarkMode ? 'border-stone-700 text-stone-400' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>SECURE</span>
             </div>
 
+          {config?.microsoftEnabled && <a className="mb-5 block rounded-xl bg-[#991B1B] px-4 py-3 text-center font-semibold text-white" href={'/auth/microsoft/login?' + new URLSearchParams({ campus, discipline })}>Sign in with Microsoft</a>}
+          {config?.allowDemo && <p className="mb-4 text-xs leading-relaxed text-stone-500">Demo mode does not verify email ownership. Demo sessions match with other demo sessions.</p>}
+          {config && !config.allowDemo && !config.microsoftEnabled && <p role="alert" className="mb-4 text-sm text-red-600">Sign-in is unavailable. Contact the app administrator.</p>}
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            <div className="space-y-2">
-              <label className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
-                Mapúa Student Email
+            <div hidden={!config?.allowDemo} className="space-y-2">
+              <label htmlFor="student-email" className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
+                School email (demo access)
               </label>
               <input
+                id="student-email"
+                autoComplete="email"
+                maxLength={254}
                 type="email"
-                required
+                required={config?.allowDemo}
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -172,7 +143,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
               />
               <div className="flex items-center justify-between pt-1">
                 <span className={`text-[10px] font-mono ${isDarkMode ? 'text-stone-500' : 'text-stone-500'}`}>
-                  Accepted: @mymail.mapua.edu.ph, @mymapua.edu.ph
+                  Also accepts @mymapua.edu.ph and @mapua.edu.ph
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -203,12 +174,13 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
             </div>
 
             <div className="space-y-2">
-              <label className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
+              <p className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
                 Campus
-              </label>
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
+                  aria-pressed={campus === 'Intramuros'}
                   onClick={() => setCampus('Intramuros')}
                   className={`py-3 px-3 text-sm font-semibold border rounded-lg transition-colors ${
                     campus === 'Intramuros'
@@ -222,6 +194,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
                 </button>
                 <button
                   type="button"
+                  aria-pressed={campus === 'Makati'}
                   onClick={() => setCampus('Makati')}
                   className={`py-3 px-3 text-sm font-semibold border rounded-lg transition-colors ${
                     campus === 'Makati'
@@ -237,10 +210,11 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
             </div>
 
             <div className="space-y-2">
-              <label className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
+              <label htmlFor="student-discipline" className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
                 School / Academic Department
               </label>
               <select
+                id="student-discipline"
                 value={discipline}
                 onChange={(e) => setDiscipline(e.target.value as AcademicDiscipline)}
                 className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none transition-colors appearance-none ${
@@ -258,28 +232,22 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
             </div>
 
             {error && (
-              <div               className={`p-4 border rounded-xl text-xs flex items-start space-x-3 ${isDarkMode ? 'border-red-900/50 bg-red-950/20 text-red-400' : 'border-red-300 bg-red-50 text-red-700'}`}>
+              <div role="alert" className={`p-4 border rounded-xl text-xs flex items-start space-x-3 ${isDarkMode ? 'border-red-900/50 bg-red-950/20 text-red-400' : 'border-red-300 bg-red-50 text-red-700'}`}>
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div className="leading-snug">
-                  <span className={`font-bold block ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Authorization Denied</span>
+                  <span className={`font-bold block ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Unable to continue</span>
                   <span>{error}</span>
                 </div>
               </div>
             )}
 
-            {successNotice && (
-              <div               className={`p-4 border rounded-xl text-xs flex items-center space-x-3 ${isDarkMode ? 'border-emerald-900/50 bg-emerald-950/20 text-emerald-400' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <span className="font-mono">{successNotice}</span>
-              </div>
-            )}
-
             <button
               type="submit"
-              disabled={loading}
+              hidden={!config?.allowDemo}
+              disabled={loading || !config?.allowDemo}
               className="w-full py-4 rounded-xl bg-[#dc2626] hover:bg-[#b91c1c] text-white font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center space-x-2 shadow-[0_10px_24px_rgba(220,38,38,0.18)] hover:shadow-[0_12px_28px_rgba(220,38,38,0.28)] disabled:opacity-50 mt-4 cursor-pointer"
             >
-              <span>{loading ? 'Verifying...' : 'Continue'}</span>
+              <span>{loading ? 'Starting…' : 'Continue in demo mode'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -288,7 +256,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           <div className={`mt-8 space-y-3 border-t pt-5 text-[11px] font-mono ${isDarkMode ? 'border-white/10 text-stone-500' : 'border-stone-100 text-stone-500'}`}>
             <div className="flex items-center space-x-3">
               <div className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${isDarkMode ? 'border-stone-500' : 'border-stone-400'}`} />
-              <span>Email is verified, then hashed. Nothing is stored.</span>
+              <span>Session details stay in memory until expiry or sign-out.</span>
             </div>
             <div className="flex items-center space-x-3">
               <Lock className="w-3 h-3 shrink-0" />

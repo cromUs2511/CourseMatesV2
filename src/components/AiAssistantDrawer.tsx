@@ -46,6 +46,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Assistant unavailable.');
       setAiOutput(data.result || 'No response from assistant.');
       playChime('message');
     } catch (err) {
@@ -74,7 +75,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-              AI_ASSIST // GEMINI_3.7_FLASH
+              STUDY ASSISTANT
             </h3>
             <p className="text-[10px] text-stone-400">TELEMETRY ICEBREAKER & REASONING</p>
           </div>

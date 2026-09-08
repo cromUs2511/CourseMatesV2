@@ -18,7 +18,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
   const [urlError, setUrlError] = useState('');
   const [playerError, setPlayerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [playerEnabled, setPlayerEnabled] = useState(true);
+  const [playerEnabled, setPlayerEnabled] = useState(false);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const playerHostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
@@ -98,7 +98,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
             if (latestRef.current.isMuted) target.mute();
             else target.unMute();
             if (wantsPlaybackRef.current) {
-              target.playVideo();
+              target.loadVideoById(latestRef.current.currentTrack.youtubeVideoId);
             } else {
               target.cueVideoById(latestRef.current.currentTrack.youtubeVideoId);
               setIsLoading(false);
@@ -237,6 +237,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
           isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
         }`}>
           <div className="px-3 py-2 text-xs font-mono">
+            <button aria-label="Close music player" className="float-right p-1" onClick={() => { wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
             <p className="font-semibold truncate">{currentTrack.title}</p>
             <p role="status" className="mt-1 text-stone-500 dark:text-stone-400">
               {playerError || (isLoading ? 'Loading music…' : isPlaying ? 'Playing' : 'Paused — press Play to listen')}
@@ -328,7 +329,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       {isMenuOpen && (
         <div
           id="music-tracks-dropdown"
-          className={`absolute top-full left-0 mt-1.5 w-72 max-h-80 overflow-y-auto border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
+          className={`absolute top-full right-0 mt-1.5 w-[min(288px,calc(100vw-2rem))] max-h-80 overflow-y-auto border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
             isDarkMode
               ? 'bg-[#181716] border-stone-700 text-stone-200'
               : 'bg-white border-stone-300 text-stone-800'

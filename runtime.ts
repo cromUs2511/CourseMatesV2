@@ -110,7 +110,7 @@ function requireRoom(session: Identity, id: unknown) {
   return room;
 }
 function send(session: Identity, room: Room, data: any) {
-  if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 4000) throw new Error('Messages must contain 1?4000 characters.');
+  if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 4000) throw new Error('Messages must contain 1–4000 characters.');
   const id = typeof data.clientMessageId === 'string' && data.clientMessageId.length <= 100 ? data.clientMessageId : crypto.randomUUID();
   const duplicate = room.messages.find(m => m.id === id && m.senderId === session.id);
   if (duplicate) return duplicate;
@@ -217,7 +217,7 @@ export function attachRuntime(app: Express, server: Server) {
           const room = rooms.get(matches.get(session.id) || '');
           if (room) room.peers.find(p => p.id === session!.id)!.ws = ws;
           const result = join(session, data, ws);
-          notify(ws, { type: result.status, ...result });
+          if (room || result.status === 'queued') notify(ws, { type: result.status, ...result });
           return;
         }
         if (!session || !validSession(session.token)) { ws.close(1008, 'Invalid session'); return; }

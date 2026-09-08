@@ -4,7 +4,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { attachRuntime, authenticate, cookie, issueSession, isSchoolEmail, sessions } from './runtime';
+import { attachRuntime, authenticate, cookie, issueSession, isSchoolEmail } from './runtime';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
 
 dotenv.config({ path: ['.env.local', '.env'] });
@@ -41,7 +41,7 @@ app.get('/api/auth/config', (_req, res) => res.json({ microsoftEnabled, allowDem
 app.post(['/api/auth/school-email', '/api/auth/verify-school', '/api/auth/microsoft/verify-test'], (req, res) => {
   if (!allowDemo) return res.status(403).json({ error: 'Demo access is disabled. Sign in with Microsoft.' });
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!isSchoolEmail(email)) return res.status(400).json({ error: 'Enter a valid Map?a school email address.' });
+  if (!isSchoolEmail(email)) return res.status(400).json({ error: 'Enter a valid Mapúa school email address.' });
   const session = issueSession(email, req.body);
   sessionCookie(req, res, session.token);
   res.json({ success: true, session });
@@ -83,7 +83,7 @@ app.get(['/auth/callback', '/api/auth/callback'], async (req, res) => {
     });
     const user = await userResponse.json();
     const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
-    if (!userResponse.ok || !isSchoolEmail(email)) return fail('Sign in with a Map?a school account that provides an email address.');
+    if (!userResponse.ok || !isSchoolEmail(email)) return fail('Sign in with a Mapúa school account that provides an email address.');
     const session = issueSession(email, pending.profile, true);
     sessionCookie(req, res, session.token);
     res.redirect('/');
@@ -128,6 +128,21 @@ const DEFAULT_ICEBREAKERS: Record<string, string[]> = {
     "Take a deep breath! What is one small win you had this past week?"
   ]
 };
+
+
+app.use('/api/ai', (req, res, next) => {
+  for (const key of ['topic', 'discipline', 'campus', 'query', 'action']) {
+    if (req.body[key] !== undefined && (typeof req.body[key] !== 'string' || req.body[key].length > 2000)) {
+      return res.status(400).json({ error: 'Invalid ' + key + '.' });
+    }
+  }
+  for (const key of ['recentMessages', 'chatHistory']) {
+    if (req.body[key] !== undefined && (!Array.isArray(req.body[key]) || req.body[key].some((m: unknown) => !m || typeof m !== 'object'))) {
+      return res.status(400).json({ error: 'Invalid conversation context.' });
+    }
+  }
+  next();
+});
 
 app.post('/api/ai/icebreakers', async (req, res) => {
   const { topic, discipline, campus } = req.body;
@@ -191,7 +206,7 @@ Return ONLY a JSON object formatted strictly as:
   }
 });
 
-// Dynamic AI Topic Suggestions with Auto-Shuffle (Powered by Gemini 3.8 Flash)
+// Topic-aware conversation starters, with local fallback.
 app.post('/api/ai/suggestions', async (req, res) => {
   const { topic, discipline, campus, recentMessages } = req.body;
   const currentTopic = topic || 'General Peer Discovery';
@@ -344,19 +359,10 @@ app.post('/api/ai/assist', async (req, res) => {
   const { action, chatHistory, query, topic } = req.body;
 
   if (!ai) {
-    if (action === 'summarize') {
-      return res.json({
-        result: '📌 **Key Takeaways from your Peer Chat**:\n- Discussed course challenges and shared study pacing techniques.\n- Exchanged advice on upcoming exams.\n- Remember: All session logs will be wiped upon leaving.',
-      });
-    } else if (action === 'explain') {
-      return res.json({
-        result: `💡 **Quick Concept Overview for "${query || 'your topic'}"**:\nHere is a simple intuitive explanation to discuss with your study partner: Break down the core mechanism into inputs, transformations, and outputs!`,
-      });
-    } else {
-      return res.json({
-        result: '💭 **Suggested Follow-up**: "What is your favorite part about your major so far?" or "How are you preparing for this week\'s milestones?"',
-      });
+    if (action === 'summarize' || action === 'explain') {
+      return res.status(503).json({ error: 'AI explanations and summaries are unavailable. Configure GEMINI_API_KEY to enable them.' });
     }
+    return res.json({ result: 'What are you working on, and which step would you like to discuss together?', source: 'local' });
   }
 
   try {
@@ -382,9 +388,9 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
 
     res.json({ result: response.text });
   } catch (error) {
-    console.error('Error with AI assistant:', error);
-    res.json({
-      result: 'Here is a helpful question to keep the chat going: "What was the most interesting concept you tackled in class this term?"',
+    console.error('AI assistant request failed.');
+    res.status(503).json({
+      error: 'The AI assistant is temporarily unavailable. Please try again.',
     });
   }
 });

@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
       }`}
     >
       <div className="w-full px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
+        <div className="flex items-center justify-between min-h-14 sm:min-h-16 py-2 gap-2 flex-wrap">
           {/* Left: Brand Identity - Strictly Clean Typography, No Logo */}
           <div className="flex items-center space-x-2 shrink-0">
             <div>
@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Center / Right: Top Music Bar replacing the Online Status */}
-          <div className="flex-1 flex justify-center sm:justify-end items-center max-w-md min-w-0">
+          <div className="order-last w-full sm:order-none sm:flex-1 flex justify-center sm:justify-end items-center sm:max-w-md min-w-0">
             <TopMusicBar isDarkMode={isDarkMode} />
           </div>
 
@@ -79,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <span
-                    className="max-w-[90px] sm:max-w-[140px] truncate font-semibold"
+                    className="hidden sm:inline max-w-[90px] sm:max-w-[140px] truncate font-semibold"
                     title={session.sessionHandle}
                   >
                     {session.sessionHandle}

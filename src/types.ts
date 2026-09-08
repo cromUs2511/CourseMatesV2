@@ -12,6 +12,7 @@ export type AcademicDiscipline =
   | 'Health & Life Sciences';
 
 export interface StudentSession {
+  id: string;
   email: string;
   isVerified: boolean;
   isSchoolVerified?: boolean;
@@ -23,7 +24,7 @@ export interface StudentSession {
   sessionAvatar: string; // emoji or avatar icon ID
   token: string;
   createdAt: number;
-  authProvider?: 'microsoft_entra_id' | 'institutional_sso';
+  authProvider?: 'microsoft_entra_id' | 'institutional_sso' | 'demo';
 }
 
 export interface MatchTopic {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
+import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 
 interface ChatRoomProps {
@@ -30,389 +31,180 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Dynamic AI Suggestions state
+  const [error, setError] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTimestampRef = useRef<number>(0);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Fetch contextual AI suggestions based on topic and recent chat
-  const fetchAiSuggestions = useCallback(async (recentContextMsgs?: ChatMessage[]) => {
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lastTypingAt = useRef(0);
+  const retryMessageRef = useRef<{ text: string; id: string } | null>(null);
+  const endedRef = useRef(false);
+  const sendingRef = useRef(false);
+  const suggestionRequestRef = useRef<AbortController | null>(null);
+  const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggest = useCallback(async () => {
+    suggestionRequestRef.current?.abort();
+    const controller = new AbortController();
+    suggestionRequestRef.current = controller;
     setIsSuggestionsLoading(true);
     try {
-      const msgsToSend = recentContextMsgs || messages.slice(-5);
-      const res = await fetch('/api/ai/suggestions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic,
-          discipline: peer.discipline || session.discipline,
-          campus: peer.campus || session.campus,
-          recentMessages: msgsToSend.map((m) => ({
-            senderHandle: m.senderHandle,
-            text: m.text,
-          })),
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
-          setAiSuggestions(data.suggestions);
-          return;
-        }
-      }
-      // Fallback topic suggestions
-      setAiSuggestions([
-        `How are you approaching your coursework in ${topic}?`,
-        'Are you solving problem sets or reviewing for upcoming quizzes?',
-        "What's the trickiest module or problem you've encountered so far?",
-        'What study routine or notes workflow works best for you?',
-      ]);
+      // Conversation text stays in the room; topic suggestions need only the topic.
+      const data = await apiRequest('/api/ai/suggestions', session.token, { topic, discipline: peer.discipline, campus: peer.campus }, controller.signal);
+      if (!controller.signal.aborted) setAiSuggestions(data.suggestions.filter((s: unknown) => typeof s === 'string').slice(0, 4));
     } catch {
-      setAiSuggestions([
-        `How are you approaching your coursework in ${topic}?`,
-        'Are you solving problem sets or reviewing for upcoming quizzes?',
-        "What's the trickiest module or problem you've encountered so far?",
-        'What study routine or notes workflow works best for you?',
+      if (!controller.signal.aborted) setAiSuggestions([
+        'What are you working on today?', 'Which part of this topic feels trickiest?',
+        'Would you like to compare study approaches?', 'What is your next study goal?',
       ]);
-    } finally {
-      setIsSuggestionsLoading(false);
-    }
-  }, [topic, peer.discipline, peer.campus, session.discipline, session.campus, messages]);
+    } finally { if (!controller.signal.aborted) setIsSuggestionsLoading(false); }
+  }, [topic, session.token, peer.discipline, peer.campus]);
+  const fetchAiSuggestions = suggest;
 
-  // Initial fetch of AI suggestions on match mount
-  useEffect(() => {
-    fetchAiSuggestions([]);
-  }, [topic]);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    playChime('click');
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch(() => {
-        setIsFullscreen((prev) => !prev);
-      });
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
-          setIsFullscreen(false);
-        }).catch(() => {
-          setIsFullscreen(false);
-        });
-      }
-    }
-  };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isPeerTyping]);
-
-  useEffect(() => {
-    const interestStr = peer.interests && peer.interests.length > 0 ? peer.interests.join(', ') : 'General Discussion';
-    setMessages([
-      {
-        id: 'sys-1',
-        senderHandle: 'System',
-        senderAvatar: '',
-        isMe: false,
-        text: `Connected with ${peer.handle} (${peer.campus || 'Mapúa'} Campus) • Topic: ${interestStr}. Messages exist only in RAM.`,
-        timestamp: Date.now(),
-        type: 'system',
-      },
-    ]);
-
-    if (!peer.isSimulated && roomId) {
-      if (ws) {
-        const handleWsMessage = (event: MessageEvent) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'message') {
-              if (data.senderHandle !== session.sessionHandle) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: data.id || `msg_${Date.now()}`,
-                    senderHandle: data.senderHandle,
-                    senderAvatar: '',
-                    isMe: false,
-                    text: data.text,
-                    timestamp: data.timestamp || Date.now(),
-                  },
-                ]);
-                playChime('message');
-              }
-            } else if (data.type === 'typing') {
-              if (data.handle !== session.sessionHandle) {
-                setIsPeerTyping(data.isTyping);
-              }
-            } else if (data.type === 'peer_left') {
-              setPeerDisconnected(true);
-              playChime('purge');
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `sys_left_${Date.now()}`,
-                  senderHandle: 'System',
-                  senderAvatar: '',
-                  isMe: false,
-                  text: `${peer.handle} disconnected. Memory buffer cleared.`,
-                  timestamp: Date.now(),
-                  type: 'system',
-                },
-              ]);
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        };
-
-        ws.addEventListener('message', handleWsMessage);
-        return () => ws.removeEventListener('message', handleWsMessage);
-      } else {
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const res = await fetch(`/api/chat/messages?roomId=${roomId}&after=${lastTimestampRef.current}`);
-            const data = await res.json();
-            if (data.messages && data.messages.length > 0) {
-              const incoming = data.messages.filter((m: any) => m.senderHandle !== session.sessionHandle);
-              if (incoming.length > 0) {
-                setMessages((prev) => [
-                  ...prev,
-                  ...incoming.map((m: any) => ({
-                    id: m.id,
-                    senderHandle: m.senderHandle,
-                    senderAvatar: '',
-                    isMe: false,
-                    text: m.text,
-                    timestamp: m.timestamp,
-                  })),
-                ]);
-                lastTimestampRef.current = data.messages[data.messages.length - 1].timestamp;
-                playChime('message');
-              }
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }, 1500);
-
-        return () => {
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-        };
-      }
-    } else if (peer.isSimulated) {
-      const timer = setTimeout(() => {
-        setIsPeerTyping(true);
-        setTimeout(() => {
-          setIsPeerTyping(false);
-          const persona = SIMULATED_PEERS.find((p) => p.handle === peer.handle) || SIMULATED_PEERS[0];
-          const greeting =
-            persona.responseSnippets.greetings[
-              Math.floor(Math.random() * persona.responseSnippets.greetings.length)
-            ];
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: 'sim_init',
-              senderHandle: peer.handle,
-              senderAvatar: '',
-              isMe: false,
-              text: greeting,
-              timestamp: Date.now(),
-            },
-          ]);
-          playChime('message');
-        }, 1200);
-      }, 600);
-
-      return () => clearTimeout(timer);
-    }
-  }, [peer, roomId, ws, session.sessionHandle]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-
-    if (roomId && !peer.isSimulated) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'typing',
-            roomId,
-            handle: session.sessionHandle,
-            isTyping: true,
-          })
-        );
-      }
-      fetch('/api/chat/typing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, handle: session.sessionHandle, isTyping: true }),
-      }).catch(() => {});
-
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: 'typing',
-              roomId,
-              handle: session.sessionHandle,
-              isTyping: false,
-            })
-          );
-        }
-        fetch('/api/chat/typing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId, handle: session.sessionHandle, isTyping: false }),
-        }).catch(() => {});
-      }, 1500);
-    }
-  };
-
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend || inputText).trim();
-    if (!text) return;
-
+  const receiveMessages = useCallback((incoming: any[]) => {
+    if (endedRef.current) return;
+    setMessages(previous => {
+      const ids = new Set(previous.map(m => m.id));
+      const fresh = incoming.filter(m => !ids.has(m.id)).map(m => ({
+        ...m, isMe: m.senderId === session.id,
+      }));
+      return [...previous, ...fresh].slice(-501);
+    });
+  }, [session.id]);
+  const markDisconnected = useCallback(() => {
+    endedRef.current = true;
+    setPeerDisconnected(true);
+    setIsPeerTyping(false);
+    setMessages([]);
     setInputText('');
-
-    let updatedMessages: ChatMessage[] = [];
-
-    if (roomId && !peer.isSimulated) {
-      const clientMsgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const optimisticMsg: ChatMessage = {
-        id: clientMsgId,
-        senderHandle: session.sessionHandle,
-        senderAvatar: '',
-        isMe: true,
-        text,
-        timestamp: Date.now(),
-      };
-      updatedMessages = [...messages, optimisticMsg];
-      setMessages(updatedMessages);
-      playChime('click');
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'send_message',
-            roomId,
-            text,
-            senderHandle: session.sessionHandle,
-            senderAvatar: '',
-          })
-        );
-      }
-
+    setError('');
+  }, []);
+  useEffect(() => {
+    void suggest();
+    return () => suggestionRequestRef.current?.abort();
+  }, [suggest]);
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else setIsFullscreen(value => !value);
+    } catch { setIsFullscreen(value => !value); }
+  };
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isPeerTyping]);
+  useEffect(() => {
+    endedRef.current = false;
+    setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
+      text: peer.isSimulated ? 'Demo conversation with a simulated study partner.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
+      timestamp: Date.now(), type: 'system' }]);
+    if (peer.isSimulated) {
+      simulationTimers.current.push(setTimeout(() => {
+        setMessages(previous => [...previous, {
+          id: 'sim_init', senderHandle: peer.handle, senderAvatar: '', isMe: false,
+          text: 'Hi! What would you like to study together today?', timestamp: Date.now(),
+        }]);
+      }, 800));
+      return () => { simulationTimers.current.forEach(clearTimeout); simulationTimers.current = []; };
+    }
+    if (!roomId) return;
+    let disposed = false;
+    let polling = false;
+    let failures = 0;
+    const poll = async () => {
+      if (polling || disposed || endedRef.current) return;
+      polling = true;
       try {
-        await fetch('/api/chat/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roomId,
-            text,
-            senderHandle: session.sessionHandle,
-            senderAvatar: '',
-          }),
+        const data = await apiRequest('/api/chat/messages?roomId=' + encodeURIComponent(roomId), session.token);
+        if (disposed || endedRef.current) return;
+        failures = 0;
+        if (!data.active || data.peerDisconnected) { markDisconnected(); return; }
+        receiveMessages(data.messages);
+        setIsPeerTyping(data.isPeerTyping);
+        setError(current => current.startsWith('Connection interrupted') ? '' : current);
+      } catch {
+        if (!disposed && ++failures >= 2) setError('Connection interrupted. Retrying automatically…');
+      } finally { polling = false; }
+    };
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.roomId !== roomId) return;
+        if (data.type === 'new_message') receiveMessages([data.message]);
+        else if (data.type === 'peer_typing') {
+          setIsPeerTyping(data.isTyping);
+          if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
+          peerTypingTimer.current = setTimeout(() => setIsPeerTyping(false), 3000);
+        } else if (data.type === 'peer_disconnected') markDisconnected();
+      } catch { /* REST polling repairs missed events. */ }
+    };
+    ws?.addEventListener('message', onMessage);
+    const interval = setInterval(poll, 1500);
+    void poll();
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+      ws?.removeEventListener('message', onMessage);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
+    };
+  }, [peer, roomId, session.token, ws, receiveMessages, markDisconnected]);
+
+  const sendTyping = (isTyping: boolean) => {
+    if (roomId && !peer.isSimulated && !peerDisconnected) {
+      void apiRequest('/api/chat/typing', session.token, { roomId, isTyping }).catch(() => {});
+    }
+  };
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(event.target.value);
+    if (Date.now() - lastTypingAt.current > 1000) { sendTyping(true); lastTypingAt.current = Date.now(); }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => { sendTyping(false); typingTimeoutRef.current = null; }, 1200);
+  };
+  const handleSendMessage = async (textToSend?: string) => {
+    const text = (textToSend ?? inputText).trim();
+    if (!text || text.length > 4000 || peerDisconnected || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    setError('');
+    try {
+      if (peer.isSimulated) {
+        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text, timestamp: Date.now() }]);
+        setIsPeerTyping(true);
+        simulationTimers.current.push(setTimeout(() => {
+          setIsPeerTyping(false);
+          const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
+          const snippets = persona.responseSnippets.academics;
+          receiveMessages([{ id: crypto.randomUUID(), senderId: peer.sessionId, senderHandle: peer.handle, senderAvatar: '', text: snippets[Math.floor(Math.random() * snippets.length)], timestamp: Date.now() }]);
+        }, 1500));
+      } else {
+        if (retryMessageRef.current?.text !== text) retryMessageRef.current = { text, id: crypto.randomUUID() };
+        const data = await apiRequest('/api/chat/send', session.token, {
+          roomId, text, clientMessageId: retryMessageRef.current.id,
         });
-      } catch (err) {
-        console.error('Failed to send REST message:', err);
+        receiveMessages([data.message]);
+        retryMessageRef.current = null;
       }
-    } else {
-      const userMsg: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        senderHandle: session.sessionHandle,
-        senderAvatar: '',
-        isMe: true,
-        text,
-        timestamp: Date.now(),
-      };
-      updatedMessages = [...messages, userMsg];
-      setMessages(updatedMessages);
-      playChime('click');
-
-      if (peer.isSimulated && !peerDisconnected) {
-        setTimeout(() => {
-          setIsPeerTyping(true);
-          setTimeout(() => {
-            setIsPeerTyping(false);
-            const persona = SIMULATED_PEERS.find((p) => p.handle === peer.handle) || SIMULATED_PEERS[0];
-            const snippets = [
-              ...persona.responseSnippets.general,
-              ...persona.responseSnippets.academics,
-              ...persona.responseSnippets.greetings,
-            ];
-            const randomReply = snippets[Math.floor(Math.random() * snippets.length)];
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `reply_${Date.now()}`,
-                senderHandle: peer.handle,
-                senderAvatar: '',
-                isMe: false,
-                text: randomReply,
-                timestamp: Date.now(),
-              },
-            ]);
-            playChime('message');
-          }, 1500);
-        }, 800);
-      }
-    }
-
-    // Automatically shuffle and fetch new AI suggestions after a message is sent!
-    fetchAiSuggestions(updatedMessages);
+      setInputText(current => current.trim() === text ? '' : current);
+      sendTyping(false);
+      playChime('message');
+    } catch (err) { setError((err as Error).message); }
+    finally { sendingRef.current = false; setIsSending(false); }
   };
-
-  const handleSuggestionClick = (suggestionText: string) => {
-    handleSendMessage(suggestionText);
+  const handleSuggestionClick = (text: string) => { setInputText(text); };
+  const leave = async (next: boolean) => {
+    if (roomId && !peer.isSimulated) {
+      try { await apiRequest('/api/chat/leave', session.token, { roomId }); } catch { /* Server lease expires when offline. */ }
+    }
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    if (next) onNextMatch(); else onLeaveChat();
   };
-
-  const handleLeave = async () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (roomId) {
-      fetch('/api/chat/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, sessionId: session.token }),
-      }).catch(() => {});
-    }
-    onLeaveChat();
-  };
-
-  const handleNext = async () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (roomId) {
-      fetch('/api/chat/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, sessionId: session.token }),
-      }).catch(() => {});
-    }
-    onNextMatch();
-  };
+  const handleLeave = () => { void leave(false); };
+  const handleNext = () => { void leave(true); };
 
   return (
     <div
@@ -426,7 +218,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Pinned Header - Clean, solid, no user emojis/icons */}
         <div
           id="chat-header"
-          className={`border-b px-4 sm:px-6 py-3 flex items-center justify-between z-10 shrink-0 ${
+          className={`border-b px-3 sm:px-6 py-3 flex flex-wrap gap-3 items-center justify-between z-10 shrink-0 ${
             isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
           }`}
         >
@@ -439,7 +231,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 </span>
                 {!peerDisconnected ? (
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                    ONLINE
+                    {peer.isSimulated ? 'DEMO' : 'CONNECTED'}
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800">
@@ -541,7 +333,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         : 'bg-white border-stone-300 text-stone-900'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                    <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
                   </div>
                 </div>
               );
@@ -555,7 +347,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.2s]" />
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.4s]" />
                 </div>
-                <span>{peer.handle} is formulating a response...</span>
+                <span>{peer.handle} is typing…</span>
               </div>
             )}
 
@@ -593,7 +385,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
               <div className="flex items-center space-x-1.5 shrink-0 text-stone-500 dark:text-stone-400">
                 <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#F87171]">
-                  AI Suggestions ({topic})
+                  Conversation starters
                 </span>
               </div>
 
@@ -616,7 +408,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(prompt)}
-                  title="Click to send and shuffle new ideas"
+                  title="Use this conversation starter"
                   className={`text-[11px] font-mono px-2.5 py-1 whitespace-nowrap border transition-colors shrink-0 cursor-pointer ${
                     isDarkMode
                       ? 'bg-stone-900 border-stone-800 text-stone-300 hover:border-[#991B1B] hover:text-white'
@@ -638,6 +430,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           }`}
         >
           <div className="max-w-3xl mx-auto">
+            {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -650,6 +443,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 type="text"
                 autoFocus
                 disabled={peerDisconnected}
+                maxLength={4000}
+                aria-label="Chat message"
                 value={inputText}
                 onChange={handleInputChange}
                 placeholder={
@@ -657,7 +452,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     ? "Session ended. Click 'Next Peer' above."
                     : `Message ${peer.handle}... (Press Enter to send)`
                 }
-                className={`flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none focus:border-[#991B1B] disabled:opacity-50 transition-colors ${
+                className={`min-w-0 flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none focus:border-[#991B1B] disabled:opacity-50 transition-colors ${
                   isDarkMode
                     ? 'bg-stone-900 border-stone-700 text-white placeholder:text-stone-500'
                     : 'bg-stone-50 border-stone-300 text-stone-900 placeholder:text-stone-400'
@@ -666,10 +461,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               <button
                 id="send-message-btn"
                 type="submit"
-                disabled={peerDisconnected || !inputText.trim()}
+                disabled={peerDisconnected || isSending || !inputText.trim()}
                 className="py-2.5 px-5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
               >
-                <span>Send</span>
+                <span>{isSending ? 'Sending…' : 'Send'}</span>
                 <Send className="w-3.5 h-3.5" />
               </button>
             </form>
