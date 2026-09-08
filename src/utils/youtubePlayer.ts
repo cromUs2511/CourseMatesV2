@@ -5,6 +5,7 @@ export interface YouTubePlayer {
   cueVideoById(videoId: string): void;
   mute(): void;
   unMute(): void;
+  setVolume(volume: number): void;
   destroy(): void;
 }
 

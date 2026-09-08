@@ -174,7 +174,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ session }) => 
               </div>
             </div>
 
-            <div className="pt-3 border-t-2 border-black dark:border-stone-600 flex items-center justify-between">
+            <div className="pt-3 border-t-2 border-black dark:border-stone-600 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[10px] text-stone-500 uppercase flex items-center space-x-1">
                 <Lock className="w-3 h-3 text-[#990000]" />
                 <span>EPHEMERAL RAM PROTOCOL</span>
@@ -227,8 +227,8 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ session }) => 
             </div>
 
             {/* Message Input Form */}
-            <div className="p-3 border-t-2 border-black dark:border-stone-600 bg-white dark:bg-[#181B20]">
-              <form onSubmit={handleSendGroupMessage} className="flex space-x-2">
+            <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t-2 border-black dark:border-stone-600 bg-white dark:bg-[#181B20]">
+              <form onSubmit={handleSendGroupMessage} className="flex flex-col gap-2 sm:flex-row sm:space-x-2">
                 <input
                   type="text"
                   value={groupInput}
@@ -251,7 +251,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ session }) => 
       {/* Create Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-3 font-mono">
-          <div className="max-w-md w-full border-2 border-black dark:border-stone-500 bg-white dark:bg-[#181B20] p-5 shadow-[6px_6px_0px_#000] space-y-4">
+          <div className="max-w-md w-full max-h-[calc(100dvh-1.5rem)] overflow-y-auto border-2 border-black dark:border-stone-500 bg-white dark:bg-[#181B20] p-5 shadow-[6px_6px_0px_#000] space-y-4">
             <div className="flex items-center justify-between border-b-2 border-black dark:border-stone-600 pb-3">
               <h3 className="text-xs sm:text-sm font-black uppercase text-black dark:text-white">
                 INITIALIZE STUDY HUDDLE

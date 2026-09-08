@@ -21,6 +21,7 @@ export interface StudentSession {
   discipline?: AcademicDiscipline;
   interests: string[];
   sessionHandle: string; // e.g. "Astute Cardinal #8192"
+  customHandle?: boolean;
   sessionAvatar: string; // emoji or avatar icon ID
   token: string;
   createdAt: number;
@@ -46,6 +47,7 @@ export interface ChatMessage {
   type?: 'text' | 'icebreaker' | 'code' | 'system' | 'ai_summary' | 'study_timer';
   codeLanguage?: string;
   reactions?: Record<string, number>;
+  replyTo?: { id: string; senderHandle: string; text: string };
 }
 
 export interface ActivePeerInfo {

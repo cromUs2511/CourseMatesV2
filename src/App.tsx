@@ -49,6 +49,7 @@ export default function App() {
       setError('');
     } catch (err) { setError((err as Error).message); }
   };
+  const handleSessionUpdate = (updatedSession: StudentSession) => setSession(updatedSession);
   const handleLogout = async () => {
     if (session) {
       try { await apiRequest('/api/auth/logout', session.token, {}); }
@@ -63,7 +64,7 @@ export default function App() {
     setActivePeer(peer); setActiveTopic(topic); setActiveWs(ws || null); setActiveRoomId(roomId);
   };
   return (
-    <div className={'fixed inset-0 h-[100dvh] w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
+    <div className={'fixed inset-0 min-h-[100dvh] w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
       {session && <Header session={session} onRerollHandle={handleRerollHandle} onLogout={handleLogout}
         isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)} />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
@@ -74,7 +75,7 @@ export default function App() {
             onNextMatch={() => { resetChat(); setAutoSearch(true); setQueueKey(k => k + 1); }}
             onLeaveChat={() => { resetChat(); setAutoSearch(false); }}
             isDarkMode={isDarkMode} /> :
-          <MatchmakingQueue key={queueKey} session={session} onMatched={handleMatched} onRerollHandle={handleRerollHandle} isDarkMode={isDarkMode} autoSearch={autoSearch} />}
+          <MatchmakingQueue key={queueKey} session={session} onMatched={handleMatched} onRerollHandle={handleRerollHandle} onSessionUpdate={handleSessionUpdate} isDarkMode={isDarkMode} autoSearch={autoSearch} />}
       </main>
     </div>
   );

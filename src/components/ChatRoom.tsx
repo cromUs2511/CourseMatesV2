@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
+import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -35,6 +35,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [swipedMessageId, setSwipedMessageId] = useState<string | null>(null);
+  const touchStartX = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -62,13 +65,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   }, [topic, session.token, peer.discipline, peer.campus]);
   const fetchAiSuggestions = suggest;
 
-  const receiveMessages = useCallback((incoming: any[]) => {
+  const receiveMessages = useCallback((incoming: any[], replace = false) => {
     if (endedRef.current) return;
     setMessages(previous => {
       const ids = new Set(previous.map(m => m.id));
       const fresh = incoming.filter(m => !ids.has(m.id)).map(m => ({
         ...m, isMe: m.senderId === session.id,
       }));
+      if (replace) {
+        const system = previous.filter(m => m.type === 'system');
+        return [...system, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
+      }
       return [...previous, ...fresh].slice(-501);
     });
   }, [session.id]);
@@ -123,7 +130,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         if (disposed || endedRef.current) return;
         failures = 0;
         if (!data.active || data.peerDisconnected) { markDisconnected(); return; }
-        receiveMessages(data.messages);
+        receiveMessages(data.messages, true);
         setIsPeerTyping(data.isPeerTyping);
         setError(current => current.startsWith('Connection interrupted') ? '' : current);
       } catch {
@@ -139,7 +146,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           setIsPeerTyping(data.isTyping);
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
           peerTypingTimer.current = setTimeout(() => setIsPeerTyping(false), 3000);
-        } else if (data.type === 'peer_disconnected') markDisconnected();
+        } else if (data.type === 'message_deleted') setMessages(previous => previous.filter(message => message.id !== data.messageId));
+        else if (data.type === 'peer_disconnected') markDisconnected();
       } catch { /* REST polling repairs missed events. */ }
     };
     ws?.addEventListener('message', onMessage);
@@ -173,7 +181,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setError('');
     try {
       if (peer.isSimulated) {
-        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text, timestamp: Date.now() }]);
+        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text, timestamp: Date.now(), replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined }]);
         setIsPeerTyping(true);
         simulationTimers.current.push(setTimeout(() => {
           setIsPeerTyping(false);
@@ -185,15 +193,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         if (retryMessageRef.current?.text !== text) retryMessageRef.current = { text, id: crypto.randomUUID() };
         const data = await apiRequest('/api/chat/send', session.token, {
           roomId, text, clientMessageId: retryMessageRef.current.id,
+          replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined,
         });
         receiveMessages([data.message]);
         retryMessageRef.current = null;
       }
       setInputText(current => current.trim() === text ? '' : current);
+      setReplyingTo(null);
       sendTyping(false);
       playChime('message');
     } catch (err) { setError((err as Error).message); }
     finally { sendingRef.current = false; setIsSending(false); }
+  };
+  const handleDeleteMessage = async (message: ChatMessage) => {
+    if (!message.isMe || peerDisconnected) return;
+    try {
+      if (peer.isSimulated) setMessages(previous => previous.filter(item => item.id !== message.id));
+      else await apiRequest('/api/chat/delete', session.token, { roomId, messageId: message.id });
+      setError('');
+    } catch (err) { setError((err as Error).message); }
   };
   const handleSuggestionClick = (text: string) => { setInputText(text); };
   const leave = async (next: boolean) => {
@@ -238,14 +256,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     LEFT
                   </span>
                 )}
-                <span className="text-[10px] font-mono text-stone-400 border border-stone-300 dark:border-stone-700 px-1.5 py-0.5 hidden sm:inline">
-                  {peer.campus || 'Intramuros'}
-                </span>
               </div>
 
-              <div className="flex items-center space-x-1.5 text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
-                <span>{peer.discipline || 'Mapúa Engineering'}</span>
-                <span>•</span>
+              <div className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
                 <span className="truncate text-[#991B1B] dark:text-[#F87171] font-semibold">{topic}</span>
               </div>
             </div>
@@ -285,7 +298,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
-          className="flex-1 min-h-0 w-full p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-3 select-text"
+          className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-3 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-3">
             {messages.map((msg) => {
@@ -308,7 +321,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                  className={`group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                  onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
+                  onTouchEnd={(event) => {
+                    if (touchStartX.current === null) return;
+                    const delta = event.changedTouches[0]?.clientX - touchStartX.current;
+                    if (delta > 48 && !msg.isMe) {
+                      setReplyingTo(msg);
+                      setSwipedMessageId(null);
+                    } else if (delta < -48 && msg.isMe) {
+                      setReplyingTo(msg);
+                      setSwipedMessageId(null);
+                    } else {
+                      setSwipedMessageId(null);
+                    }
+                    touchStartX.current = null;
+                  }}
                 >
                   <div className="flex items-baseline space-x-1.5 text-[11px] font-mono text-stone-400 mb-1 px-1">
                     <span className="font-semibold text-stone-600 dark:text-stone-300">
@@ -333,7 +361,21 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         : 'bg-white border-stone-300 text-stone-900'
                     }`}
                   >
+                    {msg.replyTo && (
+                      <div className="mb-2 border-l-2 border-current/50 pl-2 text-[11px] opacity-75">
+                        <div className="font-semibold">{msg.replyTo.senderHandle}</div>
+                        <div className="truncate">{msg.replyTo.text}</div>
+                      </div>
+                    )}
                     <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
+                  </div>
+                  <div className={`mt-1 flex items-center gap-2 px-1 ${swipedMessageId === msg.id ? 'flex' : 'hidden'} sm:flex`}>
+                    <button type="button" onClick={() => setReplyingTo(msg)} className="text-[10px] font-mono text-stone-400 hover:text-[#991B1B]">
+                      <Reply className="inline h-3 w-3" /> Reply
+                    </button>
+                    {msg.isMe && <button type="button" onClick={() => void handleDeleteMessage(msg)} className="text-[10px] font-mono text-stone-400 hover:text-red-600">
+                      <Trash2 className="inline h-3 w-3" /> Delete
+                    </button>}
                   </div>
                 </div>
               );
@@ -425,11 +467,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Bottom Input Console */}
         <div
           id="chat-input-console"
-          className={`border-t p-3 sm:p-4 shrink-0 ${
+          className={`border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4 shrink-0 ${
             isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
           }`}
         >
           <div className="max-w-3xl mx-auto">
+            {replyingTo && (
+              <div className="mb-2 flex items-center justify-between border-l-2 border-[#991B1B] bg-stone-100 px-3 py-2 text-xs dark:bg-stone-900">
+                <span className="truncate">Replying to {replyingTo.senderHandle}: {replyingTo.text}</span>
+                <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="ml-2 text-stone-500">×</button>
+              </div>
+            )}
             {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
             <form
               onSubmit={(e) => {

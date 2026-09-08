@@ -69,15 +69,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#161B22] text-[#E6EDF3] border-l-2 border-black dark:border-stone-500 shadow-[0_0_0_1000px_rgba(0,0,0,0.5)] flex flex-col font-mono">
       {/* Title Spec Bar */}
       <div className="p-3.5 border-b-2 border-black dark:border-stone-600 flex items-center justify-between bg-[#12151B]">
-        <div className="flex items-center space-x-2">
+        <div className="flex min-w-0 items-center space-x-2">
           <div className="w-7 h-7 border-2 border-black bg-[#990000] text-white flex items-center justify-center font-bold text-xs shadow-[2px_2px_0px_#000]">
             <Cpu className="w-4 h-4 text-[#FFD700]" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">
               STUDY ASSISTANT
             </h3>
-            <p className="text-[10px] text-stone-400">TELEMETRY ICEBREAKER & REASONING</p>
+            <p className="truncate text-[10px] text-stone-400">TELEMETRY ICEBREAKER & REASONING</p>
           </div>
         </div>
         <button
@@ -210,7 +210,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               {aiOutput}
             </div>
 
-            <div className="flex items-center space-x-2 pt-2 border-t border-stone-800">
+            <div className="flex flex-col items-stretch gap-2 space-x-0 pt-2 border-t border-stone-800 sm:flex-row sm:items-center sm:space-x-2">
               <button
                 onClick={handleSendToChat}
                 className="flex-1 py-2 px-3 border-2 border-black bg-black text-white text-xs font-bold uppercase tracking-wider shadow-[2px_2px_0px_#990000] active:translate-x-[1px] active:translate-y-[1px] cursor-pointer flex items-center justify-center space-x-1"

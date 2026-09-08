@@ -6,7 +6,7 @@ import type { StudentSession } from './src/types';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text' };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text'; replyTo?: { id: string; senderHandle: string; text: string } };
 type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number> };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
@@ -28,7 +28,7 @@ export function issueSession(email: string, profile: any = {}, verified = false)
     campus: ['Intramuros', 'Makati', 'Laguna', 'Digital / Online'].includes(profile.campus) ? profile.campus : 'Intramuros',
     discipline: typeof profile.discipline === 'string' ? profile.discipline.slice(0, 100) : 'Computer Science & IT',
     interests: cleanInterests(profile.interests),
-    sessionHandle: handle, sessionAvatar: avatar, createdAt: Date.now(),
+    sessionHandle: handle, customHandle: false, sessionAvatar: avatar, createdAt: Date.now(),
     expiresAt: Date.now() + 8 * 60 * 60 * 1000,
     authProvider: verified ? 'microsoft_entra_id' : 'demo',
   };
@@ -117,12 +117,23 @@ function send(session: Identity, room: Room, data: any) {
   const message: Message = {
     id, senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: session.sessionAvatar,
     text: data.text.trim(), timestamp: Date.now(), type: 'text',
+    replyTo: typeof data.replyTo?.id === 'string' && typeof data.replyTo?.text === 'string'
+      ? { id: data.replyTo.id, senderHandle: String(data.replyTo.senderHandle || '').slice(0, 100), text: String(data.replyTo.text).slice(0, 300) }
+      : undefined,
   };
   room.messages.push(message);
   if (room.messages.length > 500) room.messages.shift();
   room.typing.delete(session.id);
   for (const peer of room.peers) notify(peer.ws, { type: 'new_message', roomId: room.id, message });
   return message;
+}
+function removeMessage(session: Identity, room: Room, messageId: unknown) {
+  if (typeof messageId !== 'string') throw new Error('Invalid message.');
+  const index = room.messages.findIndex(message => message.id === messageId);
+  if (index < 0) throw new Error('Message not found.');
+  if (room.messages[index].senderId !== session.id) throw new Error('You can only delete your own messages.');
+  room.messages.splice(index, 1);
+  for (const peer of room.peers) notify(peer.ws, { type: 'message_deleted', roomId: room.id, messageId });
 }
 export function attachRuntime(app: Express, server: Server) {
   app.use(['/api/match', '/api/chat', '/api/ai'], (req, res, next) => {
@@ -134,7 +145,18 @@ export function attachRuntime(app: Express, server: Server) {
     const session = authenticate(req);
     if (!session) return res.status(401).json({ error: 'Please sign in again.' });
     if (queue.has(session.id) || matches.has(session.id)) return res.status(409).json({ error: 'Leave the queue or chat before changing your handle.' });
+    if (session.customHandle) return res.status(409).json({ error: 'Custom names cannot be shuffled. Edit or clear your name first.' });
     session.sessionHandle = generateAnonymousHandle().handle;
+    res.json({ session });
+  });
+  app.post('/api/auth/handle', (req, res) => {
+    const session = authenticate(req);
+    if (!session) return res.status(401).json({ error: 'Please sign in again.' });
+    if (queue.has(session.id) || matches.has(session.id)) return res.status(409).json({ error: 'Leave the queue or chat before changing your name.' });
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (name.length < 2 || name.length > 40) return res.status(400).json({ error: 'Your name must be 2–40 characters.' });
+    session.sessionHandle = name;
+    session.customHandle = true;
     res.json({ session });
   });
   app.post('/api/auth/logout', (req, res) => {
@@ -165,6 +187,13 @@ export function attachRuntime(app: Express, server: Server) {
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     try { res.json({ success: true, message: send(session, room, req.body) }); }
+    catch (error) { res.status(400).json({ error: (error as Error).message }); }
+  });
+  app.post('/api/chat/delete', (req, res) => {
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    try { removeMessage(session, room, req.body.messageId); res.json({ success: true }); }
     catch (error) { res.status(400).json({ error: (error as Error).message }); }
   });
   app.get('/api/chat/messages', (req, res) => {
@@ -232,6 +261,7 @@ export function attachRuntime(app: Express, server: Server) {
         const room = requireRoom(session, data.roomId);
         if (!room) return notify(ws, { type: 'error', error: 'Chat ended or is unavailable.' });
         if (data.type === 'send_message') send(session, room, data);
+        else if (data.type === 'delete_message') removeMessage(session, room, data.messageId);
         else if (data.type === 'leave_room') leave(session.id);
       } catch { notify(ws, { type: 'error', error: 'Invalid request.' }); }
     });

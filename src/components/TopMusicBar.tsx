@@ -13,6 +13,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [volume, setVolume] = useState(70);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [customUrl, setCustomUrl] = useState<string>('');
   const [urlError, setUrlError] = useState('');
@@ -28,8 +29,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const currentTrack = tracks[currentTrackIndex] || tracks[0];
-  const latestRef = useRef({ currentTrack, isMuted });
-  latestRef.current = { currentTrack, isMuted };
+  const latestRef = useRef({ currentTrack, isMuted, volume });
+  latestRef.current = { currentTrack, isMuted, volume };
 
   useEffect(() => {
     // Fetch custom directory from server if available
@@ -95,6 +96,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
             if (disposed) return;
             window.clearTimeout(timeout);
             playerReadyRef.current = true;
+            target.setVolume(latestRef.current.volume);
             if (latestRef.current.isMuted) target.mute();
             else target.unMute();
             if (wantsPlaybackRef.current) {
@@ -187,6 +189,15 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       else playerRef.current.unMute();
     }
   };
+  const changeVolume = (nextVolume: number) => {
+    setVolume(nextVolume);
+    if (nextVolume > 0 && isMuted) setIsMuted(false);
+    if (playerReadyRef.current && playerRef.current) {
+      playerRef.current.setVolume(nextVolume);
+      if (nextVolume === 0) playerRef.current.mute();
+      else playerRef.current.unMute();
+    }
+  };
 
   const playNextTrack = () => {
     const nextIndex = (currentTrackIndex + 1) % tracks.length;
@@ -233,7 +244,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       {/* Keep the same player mounted when paused or muted. Native controls
           also let the user start playback when the browser blocks autoplay. */}
       {playerEnabled && (
-        <section aria-label="Study music player" className={`fixed bottom-4 right-4 w-[min(320px,calc(100vw-2rem))] border shadow-lg z-50 ${
+        <section aria-label="Study music player" className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 right-2 sm:right-4 w-[min(320px,calc(100vw-1rem))] border shadow-lg z-50 ${
           isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
         }`}>
           <div className="px-3 py-2 text-xs font-mono">
@@ -242,11 +253,21 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
             <p role="status" className="mt-1 text-stone-500 dark:text-stone-400">
               {playerError || (isLoading ? 'Loading music…' : isPlaying ? 'Playing' : 'Paused — press Play to listen')}
             </p>
-            <a href={`https://www.youtube.com/watch?v=${currentTrack.youtubeVideoId}`} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 underline">
-              Open on YouTube
-            </a>
+            <label className="mt-2 flex items-center gap-2">
+              <Volume2 className="h-3.5 w-3.5 shrink-0" />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={isMuted ? 0 : volume}
+                onChange={(event) => changeVolume(Number(event.target.value))}
+                aria-label="Music volume"
+                className="w-full accent-[#991B1B]"
+              />
+              <span className="w-8 text-right">{isMuted ? 0 : volume}%</span>
+            </label>
           </div>
-          <div ref={playerHostRef} className="h-[200px] [&_iframe]:w-full [&_iframe]:h-full" />
+          <div ref={playerHostRef} className="absolute h-px w-px overflow-hidden opacity-0 pointer-events-none [&_iframe]:h-px [&_iframe]:w-px" />
         </section>
       )}
 
@@ -302,7 +323,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
           onClick={() => setIsMenuOpen((prev) => !prev)}
           aria-expanded={isMenuOpen}
           aria-controls="music-tracks-dropdown"
-          className="text-left flex items-center space-x-1.5 cursor-pointer max-w-[130px] sm:max-w-[190px] md:max-w-[240px] truncate hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors"
+          className="text-left flex items-center space-x-1.5 cursor-pointer max-w-[96px] sm:max-w-[190px] md:max-w-[240px] truncate hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors"
           title={`${currentTrack.title} — ${currentTrack.artist} (Click to switch stations)`}
         >
           <span className="font-medium truncate text-xs">
@@ -329,7 +350,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       {isMenuOpen && (
         <div
           id="music-tracks-dropdown"
-          className={`absolute top-full right-0 mt-1.5 w-[min(288px,calc(100vw-2rem))] max-h-80 overflow-y-auto border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
+          className={`absolute top-full left-0 sm:left-auto sm:right-0 mt-1.5 w-[min(288px,calc(100vw-1rem))] max-h-80 overflow-y-auto border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
             isDarkMode
               ? 'bg-[#181716] border-stone-700 text-stone-200'
               : 'bg-white border-stone-300 text-stone-800'

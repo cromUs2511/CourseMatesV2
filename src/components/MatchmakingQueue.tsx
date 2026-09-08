@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Bot, ArrowRight, Plus, Check, Shield, Sparkles, Hash } from 'lucide-react';
+import { RefreshCw, Loader2, Bot, ArrowRight, Shield, Sparkles } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -9,39 +9,26 @@ interface MatchmakingQueueProps {
   session: StudentSession;
   onMatched: (peer: ActivePeerInfo, topic: string, ws?: WebSocket, roomId?: string) => void;
   onRerollHandle: () => void;
+  onSessionUpdate: (session: StudentSession) => void;
   isDarkMode: boolean;
   autoSearch?: boolean;
 }
-
-export const AVAILABLE_INTERESTS = [
-  { id: 'coding', label: 'Coding, DSA & Software' },
-  { id: 'math', label: 'Calculus & Engineering Math' },
-  { id: 'eng', label: 'Circuits, Physics & Hardware' },
-  { id: 'thesis', label: 'Thesis & Capstone Ideation' },
-  { id: 'ojt', label: 'OJT & Internship Placement' },
-  { id: 'study', label: 'Deep Focus & Study Sprints' },
-  { id: 'campus', label: 'Campus Life & Quad Hangouts' },
-  { id: 'stress', label: 'Term Stress & Venting Lounge' },
-  { id: 'ai', label: 'AI, LLMs & Machine Learning' },
-  { id: 'arch', label: 'CAD, Drafting & Architecture' },
-  { id: 'exam', label: 'Midterm / Final Exam Cram' },
-  { id: 'cross', label: 'Cross-Discipline Collab' },
-];
 
 export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   session,
   onMatched,
   onRerollHandle,
+  onSessionUpdate,
   isDarkMode,
   autoSearch = false,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
   const [error, setError] = useState('');
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(session.interests.length ? session.interests : ['Coding, DSA & Software']);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(session.customHandle ? session.sessionHandle : '');
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [customInterestInput, setCustomInterestInput] = useState('');
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customList, setCustomList] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
   const searchingRef = useRef(false);
@@ -180,19 +167,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     return () => clearTimeout(timer);
   }, [autoSearch]);
 
-  const toggleInterest = (interestLabel: string) => {
-    if (isSearching) return;
-    setSelectedInterests((prev) => {
-      if (prev.includes(interestLabel)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((i) => i !== interestLabel);
-      } else {
-        return [...prev, interestLabel];
-      }
-    });
-  };
-
-  const handleAddCustomInterest = (e: React.FormEvent) => {
+  const handleAddInterest = (e: React.FormEvent) => {
     e.preventDefault();
     const val = customInterestInput.trim();
     if (!val || isSearching || val.length > 100 || selectedInterests.length >= 16) return;
@@ -200,11 +175,19 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     if (!selectedInterests.includes(val)) {
       setSelectedInterests((prev) => [...prev, val]);
     }
-    if (!customList.includes(val)) {
-      setCustomList((prev) => [...prev, val]);
-    }
     setCustomInterestInput('');
-    setShowCustomInput(false);
+  };
+  const saveName = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!nameInput.trim() || isSearching) return;
+    try {
+      const data = await apiRequest('/api/auth/handle', session.token, { name: nameInput });
+      onSessionUpdate(data.session);
+      setIsEditingName(false);
+      setError('');
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   return (
@@ -220,25 +203,47 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         >
           <div className="flex items-center space-x-3.5 min-w-0">
             <div className="min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-base tracking-tight truncate text-stone-900 dark:text-white font-mono">
-                  {session.sessionHandle}
-                </span>
-                <button
-                  onClick={onRerollHandle}
-                  disabled={isSearching}
-                  title="Randomize Persona Handle"
-                  className="p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {!isEditingName ? (
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-base tracking-tight truncate text-stone-900 dark:text-white font-mono">
+                    {session.sessionHandle}
+                  </span>
+                  {!session.customHandle && <button
+                    onClick={onRerollHandle}
+                    disabled={isSearching}
+                    title="Shuffle default name"
+                    className="p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>}
+                  <button
+                    type="button"
+                    onClick={() => { setNameInput(session.customHandle ? session.sessionHandle : ''); setIsEditingName(true); }}
+                    disabled={isSearching}
+                    className="border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white transition-colors hover:bg-[#7F1D1D] disabled:opacity-50"
+                  >
+                    {session.customHandle ? 'Edit name' : 'Use a custom name'}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={saveName} className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    maxLength={40}
+                    aria-label="Custom name"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Enter a name"
+                    className="w-44 border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
+                  />
+                  <button type="submit" className="border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white hover:bg-[#7F1D1D]">Save</button>
+                  <button type="button" onClick={() => setIsEditingName(false)} className="border border-stone-300 px-2.5 py-1 text-[10px] font-mono text-stone-500 dark:border-stone-700">Cancel</button>
+                </form>
+              )}
 
-              <div className="flex items-center space-x-2 mt-1 text-xs font-mono text-stone-500 dark:text-stone-400">
-                <span className="truncate">{session.discipline || 'Engineering & Architecture'}</span>
-                <span>•</span>
+              <div className="mt-1 text-xs font-mono text-stone-500 dark:text-stone-400">
                 <span className="text-[#991B1B] dark:text-[#F87171] font-semibold">
-                  {session.isVerified ? 'Mapúa verified' : 'Demo access'}
+                  {session.isVerified ? 'Verified account' : 'Demo access'}
                 </span>
               </div>
             </div>
@@ -262,117 +267,40 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
               : 'bg-white border-stone-200/80 text-stone-800 shadow-stone-200/50'
           }`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-3">
-            <div>
-              <h2 className="text-lg font-bold text-stone-900 dark:text-white">
-                Select Your Study Topics
-              </h2>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Choose what you'd like to collaborate on or discuss right now
-              </p>
-            </div>
-            <span className="text-xs px-2.5 py-1 bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 font-semibold text-stone-700 dark:text-stone-300">
-              {selectedInterests.length} selected
-            </span>
+          <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
+           <h2 className="text-lg font-bold text-stone-900 dark:text-white">Add an interest</h2>
+           <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+             Optional: add something you'd like to discuss
+           </p>
           </div>
 
-          {/* Interests Grid */}
           <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {AVAILABLE_INTERESTS.map((interest) => {
-                const isSelected = selectedInterests.includes(interest.label);
-                return (
-                  <button
-                    key={interest.id}
-                    type="button"
-                    disabled={isSearching}
-                    onClick={() => toggleInterest(interest.label)}
-                    className={`p-3 text-xs text-left font-mono font-medium transition-colors border flex items-center justify-between cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#991B1B] text-white border-[#991B1B]'
-                        : isDarkMode
-                        ? 'bg-[#181716] border-stone-800 text-stone-300 hover:border-stone-600'
-                        : 'bg-stone-50 border-stone-300 text-stone-700 hover:border-stone-400'
-                    }`}
-                  >
-                    <span className="truncate">{interest.label}</span>
-                    {isSelected ? (
-                      <Check className="w-4 h-4 text-white shrink-0 ml-2" />
-                    ) : (
-                      <span className="text-stone-400 text-sm ml-2">+</span>
-                    )}
-                  </button>
-                );
-              })}
-
-              {/* Custom Added Topics */}
-              {customList.map((custom) => {
-                const isSelected = selectedInterests.includes(custom);
-                return (
-                  <button
-                    key={custom}
-                    type="button"
-                    disabled={isSearching}
-                    onClick={() => toggleInterest(custom)}
-                    className={`p-3 text-xs text-left font-mono font-medium transition-colors border flex items-center justify-between cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#991B1B] text-white border-[#991B1B]'
-                        : 'bg-stone-50 dark:bg-stone-900 border-stone-300 dark:border-stone-800 text-stone-800 dark:text-stone-200'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1.5 truncate">
-                      <Hash className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#F87171]" />
-                      <span className="truncate">{custom}</span>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-white shrink-0 ml-2" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom topic add input */}
-            <div className="pt-1">
-              {!showCustomInput ? (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(true)}
-                  disabled={isSearching}
-                  className="px-3 py-1.5 border border-dashed border-stone-300 dark:border-stone-700 text-xs font-mono text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer flex items-center space-x-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add specific course or subject code (e.g. CS102, MATH024)</span>
-                </button>
-              ) : (
-                <form onSubmit={handleAddCustomInterest} className="flex space-x-2">
-                  <input
-                    type="text"
-                    autoFocus
-                    maxLength={100}
-                    aria-label="Custom study topic"
-                    value={customInterestInput}
-                    onChange={(e) => setCustomInterestInput(e.target.value)}
-                    placeholder="e.g. CS102, PHY012, THESIS-1"
-                    className={`flex-1 px-3 py-2 border text-xs font-mono focus:outline-none focus:border-[#991B1B] ${
-                      isDarkMode ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'
-                    }`}
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomInput(false)}
-                    className="px-3 py-2 border border-stone-300 dark:border-stone-700 text-xs font-mono cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              )}
-            </div>
+           <form onSubmit={handleAddInterest} className="flex space-x-2">
+             <input
+               type="text"
+               maxLength={100}
+               aria-label="Add an interest"
+               value={customInterestInput}
+               onChange={(e) => setCustomInterestInput(e.target.value)}
+               placeholder="Type an interest (optional)"
+               disabled={isSearching}
+               className={`flex-1 px-3 py-2 border text-xs font-mono focus:outline-none focus:border-[#991B1B] ${
+                 isDarkMode ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'
+               }`}
+             />
+             <button
+               type="submit"
+               disabled={isSearching || !customInterestInput.trim()}
+               className="px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+             >
+               Add
+             </button>
+           </form>
+           {selectedInterests.length > 0 && (
+             <p className="text-xs font-mono text-stone-500 dark:text-stone-400">
+               Added: {selectedInterests.join(', ')}
+             </p>
+           )}
           </div>
 
           {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -386,7 +314,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   onClick={startMatchmaking}
                   className="w-full py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
-                  <span>Find Mapúa Study Partner</span>
+                  <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <div className="text-[11px] font-mono text-stone-400 flex items-center justify-center space-x-1.5">

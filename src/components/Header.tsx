@@ -29,24 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
       }`}
     >
       <div className="w-full px-4 sm:px-6">
-        <div className="flex items-center justify-between min-h-14 sm:min-h-16 py-2 gap-2 flex-wrap">
-          {/* Left: Brand Identity - Strictly Clean Typography, No Logo */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <span className="font-bold text-base sm:text-lg tracking-tight leading-none text-stone-900 dark:text-white">
-                  CourseMates
-                </span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-[#991B1B] text-white shadow-sm">
-                  MAPÚA
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-[11px] font-mono text-stone-500 dark:text-stone-400 leading-none mt-1 hidden xs:block">
-                Anonymous Study Network
-              </p>
-            </div>
-          </div>
-
+        <div className="flex items-center justify-between min-h-12 sm:min-h-16 py-1.5 sm:py-2 gap-2 flex-wrap">
           {/* Center / Right: Top Music Bar replacing the Online Status */}
           <div className="order-last w-full sm:order-none sm:flex-1 flex justify-center sm:justify-end items-center sm:max-w-md min-w-0">
             <TopMusicBar isDarkMode={isDarkMode} />
@@ -84,14 +67,14 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     {session.sessionHandle}
                   </span>
-                  <button
-                    id="reroll-handle-btn"
-                    title="Reroll Anonymous Handle"
-                    onClick={onRerollHandle}
-                    className="text-stone-400 hover:text-[#991B1B] dark:hover:text-[#F87171] p-0.5 transition-colors cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
+                  {!session.customHandle && <button
+                      id="reroll-handle-btn"
+                      title="Reroll Anonymous Handle"
+                      onClick={onRerollHandle}
+                      className="text-stone-400 hover:text-[#991B1B] dark:hover:text-[#F87171] p-0.5 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>}
                 </div>
 
                 {/* Logout Button */}
