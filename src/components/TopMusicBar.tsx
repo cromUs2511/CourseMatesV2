@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, Volume2, VolumeX, ChevronDown, Music, LoaderCircle } from 'lucide-react';
 import { MusicTrack } from '../types';
-import { DEFAULT_MUSIC_DIRECTORY } from '../data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
 interface TopMusicBarProps {
@@ -19,6 +19,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const [volume, setVolume] = useState(70);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [search, setSearch] = useState('');
+  const [customUrl, setCustomUrl] = useState('');
+  const [urlError, setUrlError] = useState('');
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -276,6 +278,28 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       setIsSearching(false);
     }
   };
+  const addYouTubeLink = (event: React.FormEvent) => {
+    event.preventDefault();
+    const videoId = extractYouTubeVideoId(customUrl);
+    if (!videoId) {
+      setUrlError('Enter a valid YouTube link or video ID.');
+      return;
+    }
+    const track: MusicTrack = {
+      id: `custom-${Date.now()}`,
+      title: 'Custom YouTube track',
+      artist: 'YouTube',
+      youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      youtubeVideoId: videoId,
+      category: 'custom',
+    };
+    setTracks(previous => [track, ...previous]);
+    setCurrentTrackIndex(0);
+    startTrack(track);
+    setCustomUrl('');
+    setUrlError('');
+    setIsMenuOpen(false);
+  };
 
   return (
     <div className="relative flex items-center" ref={menuRef}>
@@ -427,6 +451,24 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             </button>
             {searchError && <p role="alert" className="mt-1 text-red-600 dark:text-red-400">{searchError}</p>}
             </form>
+          <form onSubmit={addYouTubeLink} className="border-b border-stone-200 p-2 dark:border-stone-800">
+            <input
+              type="text"
+              value={customUrl}
+              onChange={(event) => { setCustomUrl(event.target.value); setUrlError(''); }}
+              aria-label="Add YouTube link"
+              placeholder="Or paste a YouTube link..."
+              className={`w-full rounded border px-2 py-1.5 text-xs transition-colors ${
+                isDarkMode
+                  ? 'border-stone-700 bg-stone-800 text-stone-200 placeholder-stone-500 focus:border-[#F87171]'
+                  : 'border-stone-300 bg-stone-100 text-stone-800 placeholder-stone-400 focus:border-[#991B1B]'
+              } focus:outline-none`}
+            />
+            <button type="submit" disabled={!customUrl.trim()} className="mt-2 w-full border border-[#991B1B] px-2 py-1.5 text-[#991B1B] hover:bg-[#991B1B] hover:text-white disabled:opacity-50 dark:text-[#F87171]">
+              Add YouTube link
+            </button>
+            {urlError && <p role="alert" className="mt-1 text-red-600 dark:text-red-400">{urlError}</p>}
+          </form>
 
 
           <div className="py-1 space-y-0.5">
