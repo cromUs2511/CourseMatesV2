@@ -58,6 +58,35 @@
   }
 
   @media (max-width: 1023px) {
+    #main-header {
+      max-height: 7.25rem;
+    }
+
+    #main-header #top-music-bar {
+      max-width: min(100%, 20rem);
+      min-height: 2rem;
+      overflow: hidden;
+    }
+
+    #main-header #top-music-bar > button[aria-controls="music-tracks-dropdown"] {
+      min-width: 0;
+      max-width: 8rem;
+    }
+
+    #chat-header .next-peer-label {
+      display: none;
+    }
+
+    #chat-header #next-match-btn {
+      width: 2.5rem;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+
+    #chat-header {
+      min-height: 3.75rem;
+    }
+
     .access-gateway-dark {
       background-color: #111 !important;
       background-image:

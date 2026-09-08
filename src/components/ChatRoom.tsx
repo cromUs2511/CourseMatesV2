@@ -236,12 +236,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Pinned Header - Clean, solid, no user emojis/icons */}
         <div
           id="chat-header"
-          className={`border-b px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between z-10 shrink-0 ${
+          className={`border-b px-3 sm:px-6 py-1.5 sm:py-3 flex flex-row items-center justify-between gap-2 z-10 shrink-0 ${
             isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
           }`}
         >
           {/* Peer Info - Pure typography */}
-          <div className="flex min-w-0 w-full items-center space-x-3">
+          <div className="flex min-w-0 flex-1 items-center space-x-2">
             <div className="min-w-0">
               <div className="flex w-full items-center gap-2 sm:w-auto">
                 <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
@@ -265,7 +265,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           </div>
 
           {/* Controls - Solid buttons, no gradients */}
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2">
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}
@@ -278,9 +278,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <button
               id="next-match-btn"
               onClick={handleNext}
-              className="flex-1 py-2 px-3 sm:flex-none sm:px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="flex-none py-2 px-2 sm:px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
             >
-              <span>Next Peer</span>
+              <span className="next-peer-label">Next Peer</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
