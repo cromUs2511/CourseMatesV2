@@ -88,6 +88,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           <p className={`mt-2 text-[13px] ${isDarkMode ? 'text-stone-400' : 'text-stone-600'}`}>Use your official Mapúa email to continue.</p>
 
           {config?.microsoftEnabled && <a className="mt-7 block rounded-none bg-[#e52329] px-4 py-3 text-center font-semibold text-white" href="/auth/microsoft/login">Sign in with Microsoft</a>}
+            {error && <div role="alert" className={`flex items-start gap-3 border p-3 text-xs ${isDarkMode ? 'border-red-900/60 bg-red-950/30 text-red-300' : 'border-red-300 bg-red-50 text-red-800'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
           {config?.allowDemo && <form onSubmit={handleSubmit} className="mt-10 space-y-6">
             <div className="space-y-2">
               <label htmlFor="student-email" className={`block text-[12px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-[#ffe553]' : 'text-[#8a6500]'}`}>Mapúa student email</label>
@@ -103,7 +104,6 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
               </div>
             </div>
 
-            {error && <div role="alert" className={`flex items-start gap-3 border p-3 text-xs ${isDarkMode ? 'border-red-900/60 bg-red-950/30 text-red-300' : 'border-red-300 bg-red-50 text-red-800'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
             <button type="submit" aria-label="Continue in demo mode" disabled={loading} className="mt-2 flex w-full items-center justify-center gap-2 rounded-none bg-[#e52329] py-4 text-[14px] font-bold uppercase tracking-wide text-white hover:bg-[#c91d23] disabled:opacity-50">
               <span>{loading ? 'Starting…' : 'Continue'}</span><ArrowRight className="h-4 w-4" />
             </button>

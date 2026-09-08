@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 async function signIn(page: Page, name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: 'School email' }).fill(name + '@mymail.mapua.edu.ph');
+  await page.getByRole('textbox', { name: /student email/i }).fill(name + '@mymail.mapua.edu.ph');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
-  await expect(page.getByRole('heading', { name: 'Select Your Study Topics' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
 test('two browser sessions match, exchange once, preserve drafts on failure and rematch', async ({ browser }) => {
   const first = await browser.newContext();
@@ -32,7 +32,10 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await expect(a.getByRole('alert')).toHaveText('Test delivery failure');
   await expect(a.getByRole('textbox', { name: 'Chat message' })).toHaveValue('Keep this draft');
   await a.unroute('**/api/chat/send');
+  await b.getByRole('button', { name: 'Reply', exact: true }).first().click();
+  await expect(b.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await a.locator('#leave-chat-btn').click();
+  await expect(b.getByRole('button', { name: 'Cancel reply' })).toHaveCount(0);
   await expect(b.getByText('Peer disconnected from this session')).toBeVisible();
   await expect(b.getByText('Hello back', { exact: true })).toHaveCount(0);
   await b.locator('#next-match-btn').click();
@@ -66,7 +69,7 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/');
   await expect(page.locator('html')).not.toHaveClass('dark');
-  await page.locator('#dark-mode-toggle-btn').click();
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click();
   await expect(page.locator('html')).toHaveClass('dark');
   await page.reload();
   await expect(page.locator('html')).toHaveClass('dark');
@@ -91,13 +94,73 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
 test('session restores after refresh and invalid emails show a readable error', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Continue in demo mode' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeInViewport();
+  await expect(page.getByRole('heading', { name: 'Verify your account' })).toBeInViewport();
   await page.screenshot({ path: 'test-results/desktop-login.png' });
   await signIn(page, 'restore');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Select Your Study Topics' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
   await page.locator('#logout-btn').click();
-  await page.getByRole('textbox', { name: 'School email' }).fill('student@example.com');
+  await page.getByRole('textbox', { name: /student email/i }).fill('student@example.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByText('Enter a valid Mapúa school email address.')).toBeVisible();
+});
+
+
+test('production does not expose the server bundle or source map', async ({ request }) => {
+  test.skip(process.env.TEST_DEV === 'true');
+  for (const path of ['/server.cjs', '/server.cjs.map', '/.server/server.cjs', '/.server/server.cjs.map']) {
+    const response = await request.get(path);
+    const body = await response.text();
+    expect(body).not.toContain('sourcesContent');
+    expect(body).not.toContain('MICROSOFT_CLIENT_SECRET');
+    expect(response.headers()['content-type']).toContain('text/html');
+  }
+});
+
+
+test('sign-in configuration failures remain visible without the demo form', async ({ page }) => {
+  await page.route('**/api/auth/config', route => route.fulfill({ status: 503, json: { error: 'Sign-in configuration unavailable' } }));
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toHaveText('Sign-in configuration unavailable');
+});
+
+test('shared music volume changes do not restart either player', async ({ browser }) => {
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  try {
+    for (const context of contexts) await context.addInitScript(() => {
+      (window as any).musicLoads = [];
+      (window as any).YT = { Player: class {
+        constructor(_element: HTMLElement, private options: any) {
+          setTimeout(() => options.events.onReady({ target: this }), 0);
+        }
+        loadVideoById(id: string) { (window as any).musicLoads.push(id); this.playVideo(); }
+        cueVideoById() {}
+        playVideo() { this.options.events.onStateChange({ target: this, data: 1 }); }
+        pauseVideo() { this.options.events.onStateChange({ target: this, data: 2 }); }
+        setVolume() {}
+        mute() {}
+        unMute() {}
+        destroy() {}
+      } };
+    });
+    const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
+    await signIn(a, 'music-a'); await signIn(b, 'music-b');
+    await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
+    await expect(a.locator('#chat-header')).toBeVisible();
+    await expect(b.locator('#chat-header')).toBeVisible();
+    await a.locator('#music-play-toggle-btn').click();
+    await expect(b.getByRole('region', { name: 'Study music player' })).toBeVisible();
+    await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    await a.getByRole('slider', { name: 'Music volume' }).fill('40');
+    await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('40');
+    expect(await a.evaluate(() => (window as any).musicLoads.length)).toBe(1);
+    expect(await b.evaluate(() => (window as any).musicLoads.length)).toBe(1);
+    await a.getByRole('slider', { name: 'Music volume' }).fill('0');
+    await a.getByRole('slider', { name: 'Music volume' }).fill('55');
+    await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('55');
+    expect(await a.evaluate(() => (window as any).musicLoads.length)).toBe(1);
+    expect(await b.evaluate(() => (window as any).musicLoads.length)).toBe(1);
+    await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
+  } finally { await Promise.all(contexts.map(context => context.close())); }
 });

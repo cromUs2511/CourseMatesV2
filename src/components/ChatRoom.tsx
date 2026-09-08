@@ -86,6 +86,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setIsPeerTyping(false);
     setMessages([]);
     setInputText('');
+    setReplyingTo(null);
+    retryMessageRef.current = null;
     setError('');
   }, []);
   useEffect(() => {

@@ -434,7 +434,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve('dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { dotfiles: 'ignore' }));
     app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
   }
   server.listen(PORT, process.env.HOST || '0.0.0.0', () => console.log('CourseMates running at http://localhost:' + PORT));

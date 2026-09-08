@@ -117,3 +117,19 @@ async function waitFor(predicate: () => boolean) {
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 }
+
+
+test('message IDs are unique across peers and deletion preserves the other message', async () => {
+  const { a, b, roomId } = await pair();
+  try {
+    const first = (await request('/api/chat/send', a, { roomId, text: 'First', clientMessageId: 'shared-id' })).data.message;
+    const second = (await request('/api/chat/send', b, { roomId, text: 'Second', clientMessageId: 'shared-id' })).data.message;
+    assert.notEqual(first.id, second.id);
+    const retry = (await request('/api/chat/send', b, { roomId, text: 'Second', clientMessageId: 'shared-id' })).data.message;
+    assert.equal(retry.id, second.id);
+    assert.equal((await request('/api/chat/delete', b, { roomId, messageId: first.id })).status, 400);
+    assert.equal((await request('/api/chat/delete', b, { roomId, messageId: second.id })).status, 200);
+    const remaining = (await request('/api/chat/messages?roomId=' + roomId, a)).data.messages;
+    assert.deepEqual(remaining.map((m: any) => m.id), [first.id]);
+  } finally { await request('/api/match/cancel', a, {}); }
+});

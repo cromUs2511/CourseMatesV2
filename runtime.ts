@@ -112,7 +112,7 @@ function requireRoom(session: Identity, id: unknown) {
 }
 function send(session: Identity, room: Room, data: any) {
   if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 4000) throw new Error('Messages must contain 1–4000 characters.');
-  const id = typeof data.clientMessageId === 'string' && data.clientMessageId.length <= 100 ? data.clientMessageId : crypto.randomUUID();
+  const id = typeof data.clientMessageId === 'string' && data.clientMessageId.length <= 100 ? session.id + ':' + data.clientMessageId : crypto.randomUUID();
   const duplicate = room.messages.find(m => m.id === id && m.senderId === session.id);
   if (duplicate) return duplicate;
   const message: Message = {
@@ -141,7 +141,7 @@ function updateMusic(session: Identity, room: Room, data: any) {
   if (!trackId) throw new Error('Invalid music track.');
   const volume = Number.isFinite(data.volume) ? Math.max(0, Math.min(100, Number(data.volume))) : 70;
   room.music = { trackId, isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
-  for (const peer of room.peers) notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
+  for (const peer of room.peers) if (peer.id !== session.id) notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
 }
 export function attachRuntime(app: Express, server: Server) {
   app.use(['/api/match', '/api/chat', '/api/ai'], (req, res, next) => {

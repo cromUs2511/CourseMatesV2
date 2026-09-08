@@ -14,7 +14,7 @@ Local development enables clearly labelled demo access by default. Enter a schoo
 
 ## Production
 
-Run `npm run build`, then `npm start`. Set `PORT` and `HOST` when needed. The production command serves the built frontend and never launches Vite or Python.
+Run `npm run build`, then `npm start`. Set `PORT` and `HOST` when needed. The production command serves the built frontend and never launches Vite or Python. The server bundle lives in `dist/.server`, which is excluded from public file serving.
 
 Production disables demo login by default. Configure Microsoft sign-in, or explicitly set `ALLOW_DEMO_LOGIN=true` for a demonstration. Set `ALLOW_DEMO_LOGIN=false` to disable it in any environment.
 

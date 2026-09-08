@@ -51,6 +51,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         const remote = data.music as { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
         const index = tracks.findIndex(track => track.id === remote.trackId);
         if (index < 0) return;
+        hasSelectedTrackRef.current = true;
+        const trackChanged = latestRef.current.currentTrack.id !== remote.trackId;
         setCurrentTrackIndex(index);
         setVolume(remote.volume);
         setIsMuted(remote.isMuted);
@@ -59,7 +61,10 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         if (playerReadyRef.current && playerRef.current) {
           playerRef.current.setVolume(remote.volume);
           if (remote.isMuted) playerRef.current.mute(); else playerRef.current.unMute();
-          if (remote.isPlaying) playerRef.current.loadVideoById(tracks[index].youtubeVideoId);
+          if (trackChanged) {
+            if (remote.isPlaying) playerRef.current.loadVideoById(tracks[index].youtubeVideoId);
+            else playerRef.current.cueVideoById(tracks[index].youtubeVideoId);
+          } else if (remote.isPlaying) playerRef.current.playVideo();
           else playerRef.current.pauseVideo();
         } else {
           setPlayerEnabled(true);
@@ -232,7 +237,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   };
   const changeVolume = (nextVolume: number) => {
     setVolume(nextVolume);
-    if (nextVolume > 0 && isMuted) setIsMuted(false);
+    setIsMuted(nextVolume === 0);
     if (playerReadyRef.current && playerRef.current) {
       playerRef.current.setVolume(nextVolume);
       if (nextVolume === 0) playerRef.current.mute();
