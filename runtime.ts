@@ -7,7 +7,8 @@ import type { StudentSession } from './src/types';
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
 type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text'; replyTo?: { id: string; senderHandle: string; text: string } };
-type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number> };
+type RoomMusic = { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
+type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number>; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
 const rooms = new Map<string, Room>();
@@ -135,6 +136,13 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   room.messages.splice(index, 1);
   for (const peer of room.peers) notify(peer.ws, { type: 'message_deleted', roomId: room.id, messageId });
 }
+function updateMusic(session: Identity, room: Room, data: any) {
+  const trackId = typeof data.trackId === 'string' ? data.trackId.slice(0, 100) : '';
+  if (!trackId) throw new Error('Invalid music track.');
+  const volume = Number.isFinite(data.volume) ? Math.max(0, Math.min(100, Number(data.volume))) : 70;
+  room.music = { trackId, isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
+  for (const peer of room.peers) notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
+}
 export function attachRuntime(app: Express, server: Server) {
   app.use(['/api/match', '/api/chat', '/api/ai'], (req, res, next) => {
     if (!authenticate(req)) return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
@@ -201,7 +209,7 @@ export function attachRuntime(app: Express, server: Server) {
     const room = requireRoom(session, req.query.roomId);
     if (!room) return res.json({ active: false, messages: [], peerDisconnected: true, isPeerTyping: false });
     // Return the bounded buffer. Clients deduplicate by ID, including messages with identical timestamps.
-    res.json({ active: true, messages: room.messages, peerDisconnected: false,
+    res.json({ active: true, messages: room.messages, music: room.music, peerDisconnected: false,
       isPeerTyping: [...room.typing].some(([id, timestamp]) => id !== session.id && Date.now() - timestamp < 3000) });
   });
   app.post('/api/chat/typing', (req, res) => {
@@ -247,6 +255,7 @@ export function attachRuntime(app: Express, server: Server) {
           if (room) room.peers.find(p => p.id === session!.id)!.ws = ws;
           const result = join(session, data, ws);
           if (room || result.status === 'queued') notify(ws, { type: result.status, ...result });
+          if (room?.music) notify(ws, { type: 'music_state', roomId: room.id, music: room.music });
           return;
         }
         if (!session || !validSession(session.token)) { ws.close(1008, 'Invalid session'); return; }
@@ -262,6 +271,7 @@ export function attachRuntime(app: Express, server: Server) {
         if (!room) return notify(ws, { type: 'error', error: 'Chat ended or is unavailable.' });
         if (data.type === 'send_message') send(session, room, data);
         else if (data.type === 'delete_message') removeMessage(session, room, data.messageId);
+        else if (data.type === 'music_update') updateMusic(session, room, data);
         else if (data.type === 'leave_room') leave(session.id);
       } catch { notify(ws, { type: 'error', error: 'Invalid request.' }); }
     });

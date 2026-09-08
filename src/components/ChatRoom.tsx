@@ -4,6 +4,7 @@ import { StudentSession, ActivePeerInfo, ChatMessage } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
+import { TopMusicBar } from './TopMusicBar';
 
 interface ChatRoomProps {
   session: StudentSession;
@@ -293,6 +294,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               <LogOut className="w-4 h-4" />
             </button>
           </div>
+        </div>
+        <div className="flex justify-center border-b border-stone-800/60 px-3 py-1.5">
+          <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} isSimulated={peer.isSimulated} />
         </div>
 
         {/* Scrollable Messages Area */}

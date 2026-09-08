@@ -1,7 +1,6 @@
 import React from 'react';
 import { RefreshCw, LogOut, Sun, Moon } from 'lucide-react';
 import { StudentSession } from '../types';
-import { TopMusicBar } from './TopMusicBar';
 
 interface HeaderProps {
   session: StudentSession | null;
@@ -30,11 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <div className="w-full px-4 sm:px-6">
         <div className="flex items-center justify-between min-h-12 sm:min-h-16 py-1 sm:py-2 gap-1.5 flex-wrap">
-          {/* Center / Right: Top Music Bar replacing the Online Status */}
-          <div className="order-last w-full sm:order-none sm:flex-1 flex justify-center sm:justify-end items-center sm:max-w-md min-w-0">
-            <TopMusicBar isDarkMode={isDarkMode} />
-          </div>
-
           {/* Right: Controls & Persona Handle */}
           <div className="flex items-center space-x-2 text-xs shrink-0">
             {/* Dark / Light Theme Toggle */}

@@ -92,6 +92,33 @@ app.get(['/auth/callback', '/api/auth/callback'], async (req, res) => {
 
 const musicDirectory = DEFAULT_MUSIC_DIRECTORY.map(track => ({ ...track }));
 app.get('/api/music/directory', (_req, res) => res.json({ tracks: musicDirectory, total: musicDirectory.length }));
+app.get('/api/music/search', async (req, res) => {
+  if (!authenticate(req)) return res.status(401).json({ error: 'Please sign in first.' });
+  const query = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+  if (query.length < 2) return res.status(400).json({ error: 'Search for at least 2 characters.' });
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'YouTube search is not configured on this server.' });
+  try {
+    const params = new URLSearchParams({
+      part: 'snippet', q: query, type: 'video', maxResults: '12', videoCategoryId: '10', key: apiKey,
+    });
+    const response = await fetch('https://www.googleapis.com/youtube/v3/search?' + params, { signal: AbortSignal.timeout(10000) });
+    const data = await response.json() as { items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string; thumbnails?: { medium?: { url?: string } } } }> };
+    if (!response.ok) return res.status(502).json({ error: 'YouTube search is temporarily unavailable.' });
+    const tracks = (data.items || []).flatMap(item => {
+      const videoId = item.id?.videoId;
+      if (!videoId || !item.snippet?.title) return [];
+      return [{
+        id: 'youtube-search-' + videoId, title: item.snippet.title, artist: item.snippet.channelTitle || 'YouTube',
+        youtubeUrl: 'https://www.youtube.com/watch?v=' + videoId, youtubeVideoId: videoId,
+        category: 'custom' as const, thumbnail: item.snippet.thumbnails?.medium?.url,
+      }];
+    });
+    res.json({ tracks });
+  } catch {
+    res.status(502).json({ error: 'Could not reach YouTube search.' });
+  }
+});
 app.post('/api/music/directory', (req, res) => {
   if (!authenticate(req)) return res.status(401).json({ error: 'Please sign in first.' });
   const videoId = extractYouTubeVideoId(req.body.youtubeUrl);

@@ -1,22 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, Volume2, VolumeX, ChevronDown, Music, LoaderCircle } from 'lucide-react';
 import { MusicTrack } from '../types';
-import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from '../data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
 interface TopMusicBarProps {
   isDarkMode: boolean;
+  roomId?: string;
+  ws?: WebSocket;
+  isSimulated?: boolean;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
+export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolume] = useState(70);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-  const [customUrl, setCustomUrl] = useState<string>('');
-  const [urlError, setUrlError] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const [playerError, setPlayerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [playerEnabled, setPlayerEnabled] = useState(false);
@@ -27,10 +32,41 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
   const wantsPlaybackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const broadcast = (state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean }) => {
+    if (!roomId || isSimulated || ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'music_update', roomId, ...state }));
+  };
 
   const currentTrack = tracks[currentTrackIndex] || tracks[0];
   const latestRef = useRef({ currentTrack, isMuted, volume });
   latestRef.current = { currentTrack, isMuted, volume };
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type !== 'music_state' || data.roomId !== roomId || !data.music) return;
+        const remote = data.music as { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
+        const index = tracks.findIndex(track => track.id === remote.trackId);
+        if (index < 0) return;
+        setCurrentTrackIndex(index);
+        setVolume(remote.volume);
+        setIsMuted(remote.isMuted);
+        wantsPlaybackRef.current = remote.isPlaying;
+        setIsLoading(remote.isPlaying);
+        if (playerReadyRef.current && playerRef.current) {
+          playerRef.current.setVolume(remote.volume);
+          if (remote.isMuted) playerRef.current.mute(); else playerRef.current.unMute();
+          if (remote.isPlaying) playerRef.current.loadVideoById(tracks[index].youtubeVideoId);
+          else playerRef.current.pauseVideo();
+        } else {
+          setPlayerEnabled(true);
+        }
+      } catch { /* Ignore malformed room events. */ }
+    };
+    ws?.addEventListener('message', onMessage);
+    return () => ws?.removeEventListener('message', onMessage);
+  }, [roomId, tracks, ws]);
 
   useEffect(() => {
     // Fetch custom directory from server if available
@@ -156,7 +192,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
-  const startTrack = (track: MusicTrack, resume = false) => {
+  const startTrack = (track: MusicTrack, resume = false, sync = true) => {
     hasSelectedTrackRef.current = true;
     wantsPlaybackRef.current = true;
     setPlayerError('');
@@ -169,6 +205,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
     } else {
       setPlayerEnabled(true);
     }
+    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted });
   };
 
   const togglePlay = () => {
@@ -176,6 +213,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       wantsPlaybackRef.current = false;
       if (playerReadyRef.current) playerRef.current?.pauseVideo();
       setIsLoading(false);
+      broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted });
     } else {
       startTrack(currentTrack, true);
     }
@@ -188,6 +226,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       if (muted) playerRef.current.mute();
       else playerRef.current.unMute();
     }
+    broadcast({ trackId: currentTrack.id, isPlaying, volume, isMuted: muted });
   };
   const changeVolume = (nextVolume: number) => {
     setVolume(nextVolume);
@@ -197,6 +236,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
       if (nextVolume === 0) playerRef.current.mute();
       else playerRef.current.unMute();
     }
+    broadcast({ trackId: currentTrack.id, isPlaying, volume: nextVolume, isMuted: nextVolume === 0 });
   };
 
   const playNextTrack = () => {
@@ -205,37 +245,35 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
     startTrack(tracks[nextIndex]);
   };
 
-  const selectTrack = (index: number) => {
+  const selectTrack = (track: MusicTrack) => {
+    const existingIndex = tracks.findIndex(item => item.id === track.id);
+    const index = existingIndex >= 0 ? existingIndex : tracks.length;
+    if (existingIndex < 0) setTracks(previous => [...previous, track]);
     setCurrentTrackIndex(index);
-    startTrack(tracks[index]);
+    startTrack(track);
     setIsMenuOpen(false);
   };
 
 
-  const handleCustomUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const videoId = extractYouTubeVideoId(customUrl);
-    if (!videoId) {
-      setUrlError('Enter a valid YouTube video link or 11-character video ID.');
-      return;
-    }
-
-    if (videoId) {
-      const newTrack: MusicTrack = {
-        id: `custom-${Date.now()}`,
-        title: 'Custom YouTube Link',
-        artist: 'User Added',
-        youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
-        youtubeVideoId: videoId,
-        category: 'custom'
-      };
-      setTracks((prev) => [newTrack, ...prev]);
-      setCurrentTrackIndex(0);
-      startTrack(newTrack);
-      setCustomUrl('');
-      setUrlError('');
-      setIsMenuOpen(false);
-      
+  const filteredTracks = tracks.filter(track =>
+    `${track.title} ${track.artist} ${track.category}`.toLowerCase().includes(search.trim().toLowerCase())
+  );
+  const searchYouTube = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = search.trim();
+    if (query.length < 2) return;
+    setIsSearching(true);
+    setSearchError('');
+    try {
+      const response = await fetch('/api/music/search?q=' + encodeURIComponent(query));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Search failed.');
+      setSearchResults(Array.isArray(data.tracks) ? data.tracks : []);
+    } catch (error) {
+      setSearchError((error as Error).message);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -371,36 +409,35 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode }) => {
             <span>Study Soundtracks</span>
             <span className="text-[10px] text-[#991B1B] dark:text-[#F87171]">{tracks.length} Channels</span>
           </div>
-          <form onSubmit={handleCustomUrlSubmit} className="p-2 border-b border-stone-200 dark:border-stone-800">
+          <form onSubmit={searchYouTube} className="p-2 border-b border-stone-200 dark:border-stone-800">
             <input
-              type="text"
-              value={customUrl}
-              onChange={(e) => { setCustomUrl(e.target.value); setUrlError(''); }}
-              aria-label="YouTube link or video ID"
-              aria-invalid={!!urlError}
-              aria-describedby={urlError ? 'music-url-error' : undefined}
-              placeholder="Paste YouTube Link or ID..."
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search YouTube music"
+              placeholder="Search YouTube music..."
               className={`w-full px-2 py-1.5 text-xs rounded border transition-colors ${
                 isDarkMode 
                   ? 'bg-stone-800 border-stone-700 text-stone-200 placeholder-stone-500 focus:border-[#F87171]' 
                   : 'bg-stone-100 border-stone-300 text-stone-800 placeholder-stone-400 focus:border-[#991B1B]'
               } focus:outline-none`}
             />
-            {urlError && <p id="music-url-error" role="alert" className="mt-1 text-red-600 dark:text-red-400">{urlError}</p>}
-            <button type="submit" className="mt-2 w-full px-2 py-1.5 bg-[#991B1B] text-white hover:bg-red-800 cursor-pointer">
-              Play YouTube link
+            <button type="submit" disabled={isSearching || search.trim().length < 2} className="mt-2 w-full bg-[#991B1B] px-2 py-1.5 text-white disabled:opacity-50">
+              {isSearching ? 'Searching YouTube…' : 'Search YouTube'}
             </button>
-          </form>
+            {searchError && <p role="alert" className="mt-1 text-red-600 dark:text-red-400">{searchError}</p>}
+            </form>
 
 
           <div className="py-1 space-y-0.5">
-            {tracks.map((t, idx) => {
+            {[...searchResults, ...filteredTracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map((t) => {
+              const idx = tracks.findIndex(item => item.id === t.id);
               const isSelected = idx === currentTrackIndex;
               return (
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => selectTrack(idx)}
+                  onClick={() => selectTrack(t)}
                   className={`w-full text-left px-2 py-1.5 flex items-center justify-between transition-colors cursor-pointer ${
                     isSelected
                       ? 'bg-[#991B1B] text-white'
