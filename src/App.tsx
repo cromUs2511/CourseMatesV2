@@ -70,7 +70,7 @@ export default function App() {
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
         {restoring ? <p role="status" className="m-auto">Loading your session…</p> : !session ?
-          <AccessGateway onVerified={setSession} isDarkMode={isDarkMode} /> :
+          <AccessGateway onVerified={setSession} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)} /> :
           activePeer ? <ChatRoom key={activeRoomId} session={session} peer={activePeer} topic={activeTopic} ws={activeWs || undefined} roomId={activeRoomId}
             onNextMatch={() => { resetChat(); setAutoSearch(true); setQueueKey(k => k + 1); }}
             onLeaveChat={() => { resetChat(); setAutoSearch(false); }}
