@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, AlertTriangle, Lock } from 'lucide-react';
+import { ArrowRight, AlertTriangle } from 'lucide-react';
 import { StudentSession, AcademicDiscipline, Campus } from '../types';
 import { apiRequest } from '../utils/api';
 
@@ -20,7 +20,7 @@ const MAPUA_SCHOOLS: { name: AcademicDiscipline; code: string; label: string }[]
   { name: 'Health & Life Sciences', code: 'SHS', label: 'SHS • School of Health Sciences' },
 ];
 
-export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDarkMode = false }) => {
+export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified }) => {
   const [email, setEmail] = useState('');
   const [campus, setCampus] = useState<Campus>('Intramuros');
   const [discipline, setDiscipline] = useState<AcademicDiscipline>('Computer Science & IT');
@@ -28,6 +28,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
   const [config, setConfig] = useState<{ microsoftEnabled: boolean; allowDemo: boolean } | null>(null);
   const [error, setError] = useState<string | null>(() => new URLSearchParams(location.search).get('auth_error'));
   const submitting = useRef(false);
+
   useEffect(() => {
     const controller = new AbortController();
     apiRequest('/api/auth/config', undefined, undefined, controller.signal).then(setConfig)
@@ -35,6 +36,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
     if (location.search.includes('auth_error=')) history.replaceState(null, '', location.pathname);
     return () => controller.abort();
   }, []);
+
   const handleSubmit = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (submitting.current || !config?.allowDemo) return;
@@ -46,225 +48,83 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
         email: email.trim().toLowerCase(), campus, discipline, interests: ['Coding, DSA & Software'],
       });
       onVerified(data.session);
-    } catch (err) { setError((err as Error).message); }
-    finally { submitting.current = false; setLoading(false); }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      submitting.current = false;
+      setLoading(false);
+    }
   };
+
   const handleQuickFill = (value: string) => { setEmail(value); setError(null); };
+
   return (
-    <div className={`flex h-full min-h-0 w-full overflow-y-auto font-sans transition-colors ${isDarkMode ? 'bg-[#101112] text-stone-300' : 'bg-[#f5f3ef] text-stone-800'}`}>
-      <section className="relative hidden min-h-full flex-1 overflow-hidden lg:flex">
-        <div className={`absolute inset-0 ${isDarkMode ? 'bg-[radial-gradient(circle_at_20%_15%,#542020_0,transparent_38%),linear-gradient(135deg,#17191b,#0d0e0f)]' : 'bg-[radial-gradient(circle_at_20%_15%,#ffe2d0_0,transparent_38%),linear-gradient(135deg,#fffaf5,#eee9e2)]'}`} />
-        <div className="relative z-10 flex w-full flex-col justify-between gap-8 p-12 xl:p-16">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#991B1B] text-lg font-black text-white shadow-lg shadow-red-900/20">CM</div>
-              <div>
-                <p className={`text-sm font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>CourseMates</p>
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#991B1B]">Mapúa network</p>
-              </div>
-            </div>
-            <span className={`rounded-full border px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-stone-700 bg-white/5 text-stone-400' : 'border-stone-300 bg-white/60 text-stone-500'}`}>Private by design</span>
+    <div className="flex h-full min-h-0 w-full overflow-y-auto bg-[#151515] font-sans text-white">
+      <section
+        className="relative hidden min-h-full flex-1 overflow-hidden lg:flex"
+        style={{
+          backgroundColor: '#111',
+          backgroundImage: 'linear-gradient(rgba(229, 164, 0, 0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(229, 164, 0, 0.13) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      >
+        <div className="relative m-auto flex items-center justify-center px-8">
+          <div className="absolute -left-12 text-7xl font-light text-stone-700/80">&lt;</div>
+          <div className="absolute -right-12 text-7xl font-light text-stone-700/80">&gt;</div>
+          <div className="text-center font-serif font-black leading-[0.82] tracking-[-0.08em]">
+            <div className="text-[clamp(5rem,11vw,10rem)] text-[#b51d24]">Course</div>
+            <div className="text-[clamp(5rem,11vw,10rem)] text-[#e88900]">Mates</div>
           </div>
-
-          <div className="max-w-2xl">
-            <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.24em] text-[#991B1B]">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]" /> Anonymous study network
-            </p>
-            <h1 className={`text-[clamp(2.75rem,4.4vw,4rem)] font-black leading-[1.05] tracking-[-0.05em] ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>
-              Find your next<br /><span className="text-[#991B1B]">study advantage.</span>
-            </h1>
-            <p className={`mt-7 max-w-lg text-base leading-7 ${isDarkMode ? 'text-stone-400' : 'text-stone-600'}`}>
-              Meet Mapúa peers who are working toward the same breakthrough. Focused conversations, zero public profiles, no noise.
-            </p>
-            <div className="mt-10 grid max-w-lg grid-cols-3 gap-3">
-              {[
-                ['01', 'Study peers'],
-                ['02', 'Private rooms'],
-                ['03', 'Zero transcripts'],
-              ].map(([number, label]) => (
-                <div key={number} className={`rounded-2xl border p-4 ${isDarkMode ? 'border-white/10 bg-white/[0.04]' : 'border-stone-200 bg-white/70 shadow-sm'}`}>
-                  <p className="text-xs font-black text-[#991B1B]">{number}</p>
-                  <p className={`mt-2 text-xs font-semibold ${isDarkMode ? 'text-stone-300' : 'text-stone-700'}`}>{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className={`text-xs ${isDarkMode ? 'text-stone-600' : 'text-stone-400'}`}>Built for Mapúans who learn better together.</p>
         </div>
       </section>
 
-      <section className={`flex w-full items-start justify-center px-5 py-8 sm:px-8 lg:w-[520px] lg:shrink-0 xl:w-[580px] ${isDarkMode ? 'bg-[#151617]' : 'bg-white'}`}>
-        <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center justify-between lg:hidden">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#991B1B] text-xs font-black text-white">CM</div>
-              <span className="font-bold">CourseMates</span>
-            </div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#991B1B]">Mapúa</span>
-          </div>
+      <section className="flex w-full shrink-0 items-start justify-center bg-[#191919] px-8 py-5 sm:px-10 lg:w-[calc(50% - 1px)] xl:w-[496px]">
+        <div className="w-full max-w-[430px]">
+          <h1 className="text-[30px] font-extrabold leading-tight tracking-[-0.04em]">Verify your account</h1>
+          <p className="mt-2 text-[13px] text-stone-400">Use your official Mapúa email to continue.</p>
 
-          <div className={`rounded-[1.5rem] border p-6 shadow-2xl sm:p-8 ${isDarkMode ? 'border-white/10 bg-[#1c1e20] shadow-black/20' : 'border-stone-200 bg-white shadow-stone-200/70'}`}>
-            <div className="mb-8 flex items-start justify-between">
-              <div>
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#991B1B]">Mapúa study network</p>
-                <h2 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-stone-900'}`}>Welcome back.</h2>
-                <p className={`mt-2 text-sm ${isDarkMode ? 'text-stone-400' : 'text-stone-500'}`}>Choose your campus and connect with a study partner.</p>
-              </div>
-              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-mono ${isDarkMode ? 'border-stone-700 text-stone-400' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>SECURE</span>
-            </div>
-
-          {config?.microsoftEnabled && <a className="mb-5 block rounded-xl bg-[#991B1B] px-4 py-3 text-center font-semibold text-white" href={'/auth/microsoft/login?' + new URLSearchParams({ campus, discipline })}>Sign in with Microsoft</a>}
-          {config?.allowDemo && <p className="mb-4 text-xs leading-relaxed text-stone-500">Demo mode does not verify email ownership. Demo sessions match with other demo sessions.</p>}
-          {config && !config.allowDemo && !config.microsoftEnabled && <p role="alert" className="mb-4 text-sm text-red-600">Sign-in is unavailable. Contact the app administrator.</p>}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            <div hidden={!config?.allowDemo} className="space-y-2">
-              <label htmlFor="student-email" className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
-                School email (demo access)
-              </label>
-              <input
-                id="student-email"
-                autoComplete="email"
-                maxLength={254}
-                type="email"
-                required={config?.allowDemo}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (error) setError(null);
-                }}
+          {config?.microsoftEnabled && <a className="mt-7 block rounded-none bg-[#e52329] px-4 py-3 text-center font-semibold text-white" href={'/auth/microsoft/login?' + new URLSearchParams({ campus, discipline })}>Sign in with Microsoft</a>}
+          {config?.allowDemo && <form onSubmit={handleSubmit} className="mt-10 space-y-6">
+            <div className="space-y-2">
+              <label htmlFor="student-email" className="block text-[12px] font-bold uppercase tracking-wider text-[#ffe553]">Mapúa student email</label>
+              <input id="student-email" autoComplete="email" maxLength={254} type="email" required value={email}
+                onChange={(e) => { setEmail(e.target.value); if (error) setError(null); }}
                 placeholder="username@mymail.mapua.edu.ph"
-                className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none transition-colors ${
-                  isDarkMode 
-                    ? 'bg-[#111] border-stone-800 text-white focus:border-[#dc2626] placeholder:text-stone-600' 
-                    : 'bg-[#F3EFEA] border-stone-300 text-stone-900 focus:border-[#dc2626] placeholder:text-stone-400'
-                }`}
-              />
-              <div className="flex items-center justify-between pt-1">
-                <span className={`text-[10px] font-mono ${isDarkMode ? 'text-stone-500' : 'text-stone-500'}`}>
-                  Also accepts @mymapua.edu.ph and @mapua.edu.ph
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <span className={`text-[10px] font-mono ${isDarkMode ? 'text-stone-500' : 'text-stone-500'}`}>Quick fill:</span>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('cardinal@mymail.mapua.edu.ph')}
-                  className={`text-[10px] font-mono px-2 py-1 border rounded-md transition-colors ${
-                    isDarkMode
-                      ? 'border-stone-800 bg-[#111] text-stone-400 hover:border-[#dc2626] hover:text-[#dc2626]'
-                      : 'border-stone-300 bg-[#F3EFEA] text-stone-600 hover:border-[#dc2626] hover:text-[#dc2626]'
-                  }`}
-                >
-                  @mymail.mapua.edu.ph
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('student@mymapua.edu.ph')}
-                  className={`text-[10px] font-mono px-2 py-1 border rounded-md transition-colors ${
-                    isDarkMode
-                      ? 'border-stone-800 bg-[#111] text-stone-400 hover:border-[#dc2626] hover:text-[#dc2626]'
-                      : 'border-stone-300 bg-[#F3EFEA] text-stone-600 hover:border-[#dc2626] hover:text-[#dc2626]'
-                  }`}
-                >
-                  @mymapua.edu.ph
-                </button>
+                className="w-full rounded-none border border-[#303030] bg-[#111] px-4 py-3 text-[14px] text-white outline-none placeholder:text-stone-600 focus:border-[#e52329]" />
+              <p className="text-[10px] font-mono text-stone-500">Accepted: @mymail.mapua.edu.ph, @mymapua.edu.ph</p>
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-mono text-stone-500">
+                <span>Quick fill:</span>
+                <button type="button" onClick={() => handleQuickFill('cardinal@mymail.mapua.edu.ph')} className="rounded-none border border-[#303030] bg-[#111] px-2 py-1 text-stone-300 hover:border-[#e52329]">@mymail.mapua.edu.ph</button>
+                <button type="button" onClick={() => handleQuickFill('student@mymapua.edu.ph')} className="rounded-none border border-[#303030] bg-[#111] px-2 py-1 text-stone-300 hover:border-[#e52329]">@mymapua.edu.ph</button>
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
-                Campus
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  aria-pressed={campus === 'Intramuros'}
-                  onClick={() => setCampus('Intramuros')}
-                  className={`py-3 px-3 text-sm font-semibold border rounded-lg transition-colors ${
-                    campus === 'Intramuros'
-                      ? 'border-[#dc2626] bg-[#dc2626] text-white'
-                      : isDarkMode
-                        ? 'border-stone-800 bg-[#111] text-stone-400 hover:border-stone-600'
-                        : 'border-stone-300 bg-[#F3EFEA] text-stone-600 hover:border-stone-400'
-                  }`}
-                >
-                  Intramuros (Main)
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={campus === 'Makati'}
-                  onClick={() => setCampus('Makati')}
-                  className={`py-3 px-3 text-sm font-semibold border rounded-lg transition-colors ${
-                    campus === 'Makati'
-                      ? 'border-[#dc2626] bg-[#dc2626] text-white'
-                      : isDarkMode
-                        ? 'border-stone-800 bg-[#111] text-stone-400 hover:border-stone-600'
-                        : 'border-stone-300 bg-[#F3EFEA] text-stone-600 hover:border-stone-400'
-                  }`}
-                >
-                  Makati Campus
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="student-discipline" className={`block text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-[#fef08a]' : 'text-[#9a3412]'}`}>
-                School / Academic Department
-              </label>
-              <select
-                id="student-discipline"
-                value={discipline}
-                onChange={(e) => setDiscipline(e.target.value as AcademicDiscipline)}
-                className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none transition-colors appearance-none ${
-                  isDarkMode 
-                    ? 'bg-[#111] border-stone-800 text-white focus:border-[#dc2626]' 
-                    : 'bg-[#F3EFEA] border-stone-300 text-stone-900 focus:border-[#dc2626]'
-                }`}
-              >
-                {MAPUA_SCHOOLS.map((s) => (
-                  <option key={s.code} value={s.name}>
-                    {s.label}
-                  </option>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[#ffe553]">Campus</p>
+              <div className="grid grid-cols-2">
+                {(['Intramuros', 'Makati'] as const).map((option) => (
+                  <button key={option} type="button" aria-pressed={campus === option} onClick={() => setCampus(option)}
+                    className={`rounded-none border px-3 py-3 text-[14px] font-semibold ${campus === option ? 'border-[#e52329] bg-[#e52329] text-white' : 'border-[#303030] bg-[#111] text-stone-400 hover:border-stone-600'}`}>
+                    {option === 'Intramuros' ? 'Intramuros (Main)' : 'Makati Campus'}
+                  </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="student-discipline" className="block text-[12px] font-bold uppercase tracking-wider text-[#ffe553]">School / Academic Department</label>
+              <select id="student-discipline" value={discipline} onChange={(e) => setDiscipline(e.target.value as AcademicDiscipline)}
+                className="w-full appearance-none rounded-none border border-[#e52329] bg-[#111] px-4 py-3 font-mono text-[14px] text-white outline-none">
+                {MAPUA_SCHOOLS.map((s) => <option key={s.code} value={s.name}>{s.label}</option>)}
               </select>
             </div>
 
-            {error && (
-              <div role="alert" className={`p-4 border rounded-xl text-xs flex items-start space-x-3 ${isDarkMode ? 'border-red-900/50 bg-red-950/20 text-red-400' : 'border-red-300 bg-red-50 text-red-700'}`}>
-                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <span className={`font-bold block ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Unable to continue</span>
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              hidden={!config?.allowDemo}
-              disabled={loading || !config?.allowDemo}
-              className="w-full py-4 rounded-xl bg-[#dc2626] hover:bg-[#b91c1c] text-white font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center space-x-2 shadow-[0_10px_24px_rgba(220,38,38,0.18)] hover:shadow-[0_12px_28px_rgba(220,38,38,0.28)] disabled:opacity-50 mt-4 cursor-pointer"
-            >
-              <span>{loading ? 'Starting…' : 'Continue in demo mode'}</span>
-              <ArrowRight className="w-4 h-4" />
+            {error && <div role="alert" className="flex items-start gap-3 border border-red-900/60 bg-red-950/30 p-3 text-xs text-red-300"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
+            <button type="submit" aria-label="Continue in demo mode" disabled={loading} className="mt-2 flex w-full items-center justify-center gap-2 rounded-none bg-[#e52329] py-4 text-[14px] font-bold uppercase tracking-wide text-white hover:bg-[#c91d23] disabled:opacity-50">
+              <span>{loading ? 'Starting…' : 'Continue'}</span><ArrowRight className="h-4 w-4" />
             </button>
-
-          </form>
-
-          <div className={`mt-8 space-y-3 border-t pt-5 text-[11px] font-mono ${isDarkMode ? 'border-white/10 text-stone-500' : 'border-stone-100 text-stone-500'}`}>
-            <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${isDarkMode ? 'border-stone-500' : 'border-stone-400'}`} />
-              <span>Session details stay in memory until expiry or sign-out.</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Lock className="w-3 h-3 shrink-0" />
-              <span>Peers only see your randomized handle.</span>
-            </div>
-          </div>
-
-          </div>
+          </form>}
+          {config && !config.allowDemo && !config.microsoftEnabled && <p role="alert" className="mt-8 text-sm text-red-400">Sign-in is unavailable. Contact the app administrator.</p>}
         </div>
       </section>
     </div>
