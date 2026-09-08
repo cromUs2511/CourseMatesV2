@@ -36,8 +36,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
-  const [swipedMessageId, setSwipedMessageId] = useState<string | null>(null);
-  const touchStartX = useRef<number | null>(null);
+  const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
+  const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -226,7 +226,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
   return (
     <div
-      className={`w-full flex-1 min-h-0 h-full flex flex-col overflow-hidden ${
+      className={`w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
       } ${
         isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'
@@ -236,14 +236,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Pinned Header - Clean, solid, no user emojis/icons */}
         <div
           id="chat-header"
-          className={`border-b px-3 sm:px-6 py-3 flex flex-wrap gap-3 items-center justify-between z-10 shrink-0 ${
+          className={`border-b px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between z-10 shrink-0 ${
             isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
           }`}
         >
           {/* Peer Info - Pure typography */}
-          <div className="flex items-center space-x-3 min-w-0">
+          <div className="flex min-w-0 w-full items-center space-x-3">
             <div className="min-w-0">
-              <div className="flex items-center space-x-2">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
                 <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
                   {peer.handle}
                 </span>
@@ -278,7 +278,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <button
               id="next-match-btn"
               onClick={handleNext}
-              className="py-2 px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center space-x-1.5 cursor-pointer"
+              className="flex-1 py-2 px-3 sm:flex-none sm:px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <span>Next Peer</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -322,21 +322,35 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 <div
                   key={msg.id}
                   className={`group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
-                  onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
-                  onTouchEnd={(event) => {
-                    if (touchStartX.current === null) return;
-                    const delta = event.changedTouches[0]?.clientX - touchStartX.current;
-                    if (delta > 48 && !msg.isMe) {
-                      setReplyingTo(msg);
-                      setSwipedMessageId(null);
-                    } else if (delta < -48 && msg.isMe) {
-                      setReplyingTo(msg);
-                      setSwipedMessageId(null);
-                    } else {
-                      setSwipedMessageId(null);
+                  onTouchStart={(event) => {
+                    const touch = event.touches[0];
+                    if (touch) {
+                      touchRef.current = { id: msg.id, startX: touch.clientX, startY: touch.clientY, offset: 0 };
+                      setSwipe({ id: msg.id, offset: 0 });
                     }
-                    touchStartX.current = null;
                   }}
+                  onTouchMove={(event) => {
+                    const touch = event.touches[0];
+                    const current = touchRef.current;
+                    if (!touch || !current || current.id !== msg.id) return;
+                    const deltaX = touch.clientX - current.startX;
+                    const deltaY = touch.clientY - current.startY;
+                    if (Math.abs(deltaY) > Math.abs(deltaX) || Math.abs(deltaX) < 4) return;
+                    const allowedOffset = msg.isMe ? Math.min(0, deltaX) : Math.max(0, deltaX);
+                    current.offset = Math.max(-96, Math.min(96, allowedOffset));
+                    setSwipe({ id: msg.id, offset: current.offset });
+                  }}
+                  onTouchEnd={(event) => {
+                    const current = touchRef.current;
+                    if (!current || current.id !== msg.id) return;
+                    const offset = current.offset;
+                    if ((msg.isMe && offset <= -56) || (!msg.isMe && offset >= 56)) {
+                      setReplyingTo(msg);
+                    }
+                    setSwipe(null);
+                    touchRef.current = null;
+                  }}
+                  onTouchCancel={() => { setSwipe(null); touchRef.current = null; }}
                 >
                   <div className="flex items-baseline space-x-1.5 text-[11px] font-mono text-stone-400 mb-1 px-1">
                     <span className="font-semibold text-stone-600 dark:text-stone-300">
@@ -352,24 +366,36 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   </div>
 
                   {/* Message Bubble - Solid colors, crisp borders, no AI gradient clichés */}
-                  <div
-                    className={`max-w-[85%] sm:max-w-[75%] p-3.5 text-xs sm:text-sm leading-relaxed border ${
-                      msg.isMe
-                        ? 'bg-[#991B1B] border-[#991B1B] text-white'
-                        : isDarkMode
-                        ? 'bg-[#181716] border-stone-800 text-stone-100'
-                        : 'bg-white border-stone-300 text-stone-900'
-                    }`}
-                  >
-                    {msg.replyTo && (
-                      <div className="mb-2 border-l-2 border-current/50 pl-2 text-[11px] opacity-75">
-                        <div className="font-semibold">{msg.replyTo.senderHandle}</div>
-                        <div className="truncate">{msg.replyTo.text}</div>
-                      </div>
+                  <div className="relative max-w-[92%] sm:max-w-[75%]">
+                    {swipe?.id === msg.id && swipe.offset !== 0 && (
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-mono font-semibold text-[#991B1B] dark:text-[#F87171] ${
+                          msg.isMe ? 'right-full mr-2' : 'left-full ml-2'
+                        }`}
+                      >
+                        Reply
+                      </span>
                     )}
-                    <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
+                    <div
+                      className={`p-3.5 text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
+                        msg.isMe
+                          ? 'bg-[#991B1B] border-[#991B1B] text-white'
+                          : isDarkMode
+                          ? 'bg-[#181716] border-stone-800 text-stone-100'
+                          : 'bg-white border-stone-300 text-stone-900'
+                      }`}
+                      style={{ transform: `translateX(${swipe?.id === msg.id ? swipe.offset : 0}px)` }}
+                    >
+                      {msg.replyTo && (
+                        <div className="mb-2 border-l-2 border-current/50 pl-2 text-[11px] opacity-75">
+                          <div className="font-semibold">{msg.replyTo.senderHandle}</div>
+                          <div className="truncate">{msg.replyTo.text}</div>
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
+                    </div>
                   </div>
-                  <div className={`mt-1 flex items-center gap-2 px-1 ${swipedMessageId === msg.id ? 'flex' : 'hidden'} sm:flex`}>
+                  <div className="mt-1 flex items-center gap-2 px-1">
                     <button type="button" onClick={() => setReplyingTo(msg)} className="text-[10px] font-mono text-stone-400 hover:text-[#991B1B]">
                       <Reply className="inline h-3 w-3" /> Reply
                     </button>

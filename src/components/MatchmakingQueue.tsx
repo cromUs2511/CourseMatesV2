@@ -191,11 +191,11 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center p-4 sm:p-6 overflow-y-auto select-none">
+    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center p-3 sm:p-6 overflow-y-auto select-none">
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
         <div
-          className={`border p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+          className={`border p-3 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 ${
             isDarkMode
               ? 'bg-[#181716] border-stone-800 text-stone-100'
               : 'bg-white border-stone-300 text-stone-800'
@@ -204,8 +204,8 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           <div className="flex items-center space-x-3.5 min-w-0">
             <div className="min-w-0">
               {!isEditingName ? (
-                <div className="flex items-center space-x-2">
-                  <span className="font-bold text-base tracking-tight truncate text-stone-900 dark:text-white font-mono">
+                <div className="flex flex-wrap items-center gap-2">
+                 <span className="max-w-full break-words font-bold text-base tracking-tight text-stone-900 dark:text-white font-mono">
                     {session.sessionHandle}
                   </span>
                   {!session.customHandle && <button
@@ -261,7 +261,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
         {/* Main Interest / Topic Selection Card */}
         <div
-          className={`border p-6 sm:p-7 space-y-6 shadow-xl ${
+          className={`border p-4 sm:p-7 space-y-5 sm:space-y-6 shadow-xl ${
             isDarkMode
               ? 'bg-[#181716] border-stone-800 text-stone-100 shadow-stone-950/40'
               : 'bg-white border-stone-200/80 text-stone-800 shadow-stone-200/50'

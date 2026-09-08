@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <span
-                    className="hidden sm:inline max-w-[90px] sm:max-w-[140px] truncate font-semibold"
+                    className="inline max-w-[92px] sm:max-w-[140px] truncate font-semibold"
                     title={session.sessionHandle}
                   >
                     {session.sessionHandle}

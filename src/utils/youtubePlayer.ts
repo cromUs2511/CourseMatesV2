@@ -88,9 +88,9 @@ export function getYouTubeErrorMessage(code: number): string {
       return 'This video is unavailable or private. Choose another track.';
     case 101:
     case 150:
-      return 'This video cannot play on other websites. Choose another track or open it on YouTube.';
+      return 'This track cannot play in the embedded audio player. Choose another track.';
     case 153:
-      return 'YouTube could not verify this site. Open the track on YouTube or check your browser privacy settings.';
+      return 'This track could not be verified for embedded audio playback. Choose another track.';
     default:
       return 'YouTube could not play this track. Try again or choose another track.';
   }
