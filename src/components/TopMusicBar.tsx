@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Play, Pause, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { MusicTrack, RoomMusicState } from '../types';
@@ -12,9 +13,10 @@ interface TopMusicBarProps {
   isSimulated?: boolean;
   token?: string;
   remoteMusic?: RoomMusicState;
+  onAmbientChange?: (ambient: { active: boolean; enabled: boolean; color: string }) => void;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic }) => {
+export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic, onAmbientChange }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -25,7 +27,15 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [notificationDismissed, setNotificationDismissed] = useState(false);
+  const [glowEnabled, setGlowEnabled] = useState(() => {
+    try { return localStorage.getItem('coursemates_music_glow') !== 'false'; } catch { return true; }
+  });
+  const [glowColor, setGlowColor] = useState(() => {
+    try { return localStorage.getItem('coursemates_music_glow_color') || '#e52329'; } catch { return '#e52329'; }
+  });
   const menuRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchRequestRef = useRef<AbortController | null>(null);
@@ -35,7 +45,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     if (!isMenuOpen) return;
     searchRef.current?.focus();
     const closeOutside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setIsMenuOpen(false);
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !dialogRef.current?.contains(target)) setIsMenuOpen(false);
     };
     const closeEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setIsMenuOpen(false); menuButtonRef.current?.focus(); }
@@ -345,93 +356,169 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   };
 
   const playbackActive = isPlaying && !isMuted && volume > 0;
+  const playbackNotification = playerError || syncError;
+  useEffect(() => {
+    if (playbackNotification) setNotificationDismissed(false);
+  }, [playbackNotification]);
+  useEffect(() => {
+    onAmbientChange?.({ active: playbackActive, enabled: glowEnabled, color: glowColor });
+  }, [glowColor, glowEnabled, onAmbientChange, playbackActive]);
+  const updateGlowEnabled = (enabled: boolean) => {
+    setGlowEnabled(enabled);
+    try { localStorage.setItem('coursemates_music_glow', String(enabled)); } catch {}
+  };
+  const updateGlowColor = (color: string) => {
+    setGlowColor(color);
+    try { localStorage.setItem('coursemates_music_glow_color', color); } catch {}
+  };
 
   return (
-    <div ref={menuRef} className="relative w-[280px] max-w-full min-w-0">
+    <div ref={menuRef} className="relative min-w-0">
       <div
         id="top-music-bar"
         role="group"
         aria-label="Study music controls"
         data-playing={playbackActive}
-        className={`flex h-11 items-center gap-1 rounded-xl border px-1.5 transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none sm:h-9 ${
+        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none ${
           playbackActive ? 'border-red-500/60 shadow-[0_0_18px_2px_rgba(239,68,68,0.25)]' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
         } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
         <button
-          id="music-play-toggle-btn"
-          type="button"
-          onClick={togglePlay}
-          aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
-          title={isPlaying || isLoading ? 'Pause music' : 'Play music'}
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-red-600 hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7 dark:text-red-400"
-        >
-          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
-        </button>
-        <button
           ref={menuButtonRef}
           type="button"
           onClick={() => setIsMenuOpen(open => !open)}
-          aria-label="Choose or search music"
+          aria-label="Open music controls"
           aria-expanded={isMenuOpen}
           aria-controls="music-tracks-dropdown"
-          title={`Choose or search music ? ${currentTrack.title}`}
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7"
+          title={`Music controls: ${currentTrack.title}`}
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-red-600 hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400"
         >
-          <Music2 className="h-4 w-4" />
+          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className="h-5 w-5" />}
         </button>
-        <button
-          id="music-mute-btn"
-          type="button"
-          onClick={toggleMute}
-          aria-label={isMuted ? 'Unmute music' : 'Mute music'}
-          aria-pressed={isMuted}
-          title={isMuted ? 'Unmute music' : 'Mute music'}
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7 dark:hover:bg-stone-800"
-        >
-          {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-        </button>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={isMuted ? 0 : volume}
-          onChange={(event) => changeVolume(Number(event.target.value))}
-          aria-label="Music volume"
-          className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]"
-        />
-        <span className="w-9 shrink-0 pr-1 text-right text-[11px] tabular-nums">{isMuted ? 0 : volume}%</span>
       </div>
-      {isMenuOpen && (
-        <section
-          id="music-tracks-dropdown"
-          aria-label="Choose music"
-          className={`absolute left-0 top-full z-50 mt-2 max-h-[min(360px,50dvh)] w-[min(320px,calc(100vw-3rem))] overflow-y-auto rounded-xl border p-3 shadow-xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold">Choose music</span>
-            <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded p-2 hover:bg-red-500/10"><X className="h-4 w-4" /></button>
-          </div>
-          <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
-          <form onSubmit={searchMusic} className="flex gap-2">
-            <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-2 py-2 text-xs outline-none focus:border-red-500" />
-            <button type="submit" disabled={isSearching || !search.trim()} className="rounded-lg bg-[#991B1B] px-3 text-xs text-white disabled:opacity-50">{isSearching ? 'Searching?' : 'Go'}</button>
-          </form>
-          {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
-          <div className="mt-3 space-y-1">
-            {searchResults.length > 0 && <p className="px-2 py-1 text-[10px] uppercase text-stone-500">Search results</p>}
-            {[...searchResults, ...tracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map(track => (
-              <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} className={`block w-full rounded-lg px-2 py-2 text-left text-xs ${currentTrack.id === track.id ? 'bg-red-500/15 text-red-500' : 'hover:bg-stone-500/10'}`}>
-                <span className="block truncate font-medium">{track.title}</span>
-                <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
-              </button>
-            ))}
-          </div>
-        </section>
+      {isMenuOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
+          <button
+            type="button"
+            aria-label="Close music controls"
+            onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }}
+            className="absolute inset-0 cursor-default bg-black/20 backdrop-blur-[2px] dark:bg-black/45"
+          />
+          <section
+            ref={dialogRef}
+            id="music-tracks-dropdown"
+            aria-label="Choose music"
+            className={`relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border p-3 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-4 ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}
+          >
+            <div className="mb-3 flex shrink-0 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Music2 className="h-4 w-4 text-[#991B1B] dark:text-red-400" />
+                <span className="text-sm font-semibold">Music controls</span>
+              </div>
+              <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 hover:bg-red-500/10"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 overflow-y-auto pr-0.5">
+              <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  id="music-play-toggle-btn"
+                  type="button"
+                  onClick={togglePlay}
+                  aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
+                  className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-[#991B1B] px-3 text-xs font-semibold text-white"
+                >
+                  {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+                  {isPlaying || isLoading ? 'Pause' : 'Play'}
+                </button>
+                <button
+                  id="music-mute-btn"
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={isMuted ? 'Unmute music' : 'Mute music'}
+                  aria-pressed={isMuted}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-400/40"
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="mb-4 flex items-center gap-2">
+                <input type="range" min="0" max="100" value={isMuted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} aria-label="Music volume" className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]" />
+                <span className="w-9 text-right text-[11px] tabular-nums">{isMuted ? 0 : volume}%</span>
+              </div>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-400/20 pt-3 text-xs">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={glowEnabled} onChange={(event) => updateGlowEnabled(event.target.checked)} />
+                  Ambient glow
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className="text-stone-500">Color</span>
+                  <input type="color" value={glowColor} onChange={(event) => updateGlowColor(event.target.value)} aria-label="Ambient glow color" className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0" />
+                </label>
+              </div>
+              <form onSubmit={searchMusic} className="flex gap-2">
+                <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-3 py-2.5 text-xs outline-none focus:border-red-500" />
+                <button type="submit" disabled={isSearching || !search.trim()} className="rounded-lg bg-[#991B1B] px-4 text-xs text-white disabled:opacity-50">{isSearching ? 'Searching…' : 'Search'}</button>
+              </form>
+              {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
+              <div className="mt-3 space-y-1">
+                {searchResults.length > 0 && <p className="px-2 py-1 text-[10px] uppercase text-stone-500">Search results</p>}
+                {[...searchResults, ...tracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map(track => (
+                  <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${currentTrack.id === track.id ? 'bg-red-500/15 text-red-500' : 'hover:bg-stone-500/10'}`}>
+                    <span className="block truncate font-medium">{track.title}</span>
+                    <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>,
+        document.body,
       )}
-      {(playerError || syncError || needsGesture) && (
-        <p role="status" className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-          {playerError || syncError || 'Press Play to enable sound on this device.'}
-        </p>
+      {needsGesture && !playbackNotification && !notificationDismissed && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Close music notification"
+            onClick={() => setNotificationDismissed(true)}
+            className="absolute inset-0 bg-black/20 backdrop-blur-[2px] dark:bg-black/45"
+          />
+          <div role="status" className={`relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
+            <div className="flex items-start gap-3">
+              <Music2 className="mt-0.5 h-5 w-5 shrink-0 text-[#991B1B] dark:text-red-400" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Enable music playback</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">Press Play again to enable sound on this device.</p>
+              </div>
+              <button type="button" aria-label="Close music notification" onClick={() => setNotificationDismissed(true)} className="rounded-lg p-1.5 hover:bg-red-500/10">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {playbackNotification && !notificationDismissed && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Close music notification"
+            onClick={() => setNotificationDismissed(true)}
+            className="absolute inset-0 bg-black/20 backdrop-blur-[2px] dark:bg-black/45"
+          />
+          <div role="alert" className={`relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
+            <div className="flex items-start gap-3">
+              <Music2 className="mt-0.5 h-5 w-5 shrink-0 text-[#991B1B] dark:text-red-400" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Music could not play</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{playbackNotification}</p>
+              </div>
+              <button type="button" aria-label="Close music notification" onClick={() => setNotificationDismissed(true)} className="rounded-lg p-1.5 hover:bg-red-500/10">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
       {/* Keep playback mounted without exposing video or native controls at any viewport size. */}
       {playerEnabled && (

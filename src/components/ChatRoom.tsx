@@ -63,12 +63,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#e52329' });
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
   const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtLatestRef = useRef(true);
+  const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTypingAt = useRef(0);
@@ -146,7 +148,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   };
   useEffect(() => {
-    const frame = requestAnimationFrame(handleMessagesScroll);
+    if (!scrollAfterOwnMessageRef.current) return;
+    scrollAfterOwnMessageRef.current = false;
+    const frame = requestAnimationFrame(scrollToLatest);
     return () => cancelAnimationFrame(frame);
   }, [messages]);
   useEffect(() => {
@@ -227,6 +231,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setError('');
     try {
       if (peer.isSimulated) {
+        scrollAfterOwnMessageRef.current = true;
         receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text, timestamp: Date.now(), replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined }]);
         setIsPeerTyping(true);
         simulationTimers.current.push(setTimeout(() => {
@@ -241,6 +246,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           roomId, text, clientMessageId: retryMessageRef.current.id,
           replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined,
         });
+        scrollAfterOwnMessageRef.current = true;
         receiveMessages([data.message]);
         retryMessageRef.current = null;
       }
@@ -272,16 +278,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   };
   const handleLeave = () => { void leave(false); };
   const handleNext = () => { void leave(true); };
+  const handleAmbientChange = useCallback((next: { active: boolean; enabled: boolean; color: string }) => {
+    setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color ? current : next);
+  }, []);
+  const ambientActive = ambient.active && ambient.enabled;
 
   return (
     <div
-      className={`w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
+      className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
       } ${
         isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'
       }`}
     >
-      <div className="w-full flex flex-col flex-1 min-h-0 h-full overflow-hidden">
+      {ambientActive && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0 animate-ambient-glow"
+          style={{ background: `radial-gradient(circle at 50% 45%, ${ambient.color}40, transparent 62%)` }}
+        />
+      )}
+      <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         {/* Pinned Header - Clean, solid, no user emojis/icons */}
         <div
           id="chat-header"
@@ -316,6 +333,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
           {/* Controls - Solid buttons, no gradients */}
           <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2">
+            {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} />}
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}
@@ -344,9 +362,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </button>
           </div>
         </div>
-        {!peerDisconnected && <div className="shrink-0 border-b border-stone-300 bg-white px-3 py-2 dark:border-stone-800 dark:bg-[#181716] sm:px-6">
-          <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} />
-        </div>}
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"

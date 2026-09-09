@@ -13,6 +13,7 @@ interface HeaderProps {
   onToggleDarkMode: () => void;
   isSoundEnabled: boolean;
   onToggleSound: () => void;
+  showReroll?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
   isSoundEnabled,
   onToggleSound,
+  showReroll = true,
 }) => {
   return (
     <header
@@ -62,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     {session.sessionHandle}
                   </span>
-                  {!session.customHandle && <button
+                  {showReroll && !session.customHandle && <button
                       id="reroll-handle-btn"
                       title="Reroll Anonymous Handle"
                       onClick={onRerollHandle}

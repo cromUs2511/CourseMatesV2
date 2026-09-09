@@ -113,3 +113,25 @@
 .access-mobile-logo .access-logo-type {
   font-size: clamp(3rem, 16vw, 5rem);
 }
+
+@keyframes ambient-glow {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.08);
+  }
+}
+
+.animate-ambient-glow {
+  animation: ambient-glow 7s ease-in-out infinite;
+  filter: blur(42px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ambient-glow {
+    animation: none;
+  }
+}

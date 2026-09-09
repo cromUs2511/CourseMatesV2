@@ -69,7 +69,8 @@ export default function App() {
     <div className={'fixed inset-0 min-h-[100dvh] w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
       {session && <Header session={session} onRerollHandle={handleRerollHandle} onLogout={handleLogout}
         isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)}
-        isSoundEnabled={isSoundEnabled} onToggleSound={() => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; })} />}
+        isSoundEnabled={isSoundEnabled} onToggleSound={() => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; })}
+        showReroll={!activePeer} />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
         {restoring ? <p role="status" className="m-auto">Loading your session…</p> : !session ?
