@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2 } from 'lucide-react';
+import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, ChevronDown } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -64,8 +64,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [isAtLatest, setIsAtLatest] = useState(true);
   const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isAtLatestRef = useRef(true);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTypingAt = useRef(0);
@@ -93,6 +96,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       const fresh = incoming.filter(m => !ids.has(m.id)).map(m => ({
         ...m, isMe: m.senderId === session.id,
       }));
+      const newPeerMessages = fresh.filter(message => !message.isMe);
+      if (!isAtLatestRef.current && newPeerMessages.length > 0) {
+        setUnreadMessageCount(count => count + newPeerMessages.length);
+      }
       if (replace) {
         const system = previous.filter(m => m.type === 'system');
         return [...system, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
@@ -122,7 +129,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       else setIsFullscreen(value => !value);
     } catch { setIsFullscreen(value => !value); }
   };
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isPeerTyping]);
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const atLatest = container.scrollHeight - container.scrollTop - container.clientHeight <= 48;
+    isAtLatestRef.current = atLatest;
+    setIsAtLatest(atLatest);
+    if (atLatest) setUnreadMessageCount(0);
+  };
+  const scrollToLatest = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    isAtLatestRef.current = true;
+    setIsAtLatest(true);
+    setUnreadMessageCount(0);
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  };
+  useEffect(() => {
+    const frame = requestAnimationFrame(handleMessagesScroll);
+    return () => cancelAnimationFrame(frame);
+  }, [messages]);
   useEffect(() => {
     endedRef.current = false;
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
@@ -324,6 +350,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
           className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-3 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-3">
@@ -464,8 +492,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               </div>
             )}
 
-            <div ref={messagesEndRef} />
           </div>
+          {!isAtLatest && (
+            <button
+              type="button"
+              onClick={scrollToLatest}
+              aria-label="Scroll to latest messages"
+              className={`sticky bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold shadow-lg transition-colors ${
+                isDarkMode
+                  ? 'border-stone-700 bg-stone-900 text-stone-100 hover:bg-stone-800'
+                  : 'border-stone-300 bg-white text-stone-800 hover:bg-stone-50'
+              }`}
+            >
+              <ChevronDown className="h-4 w-4" />
+              {unreadMessageCount > 0 ? `${unreadMessageCount} new message${unreadMessageCount === 1 ? '' : 's'}` : 'Latest messages'}
+            </button>
+          )}
         </div>
 
         {/* Dynamic AI Topic Suggestions Bar - Context aware, auto-shuffles after use */}
