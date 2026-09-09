@@ -69,21 +69,36 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const loadingTrackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
   const appliedRevision = useRef(0);
-  const pendingUpdates = useRef(0);
   const updateQueue = useRef(Promise.resolve());
   const [syncError, setSyncError] = useState('');
   const [needsGesture, setNeedsGesture] = useState(false);
   const broadcast = (state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean }, track = tracks.find(item => item.id === state.trackId)) => {
     if (!roomId || isSimulated) return;
-    pendingUpdates.current++;
+    if (!token) {
+      setSyncError('Music could not sync because your session has expired.');
+      return;
+    }
+    setSyncError('');
     updateQueue.current = updateQueue.current.then(async () => {
       try {
-        const data = await apiRequest<{ music: RoomMusicState }>('/api/chat/music', token, { roomId, ...state, track });
+        const payload = { roomId, ...state, ...(track ? { track } : {}) };
+        let data: { music: RoomMusicState } | null = null;
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            data = await apiRequest<{ music: RoomMusicState }>('/api/chat/music', token, payload);
+            break;
+          } catch (error) {
+            lastError = error;
+            if (attempt === 0) await new Promise(resolve => window.setTimeout(resolve, 250));
+          }
+        }
+        if (!data) throw lastError instanceof Error ? lastError : new Error('Music could not sync.');
         appliedRevision.current = Math.max(appliedRevision.current, data.music.revision);
         setSyncError('');
-      } catch {
-        setSyncError('Music could not sync. Press Play or Pause to try again.');
-      } finally { pendingUpdates.current--; }
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : 'Music could not sync. Press Play or Pause to try again.');
+      }
     });
   };
 
@@ -97,7 +112,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   useEffect(() => {
     const applyRemote = (remote: RoomMusicState) => {
       try {
-        if (pendingUpdates.current || remote.revision <= appliedRevision.current) return;
+        if (remote.revision <= appliedRevision.current) return;
         let index = tracks.findIndex(track => track.id === remote.trackId);
         const sharedTrack = normalizeSharedTrack(remote.track);
         const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
