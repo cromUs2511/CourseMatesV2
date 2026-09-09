@@ -124,31 +124,44 @@ test('sign-in configuration failures remain visible without the demo form', asyn
   await expect(page.getByRole('alert')).toHaveText('Sign-in configuration unavailable');
 });
 
-for (const source of ['directory', 'pasted link']) test(`shared ${source} music plays on both peers without restarting on volume changes`, async ({ browser }) => {
+for (const source of ['directory', 'pasted link', 'HTTP fallback', 'mobile autoplay']) test(`shared ${source} music plays on both peers without restarting on volume changes`, async ({ browser }) => {
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
   try {
-    for (const context of contexts) await context.addInitScript(() => {
+    for (const [index, context] of contexts.entries()) await context.addInitScript(({ fallback, blocked }) => {
+      if (fallback) window.WebSocket = class { constructor() { throw new Error('Offline WebSocket'); } } as any;
+      (window as any).musicUnlocked = !blocked;
       (window as any).musicLoads = [];
       (window as any).YT = { Player: class {
-        constructor(_element: HTMLElement, private options: any) {
+        constructor(element: HTMLElement, private options: any) {
+          const nativePlay = document.createElement('button');
+          nativePlay.textContent = 'YouTube Play';
+          nativePlay.onclick = () => { (window as any).musicUnlocked = true; this.playVideo(); };
+          const nativePause = document.createElement('button');
+          nativePause.textContent = 'YouTube Pause';
+          nativePause.onclick = () => this.pauseVideo();
+          element.append(nativePlay, nativePause);
           setTimeout(() => options.events.onReady({ target: this }), 0);
         }
         loadVideoById(id: string) { (window as any).musicLoads.push(id); this.playVideo(); }
         cueVideoById() {}
-        playVideo() { this.options.events.onStateChange({ target: this, data: 1 }); }
+        playVideo() {
+          if (!(window as any).musicUnlocked) { this.options.events.onAutoplayBlocked({ target: this }); return; }
+          this.options.events.onStateChange({ target: this, data: 1 });
+        }
         pauseVideo() { this.options.events.onStateChange({ target: this, data: 2 }); }
         setVolume() {}
         mute() {}
         unMute() {}
         destroy() {}
       } };
-    });
+    }, { fallback: source === 'HTTP fallback', blocked: source === 'mobile autoplay' && index === 1 });
     const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
+    if (source === 'mobile autoplay') await b.setViewportSize({ width: 375, height: 667 });
     await signIn(a, 'music-a'); await signIn(b, 'music-b');
     await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
-    if (source === 'pasted link') {
+    if (source !== 'directory') {
       await a.locator('#top-music-bar button[aria-controls="music-tracks-dropdown"]').click();
       await a.getByRole('textbox', { name: 'Add YouTube link' }).fill('https://youtu.be/dQw4w9WgXcQ?si=shared');
       await a.getByRole('button', { name: 'Add YouTube link', exact: true }).click();
@@ -159,6 +172,17 @@ for (const source of ['directory', 'pasted link']) test(`shared ${source} music 
       await a.locator('#music-play-toggle-btn').click();
     }
     await expect(b.getByRole('region', { name: 'Study music player' })).toBeVisible();
+    if (source === 'mobile autoplay') {
+      await expect(b.getByText('Tap Play below to enable sound on this device.')).toBeVisible();
+      const panel = await b.getByRole('region', { name: 'Study music player' }).boundingBox();
+      const header = await b.locator('#chat-header').boundingBox();
+      expect(panel!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+      expect(panel!.x + panel!.width).toBeLessThanOrEqual(375);
+      await expect(b.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
+      await b.getByRole('button', { name: 'YouTube Play' }).click();
+      await expect(b.getByText('Tap Play below to enable sound on this device.')).toHaveCount(0);
+      await b.screenshot({ path: 'test-results/mobile-music.png' });
+    }
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     await a.getByRole('slider', { name: 'Music volume' }).fill('40');
@@ -182,6 +206,12 @@ for (const source of ['directory', 'pasted link']) test(`shared ${source} music 
     await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await b.getByRole('button', { name: 'Play Study Music' }).click();
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    await b.getByRole('button', { name: 'YouTube Pause' }).click();
+    await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
+    await a.getByRole('button', { name: 'YouTube Play' }).click();
+    await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    await a.getByRole('button', { name: 'Close music player' }).click();
+    await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

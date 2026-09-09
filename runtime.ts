@@ -3,12 +3,12 @@ import type { Express, Request, Response } from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'node:http';
 import { normalizeSharedTrack } from './src/data/musicDirectory';
-import type { MusicTrack, StudentSession } from './src/types';
+import type { RoomMusicState, StudentSession } from './src/types';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
 type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text'; replyTo?: { id: string; senderHandle: string; text: string } };
-type RoomMusic = { trackId: string; track?: MusicTrack; isPlaying: boolean; volume: number; isMuted: boolean };
+type RoomMusic = RoomMusicState;
 type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number>; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
@@ -144,7 +144,7 @@ function updateMusic(session: Identity, room: Room, data: any) {
   const track = normalizeSharedTrack(data.track);
   if (data.track !== undefined && (!track || track.id !== trackId)) throw new Error('Invalid music track.');
   const sharedTrack = track || (room.music?.trackId === trackId ? room.music.track : undefined);
-  room.music = { trackId, ...(sharedTrack ? { track: sharedTrack } : {}), isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
+  room.music = { revision: (room.music?.revision || 0) + 1, trackId, ...(sharedTrack ? { track: sharedTrack } : {}), isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
   for (const peer of room.peers) if (peer.id !== session.id) notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
 }
 export function attachRuntime(app: Express, server: Server) {
@@ -215,6 +215,15 @@ export function attachRuntime(app: Express, server: Server) {
     // Return the bounded buffer. Clients deduplicate by ID, including messages with identical timestamps.
     res.json({ active: true, messages: room.messages, music: room.music, peerDisconnected: false,
       isPeerTyping: [...room.typing].some(([id, timestamp]) => id !== session.id && Date.now() - timestamp < 3000) });
+  });
+  app.post('/api/chat/music', (req, res) => {
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    try {
+      updateMusic(session, room, req.body);
+      res.json({ music: room.music });
+    } catch (error) { res.status(400).json({ error: (error as Error).message }); }
   });
   app.post('/api/chat/typing', (req, res) => {
     const session = authenticate(req)!;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, Volume2, VolumeX, ChevronDown, Music, LoaderCircle } from 'lucide-react';
-import { MusicTrack } from '../types';
+import { apiRequest } from '../utils/api';
+import { MusicTrack, RoomMusicState } from '../types';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, normalizeSharedTrack } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
@@ -9,9 +10,11 @@ interface TopMusicBarProps {
   roomId?: string;
   ws?: WebSocket;
   isSimulated?: boolean;
+  token?: string;
+  remoteMusic?: RoomMusicState;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated }) => {
+export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -32,27 +35,44 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const playerRef = useRef<YouTubePlayer | null>(null);
   const playerReadyRef = useRef(false);
   const wantsPlaybackRef = useRef(false);
+  const loadingTrackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const appliedRevision = useRef(0);
+  const pendingUpdates = useRef(0);
+  const updateQueue = useRef(Promise.resolve());
+  const [syncError, setSyncError] = useState('');
+  const [needsGesture, setNeedsGesture] = useState(false);
   const broadcast = (state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean }, track = tracks.find(item => item.id === state.trackId)) => {
-    if (!roomId || isSimulated || ws?.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'music_update', roomId, ...state, track }));
+    if (!roomId || isSimulated) return;
+    pendingUpdates.current++;
+    updateQueue.current = updateQueue.current.then(async () => {
+      try {
+        const data = await apiRequest<{ music: RoomMusicState }>('/api/chat/music', token, { roomId, ...state, track });
+        appliedRevision.current = Math.max(appliedRevision.current, data.music.revision);
+        setSyncError('');
+      } catch {
+        setSyncError('Music could not sync. Press Play or Pause to try again.');
+      } finally { pendingUpdates.current--; }
+    });
   };
+
+  const broadcastRef = useRef(broadcast);
+  broadcastRef.current = broadcast;
 
   const currentTrack = tracks[currentTrackIndex] || tracks[0];
   const latestRef = useRef({ currentTrack, isMuted, volume });
   latestRef.current = { currentTrack, isMuted, volume };
 
   useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
+    const applyRemote = (remote: RoomMusicState) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type !== 'music_state' || data.roomId !== roomId || !data.music) return;
-        const remote = data.music as { track?: MusicTrack; trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
+        if (pendingUpdates.current || remote.revision <= appliedRevision.current) return;
         let index = tracks.findIndex(track => track.id === remote.trackId);
         const sharedTrack = normalizeSharedTrack(remote.track);
         const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
         if (!track) return;
+        appliedRevision.current = remote.revision;
         if (index < 0) {
           index = tracks.length;
           setTracks(previous => [...previous, track]);
@@ -70,6 +90,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           playerRef.current.setVolume(remote.volume);
           if (remote.isMuted) playerRef.current.mute(); else playerRef.current.unMute();
           if (trackChanged) {
+            loadingTrackRef.current = remote.isPlaying;
             if (remote.isPlaying) playerRef.current.loadVideoById(track.youtubeVideoId);
             else playerRef.current.cueVideoById(track.youtubeVideoId);
           } else if (remote.isPlaying) playerRef.current.playVideo();
@@ -79,9 +100,16 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         }
       } catch { /* Ignore malformed room events. */ }
     };
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'music_state' && data.roomId === roomId && data.music) applyRemote(data.music);
+      } catch { /* Polling recovers missed events. */ }
+    };
+    if (remoteMusic) applyRemote(remoteMusic);
     ws?.addEventListener('message', onMessage);
     return () => ws?.removeEventListener('message', onMessage);
-  }, [roomId, tracks, ws]);
+  }, [roomId, tracks, ws, remoteMusic]);
 
   useEffect(() => {
     // Fetch custom directory from server if available
@@ -151,6 +179,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             if (latestRef.current.isMuted) target.mute();
             else target.unMute();
             if (wantsPlaybackRef.current) {
+              loadingTrackRef.current = true;
               target.loadVideoById(latestRef.current.currentTrack.youtubeVideoId);
             } else {
               target.cueVideoById(latestRef.current.currentTrack.youtubeVideoId);
@@ -162,10 +191,18 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             setIsPlaying(data === 1);
             setIsLoading(data === 3);
             if (data === 1) {
+              loadingTrackRef.current = false;
+              if (!wantsPlaybackRef.current) {
+                const latest = latestRef.current;
+                broadcastRef.current({ trackId: latest.currentTrack.id, isPlaying: true, volume: latest.volume, isMuted: latest.isMuted }, latest.currentTrack);
+              }
               wantsPlaybackRef.current = true;
               setPlayerError('');
-            } else if (data === 2) {
+              setNeedsGesture(false);
+            } else if (data === 2 && wantsPlaybackRef.current && !loadingTrackRef.current) {
               wantsPlaybackRef.current = false;
+              const latest = latestRef.current;
+              broadcastRef.current({ trackId: latest.currentTrack.id, isPlaying: false, volume: latest.volume, isMuted: latest.isMuted }, latest.currentTrack);
             } else if (data === 0 && wantsPlaybackRef.current) {
               target.playVideo();
             }
@@ -175,7 +212,9 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             fail(getYouTubeErrorMessage(data));
           },
           onAutoplayBlocked: () => {
-            fail('Your browser blocked playback. Press Play in the YouTube player below.');
+            setIsPlaying(false);
+            setIsLoading(false);
+            setNeedsGesture(true);
           },
         },
       });
@@ -213,6 +252,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     wantsPlaybackRef.current = true;
     setPlayerError('');
     setIsLoading(true);
+    loadingTrackRef.current = !resume;
     if (playerReadyRef.current && playerRef.current) {
       if (resume) playerRef.current.playVideo();
       else playerRef.current.loadVideoById(track.youtubeVideoId);
@@ -242,7 +282,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       if (muted) playerRef.current.mute();
       else playerRef.current.unMute();
     }
-    broadcast({ trackId: currentTrack.id, isPlaying, volume, isMuted: muted });
+    broadcast({ trackId: currentTrack.id, isPlaying: wantsPlaybackRef.current, volume, isMuted: muted });
   };
   const changeVolume = (nextVolume: number) => {
     setVolume(nextVolume);
@@ -252,7 +292,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       if (nextVolume === 0) playerRef.current.mute();
       else playerRef.current.unMute();
     }
-    broadcast({ trackId: currentTrack.id, isPlaying, volume: nextVolume, isMuted: nextVolume === 0 });
+    broadcast({ trackId: currentTrack.id, isPlaying: wantsPlaybackRef.current, volume: nextVolume, isMuted: nextVolume === 0 });
   };
 
   const playNextTrack = () => {
@@ -314,15 +354,15 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   };
 
   return (
-    <div className="relative flex items-center" ref={menuRef}>
+    <div className="relative w-full min-w-0 max-w-[480px]" ref={menuRef}>
       {/* Keep the same player mounted when paused or muted. Native controls
           also let the user start playback when the browser blocks autoplay. */}
       {playerEnabled && (
-        <section aria-label="Study music player" className={`relative w-full max-w-[320px] rounded-xl border shadow-sm ${
+        <section aria-label="Study music player" className={`relative w-full min-w-0 rounded-xl border shadow-sm ${
           isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
         }`}>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono">
-            <button aria-label="Close music player" className="float-right p-1" onClick={() => { wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
+          <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
+            <button aria-label="Close music player" className="shrink-0 p-2" onClick={() => { broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted }); wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
             <button
               type="button"
               onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -332,13 +372,10 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             >
               {currentTrack.title}
             </button>
-            <span role="status" className="hidden shrink-0 text-[10px] text-stone-500 sm:inline">
-              {playerError || (isLoading ? 'Loading music…' : isPlaying ? 'Playing' : 'Paused — press Play to listen')}
-            </span>
-            <button type="button" onClick={togglePlay} aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'} className="shrink-0 p-1">
+            <button type="button" onClick={togglePlay} aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'} className="shrink-0 p-2">
               {isLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : isPlaying ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 fill-current" />}
             </button>
-            <label className="flex w-20 shrink-0 items-center gap-1.5">
+            <label className="flex w-full min-w-0 items-center gap-2 border-t border-stone-300/40 pt-2">
               <Volume2 className="h-3.5 w-3.5 shrink-0" />
               <input
                 type="range"
@@ -347,15 +384,19 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                 value={isMuted ? 0 : volume}
                 onChange={(event) => changeVolume(Number(event.target.value))}
                 aria-label="Music volume"
-                className="w-full accent-[#991B1B]"
+                className="min-w-0 flex-1 accent-[#991B1B]"
               />
               <span className="w-7 text-right text-[10px]">{isMuted ? 0 : volume}%</span>
             </label>
           </div>
-          <div ref={playerHostRef} className="absolute h-px w-px overflow-hidden opacity-0 pointer-events-none [&_iframe]:h-px [&_iframe]:w-px" />
+          <p role="status" className="px-3 pb-2 text-xs text-stone-500 dark:text-stone-400">
+            {playerError || (needsGesture ? 'Tap Play below to enable sound on this device.' : isLoading ? 'Loading music?' : isPlaying ? 'Playing' : 'Paused ? press Play to listen')}
+          </p>
+          <div ref={playerHostRef} className="h-[200px] w-full overflow-hidden rounded-b-xl [&_iframe]:h-[200px] [&_iframe]:w-full" />
         </section>
       )}
 
+      {syncError && <p role="alert" className="py-2 text-xs text-red-600 dark:text-red-400">{syncError}</p>}
       {/* Sleek Top Music Bar HUD */}
       <div
         id="top-music-bar"

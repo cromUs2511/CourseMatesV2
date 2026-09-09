@@ -133,3 +133,22 @@ test('message IDs are unique across peers and deletion preserves the other messa
     assert.deepEqual(remaining.map((m: any) => m.id), [first.id]);
   } finally { await request('/api/match/cancel', a, {}); }
 });
+
+test('shared music survives HTTP fallback and rejects invalid tracks and non-members', async () => {
+  const { a, b, roomId } = await pair();
+  const track = { id: 'custom-dQw4w9WgXcQ', youtubeVideoId: 'dQw4w9WgXcQ', title: 'Shared track' };
+  const update = { roomId, trackId: track.id, track, isPlaying: true, volume: 70, isMuted: false };
+  try {
+    assert.equal((await request('/api/chat/music', undefined, update)).status, 401);
+    assert.equal((await request('/api/chat/music', identity(), update)).status, 404);
+    assert.equal((await request('/api/chat/music', a, { ...update, track: { ...track, youtubeVideoId: 'invalid' } })).status, 400);
+    const first = await request('/api/chat/music', a, update);
+    assert.equal(first.status, 200);
+    const received = (await request('/api/chat/messages?roomId=' + roomId, b)).data.music;
+    assert.equal(received.track.youtubeVideoId, track.youtubeVideoId);
+    assert.equal(received.isPlaying, true);
+    const paused = await request('/api/chat/music', b, { ...update, isPlaying: false });
+    assert.ok(paused.data.music.revision > received.revision);
+    assert.equal((await request('/api/chat/messages?roomId=' + roomId, a)).data.music.isPlaying, false);
+  } finally { await request('/api/match/cancel', a, {}); }
+});

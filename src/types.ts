@@ -102,3 +102,12 @@ export interface MusicTrack {
   duration?: string;
   thumbnail?: string;
 }
+
+export interface RoomMusicState {
+  trackId: string;
+  track?: MusicTrack;
+  isPlaying: boolean;
+  volume: number;
+  isMuted: boolean;
+  revision: number;
+}

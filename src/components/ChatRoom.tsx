@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2 } from 'lucide-react';
-import { StudentSession, ActivePeerInfo, ChatMessage } from '../types';
+import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -51,6 +51,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   onLeaveChat,
   isDarkMode = false,
 }) => {
+  const [roomMusic, setRoomMusic] = useState<RoomMusicState>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isPeerTyping, setIsPeerTyping] = useState(false);
@@ -148,6 +149,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         if (disposed || endedRef.current) return;
         failures = 0;
         if (!data.active || data.peerDisconnected) { markDisconnected(); return; }
+        setRoomMusic(data.music);
         receiveMessages(data.messages, true);
         setIsPeerTyping(data.isPeerTyping);
         setError(current => current.startsWith('Connection interrupted') ? '' : current);
@@ -282,9 +284,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               <div className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
                 <span className="truncate text-[#991B1B] dark:text-[#F87171] font-semibold">{topic}</span>
               </div>
-              <div className="mt-1.5 flex max-w-full justify-start">
-                <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} isSimulated={peer.isSimulated} />
-              </div>
+
             </div>
           </div>
 
@@ -318,6 +318,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </button>
           </div>
         </div>
+        {!peerDisconnected && <div className="shrink-0 border-b border-stone-300 bg-white px-3 py-2 dark:border-stone-800 dark:bg-[#181716] sm:px-6">
+          <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} />
+        </div>}
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
