@@ -181,6 +181,14 @@ for (const source of ['directory', 'pasted link', 'HTTP fallback', 'mobile autop
       await expect(b.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
       await b.getByRole('button', { name: 'YouTube Play' }).click();
       await expect(b.getByText('Tap Play below to enable sound on this device.')).toHaveCount(0);
+      for (const width of [320, 375, 430]) {
+        await b.setViewportSize({ width, height: 667 });
+        const bar = await b.getByRole('region', { name: 'Study music player' }).boundingBox();
+        expect(bar!.height).toBeLessThan(120);
+        expect(bar!.x + bar!.width).toBeLessThanOrEqual(width);
+        await expect(b.getByRole('slider', { name: 'Music volume' })).toBeInViewport();
+      }
+      await b.setViewportSize({ width: 375, height: 667 });
       await b.screenshot({ path: 'test-results/mobile-music.png' });
     }
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
@@ -206,9 +214,10 @@ for (const source of ['directory', 'pasted link', 'HTTP fallback', 'mobile autop
     await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await b.getByRole('button', { name: 'Play Study Music' }).click();
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    await b.getByRole('button', { name: 'YouTube Pause' }).click();
+    await b.setViewportSize({ width: 375, height: 667 });
+    await b.getByRole('button', { name: 'Pause Study Music' }).click();
     await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
-    await a.getByRole('button', { name: 'YouTube Play' }).click();
+    await a.getByRole('button', { name: 'Play Study Music' }).click();
     await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     await a.getByRole('button', { name: 'Close music player' }).click();
     await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();

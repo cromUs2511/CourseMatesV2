@@ -266,7 +266,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           {/* Peer Info - Pure typography */}
           <div className="flex min-w-0 flex-1 items-center space-x-2">
             <div className="min-w-0">
-              <div className="flex w-full items-center gap-2 sm:w-auto">
+              <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto">
                 <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
                   {peer.handle}
                 </span>

@@ -361,21 +361,21 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         <section aria-label="Study music player" className={`relative w-full min-w-0 rounded-xl border shadow-sm ${
           isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
         }`}>
-          <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
-            <button aria-label="Close music player" className="shrink-0 p-2" onClick={() => { broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted }); wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
+          <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.75rem] items-center gap-x-1 px-2 py-1 text-xs sm:flex sm:flex-wrap sm:gap-2 sm:px-2.5 sm:py-2">
+            <button aria-label="Close music player" className="flex h-11 w-9 shrink-0 items-center justify-center" onClick={() => { broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted }); wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
             <button
               type="button"
               onClick={() => setIsMenuOpen((prev) => !prev)}
               aria-expanded={isMenuOpen}
               aria-controls="music-tracks-dropdown"
-              className="min-w-0 flex-1 truncate text-left font-semibold hover:text-[#991B1B] dark:hover:text-[#F87171]"
+              className="min-h-11 min-w-0 flex-1 truncate text-left font-semibold hover:text-[#991B1B] dark:hover:text-[#F87171]"
             >
               {currentTrack.title}
             </button>
-            <button type="button" onClick={togglePlay} aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'} className="shrink-0 p-2">
+            <button type="button" onClick={togglePlay} aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'} className="flex h-11 w-11 shrink-0 items-center justify-center">
               {isLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : isPlaying ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 fill-current" />}
             </button>
-            <label className="flex w-full min-w-0 items-center gap-2 border-t border-stone-300/40 pt-2">
+            <label className="col-span-3 flex min-h-9 w-full min-w-0 items-center gap-3 border-t border-stone-300/40 px-1">
               <Volume2 className="h-3.5 w-3.5 shrink-0" />
               <input
                 type="range"
@@ -384,15 +384,15 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                 value={isMuted ? 0 : volume}
                 onChange={(event) => changeVolume(Number(event.target.value))}
                 aria-label="Music volume"
-                className="min-w-0 flex-1 accent-[#991B1B]"
+                className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]"
               />
-              <span className="w-7 text-right text-[10px]">{isMuted ? 0 : volume}%</span>
+              <span className="w-8 shrink-0 text-right text-xs tabular-nums">{isMuted ? 0 : volume}%</span>
             </label>
           </div>
-          <p role="status" className="px-3 pb-2 text-xs text-stone-500 dark:text-stone-400">
-            {playerError || (needsGesture ? 'Tap Play below to enable sound on this device.' : isLoading ? 'Loading music?' : isPlaying ? 'Playing' : 'Paused ? press Play to listen')}
+          <p role="status" className={`${playerError || needsGesture || isLoading ? "" : "sr-only sm:not-sr-only"} px-3 pb-2 text-xs text-stone-500 dark:text-stone-400`}>
+            {playerError || (needsGesture ? <><span className="lg:hidden">Tap Play below to enable sound on this device.</span><span className="hidden lg:inline">Press Play to enable sound on this device.</span></> : isLoading ? 'Loading music?' : isPlaying ? 'Playing' : 'Paused ? press Play to listen')}
           </p>
-          <div ref={playerHostRef} className="h-[200px] w-full overflow-hidden rounded-b-xl [&_iframe]:h-[200px] [&_iframe]:w-full" />
+          <div ref={playerHostRef} className={`h-[200px] overflow-hidden rounded-b-xl [&_iframe]:h-[200px] [&_iframe]:w-full ${needsGesture ? 'w-full lg:pointer-events-none lg:absolute lg:w-[320px] lg:opacity-0 lg:[clip-path:inset(50%)]' : 'pointer-events-none absolute w-[320px] opacity-0 [clip-path:inset(50%)]'}`} />
         </section>
       )}
 
