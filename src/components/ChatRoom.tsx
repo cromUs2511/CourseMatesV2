@@ -292,11 +292,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       }`}
     >
       {ambientActive && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 animate-ambient-glow"
-          style={{ background: `radial-gradient(circle at 50% 45%, ${ambient.color}40, transparent 62%)` }}
-        />
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0 animate-ambient-glow"
+            style={{
+              background: `
+                radial-gradient(circle at 50% 42%, ${ambient.color}65 0%, ${ambient.color}28 28%, transparent 66%),
+                radial-gradient(ellipse at 8% 90%, ${ambient.color}38, transparent 52%),
+                radial-gradient(ellipse at 92% 12%, ${ambient.color}32, transparent 48%)
+              `,
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-[-12%] z-0 animate-ambient-glow-drift"
+            style={{
+              background: `radial-gradient(ellipse at 50% 50%, transparent 30%, ${ambient.color}30 68%, transparent 82%)`,
+            }}
+          />
+        </>
       )}
       <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         {/* Pinned Header - Clean, solid, no user emojis/icons */}
