@@ -1,6 +1,8 @@
 import React from 'react';
-import { RefreshCw, LogOut, Sun, Moon } from 'lucide-react';
+import { RefreshCw, LogOut } from 'lucide-react';
 import { StudentSession } from '../types';
+import { ThemeToggle } from './ThemeToggle';
+import { SoundToggle } from './SoundToggle';
 
 interface HeaderProps {
   session: StudentSession | null;
@@ -9,6 +11,8 @@ interface HeaderProps {
   onlineCount?: number;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  isSoundEnabled: boolean;
+  onToggleSound: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   isDarkMode,
   onToggleDarkMode,
+  isSoundEnabled,
+  onToggleSound,
 }) => {
   return (
     <header
@@ -32,18 +38,13 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right: Controls & Persona Handle */}
           <div className="flex items-center space-x-2 text-xs shrink-0">
             {/* Dark / Light Theme Toggle */}
-            <button
+            <ThemeToggle
               id="dark-mode-toggle-btn"
-              onClick={onToggleDarkMode}
-              className={`p-2 border rounded-lg transition-all cursor-pointer shadow-sm hover:-translate-y-0.5 ${
-                isDarkMode
-                  ? 'bg-stone-900 border-stone-800 text-amber-400 hover:bg-stone-800'
-                  : 'bg-stone-50 border-stone-300 text-stone-700 hover:bg-stone-100 hover:text-stone-900'
-              }`}
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+              isDarkMode={isDarkMode}
+              onToggle={onToggleDarkMode}
+              className="shadow-sm hover:-translate-y-0.5"
+            />
+            <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
 
             {/* Authenticated Identity Badge - No user emojis or icons */}
             {session && (

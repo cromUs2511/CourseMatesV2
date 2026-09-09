@@ -191,7 +191,16 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center p-3 sm:p-6 overflow-y-auto select-none">
+    <div
+      className="flex-1 min-h-0 w-full h-full flex flex-col items-center p-3 sm:p-6 overflow-y-auto select-none"
+      style={{
+        backgroundColor: isDarkMode ? '#111110' : '#f7f4ef',
+        backgroundImage: isDarkMode
+          ? 'linear-gradient(rgba(229, 164, 0, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(229, 164, 0, 0.12) 1px, transparent 1px)'
+          : 'linear-gradient(rgba(142, 107, 48, 0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(142, 107, 48, 0.14) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      }}
+    >
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
         <div

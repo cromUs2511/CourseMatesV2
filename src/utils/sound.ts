@@ -1,6 +1,25 @@
 // Clean Web Audio synthesizer for subtle tactile feedback
 let audioContext: AudioContext | null = null;
+const SOUND_SETTING_KEY = 'coursemates_chat_sound';
+
+export function getSoundEnabled() {
+  try {
+    return localStorage.getItem(SOUND_SETTING_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function setSoundEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(SOUND_SETTING_KEY, String(enabled));
+  } catch {
+    // Audio remains available for this session when storage is unavailable.
+  }
+}
+
 export function playChime(type: 'match' | 'message' | 'timer' | 'purge' | 'click') {
+  if (!getSoundEnabled()) return;
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;

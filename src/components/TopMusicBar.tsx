@@ -311,7 +311,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       {/* Keep the same player mounted when paused or muted. Native controls
           also let the user start playback when the browser blocks autoplay. */}
       {playerEnabled && (
-        <section aria-label="Study music player" className={`relative w-full max-w-[320px] border shadow-sm ${
+        <section aria-label="Study music player" className={`relative w-full max-w-[320px] rounded-xl border shadow-sm ${
           isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
         }`}>
           <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono">
@@ -352,7 +352,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       {/* Sleek Top Music Bar HUD */}
       <div
         id="top-music-bar"
-        className={`${playerEnabled ? 'hidden' : 'flex'} items-center space-x-2 px-2.5 py-1 border text-xs transition-colors ${
+        className={`${playerEnabled ? 'hidden' : 'flex'} items-center space-x-2 rounded-xl px-2.5 py-1 border text-xs transition-colors ${
           isDarkMode
             ? 'bg-[#181716] border-stone-800 text-stone-200'
             : 'bg-stone-50 border-stone-300 text-stone-800'
@@ -428,7 +428,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       {isMenuOpen && (
         <div
           id="music-tracks-dropdown"
-          className={`absolute top-full left-0 sm:left-auto sm:right-0 mt-1.5 w-[min(288px,calc(100vw-1rem))] max-h-80 overflow-y-auto border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
+          className={`absolute top-full left-0 sm:left-auto sm:right-0 mt-1.5 w-[min(288px,calc(100vw-1rem))] max-h-80 overflow-y-auto rounded-xl border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
             isDarkMode
               ? 'bg-[#181716] border-stone-700 text-stone-200'
               : 'bg-white border-stone-300 text-stone-800'

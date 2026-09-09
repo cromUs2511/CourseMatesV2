@@ -5,6 +5,7 @@ import { MatchmakingQueue } from './components/MatchmakingQueue';
 import { ChatRoom } from './components/ChatRoom';
 import { StudentSession, ActivePeerInfo } from './types';
 import { apiRequest } from './utils/api';
+import { getSoundEnabled, setSoundEnabled } from './utils/sound';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -14,6 +15,7 @@ export default function App() {
     } catch { /* Storage may be unavailable in private browsers. */ }
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+  const [isSoundEnabled, setIsSoundEnabled] = useState(() => getSoundEnabled());
   const [session, setSession] = useState<StudentSession | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [activePeer, setActivePeer] = useState<ActivePeerInfo | null>(null);
@@ -66,11 +68,13 @@ export default function App() {
   return (
     <div className={'fixed inset-0 min-h-[100dvh] w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
       {session && <Header session={session} onRerollHandle={handleRerollHandle} onLogout={handleLogout}
-        isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)} />}
+        isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)}
+        isSoundEnabled={isSoundEnabled} onToggleSound={() => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; })} />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
         {restoring ? <p role="status" className="m-auto">Loading your session…</p> : !session ?
-          <AccessGateway onVerified={setSession} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)} /> :
+          <AccessGateway onVerified={setSession} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)}
+            isSoundEnabled={isSoundEnabled} onToggleSound={() => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; })} /> :
           activePeer ? <ChatRoom key={activeRoomId} session={session} peer={activePeer} topic={activeTopic} ws={activeWs || undefined} roomId={activeRoomId}
             onNextMatch={() => { resetChat(); setAutoSearch(true); setQueueKey(k => k + 1); }}
             onLeaveChat={() => { resetChat(); setAutoSearch(false); }}

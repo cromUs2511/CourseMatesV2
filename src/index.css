@@ -87,31 +87,29 @@
       min-height: 3.75rem;
     }
 
-    .access-gateway-dark {
-      background-color: #111 !important;
-      background-image:
-        linear-gradient(rgba(229, 164, 0, 0.13) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(229, 164, 0, 0.13) 1px, transparent 1px) !important;
-      background-size: 40px 40px !important;
-    }
 
-    .access-gateway-light {
-      background-color: #f7f4ef !important;
-      background-image:
-        linear-gradient(rgba(91, 70, 38, 0.18) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(91, 70, 38, 0.18) 1px, transparent 1px) !important;
-      background-size: 40px 40px !important;
-    }
-
-    .access-form-panel {
-      background-color: rgba(25, 25, 25, 0.94) !important;
-    }
-
-    .access-gateway-light .access-form-panel {
-      background-color: rgba(247, 244, 239, 0.94) !important;
-    }
   }
   .animate-spin-slow-reverse {
     animation: spin 6s linear infinite reverse;
   }
+}
+
+/* Keep the original wordmark scale while fitting brackets on narrow screens. */
+.access-gateway {
+  background-image:
+    linear-gradient(rgba(229, 164, 0, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(229, 164, 0, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.access-desktop-logo, .access-mobile-logo {
+  container-type: inline-size;
+}
+
+.access-desktop-logo .access-logo-type {
+  font-size: min(clamp(5rem, 11vw, 10rem), 23cqw);
+}
+
+.access-mobile-logo .access-logo-type {
+  font-size: min(clamp(4rem, 20vw, 5.5rem), 24cqw);
 }

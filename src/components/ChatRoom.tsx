@@ -6,6 +6,30 @@ import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { TopMusicBar } from './TopMusicBar';
 
+const CONVERSATION_STARTER_POOL = [
+  'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
+  'May ma-recommend kang open-world sa Steam na keri lang sa laptop?',
+  'Bro, do you know exactly where W405 is? Nakakaligaw yung layout minsan.',
+  'Is this the right room? Baka mamaya maling class napasukan ko.',
+  'Are you taking the stairs? Ang lala ng pila sa elbi eh.',
+  'Do you know any cheap kainan outside Walls? Sawa na ako sa canteen.',
+  'Sira ba yung myMapua niyo? I can\'t check my schedule.',
+  'Wait, did the prof post the module sa Blackboard already?',
+  'May groupmate ka na ba? Wala pa kasi akong kilala dito.',
+  'First week pa lang pero parang midterms na, right?',
+  'What\'s your next class? Baka parehas tayo ng pupuntahan.',
+  'May alam kang magandang coffee shop near campus? Need to cram.',
+];
+
+const shuffleList = <T,>(items: T[]) => {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+};
+
 interface ChatRoomProps {
   session: StudentSession;
   peer: ActivePeerInfo;
@@ -34,6 +58,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [starterPool, setStarterPool] = useState<string[]>(() => shuffleList(CONVERSATION_STARTER_POOL));
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
@@ -48,23 +73,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const sendingRef = useRef(false);
   const suggestionRequestRef = useRef<AbortController | null>(null);
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggest = useCallback(async () => {
-    suggestionRequestRef.current?.abort();
-    const controller = new AbortController();
-    suggestionRequestRef.current = controller;
+
+  const fetchAiSuggestions = useCallback(() => {
     setIsSuggestionsLoading(true);
-    try {
-      // Conversation text stays in the room; topic suggestions need only the topic.
-      const data = await apiRequest('/api/ai/suggestions', session.token, { topic, discipline: peer.discipline, campus: peer.campus }, controller.signal);
-      if (!controller.signal.aborted) setAiSuggestions(data.suggestions.filter((s: unknown) => typeof s === 'string').slice(0, 4));
-    } catch {
-      if (!controller.signal.aborted) setAiSuggestions([
-        'What are you working on today?', 'Which part of this topic feels trickiest?',
-        'Would you like to compare study approaches?', 'What is your next study goal?',
-      ]);
-    } finally { if (!controller.signal.aborted) setIsSuggestionsLoading(false); }
-  }, [topic, session.token, peer.discipline, peer.campus]);
-  const fetchAiSuggestions = suggest;
+    setStarterPool(current => shuffleList(current.length ? current : CONVERSATION_STARTER_POOL));
+  }, []);
+
+  useEffect(() => {
+    const nextSuggestions = shuffleList(starterPool).slice(0, 3);
+    setAiSuggestions(nextSuggestions);
+    setIsSuggestionsLoading(false);
+  }, [starterPool]);
 
   const receiveMessages = useCallback((incoming: any[], replace = false) => {
     if (endedRef.current) return;
@@ -90,10 +109,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     retryMessageRef.current = null;
     setError('');
   }, []);
-  useEffect(() => {
-    void suggest();
-    return () => suggestionRequestRef.current?.abort();
-  }, [suggest]);
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener('fullscreenchange', handler);
@@ -216,7 +231,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       setError('');
     } catch (err) { setError((err as Error).message); }
   };
-  const handleSuggestionClick = (text: string) => { setInputText(text); };
+  const handleSuggestionClick = (text: string) => {
+    setInputText(text);
+    setStarterPool(current => current.filter((prompt) => prompt !== text));
+  };
   const leave = async (next: boolean) => {
     if (roomId && !peer.isSimulated) {
       try { await apiRequest('/api/chat/leave', session.token, { roomId }); } catch { /* Server lease expires when offline. */ }
@@ -264,6 +282,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               <div className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
                 <span className="truncate text-[#991B1B] dark:text-[#F87171] font-semibold">{topic}</span>
               </div>
+              <div className="mt-1.5 flex max-w-full justify-start">
+                <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} isSimulated={peer.isSimulated} />
+              </div>
             </div>
           </div>
 
@@ -297,10 +318,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </button>
           </div>
         </div>
-        <div className="flex justify-center border-b border-stone-800/60 px-3 py-1.5">
-          <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} isSimulated={peer.isSimulated} />
-        </div>
-
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -312,7 +329,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 return (
                   <div key={msg.id} className="my-3 text-center">
                     <div
-                      className={`inline-block px-3 py-1.5 border text-xs font-mono ${
+                      className={`inline-block rounded-xl px-3 py-1.5 border text-xs font-mono ${
                         isDarkMode
                           ? 'bg-stone-900 border-stone-800 text-stone-400'
                           : 'bg-stone-100 border-stone-300 text-stone-600'
@@ -383,7 +400,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       </span>
                     )}
                     <div
-                      className={`p-3.5 text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
+                      className={`rounded-2xl p-3.5 text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
                         msg.isMe
                           ? 'bg-[#991B1B] border-[#991B1B] text-white'
                           : isDarkMode
@@ -449,7 +466,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         </div>
 
         {/* Dynamic AI Topic Suggestions Bar - Context aware, auto-shuffles after use */}
-        {!peerDisconnected && (
+        {!peerDisconnected && aiSuggestions.length > 0 && (
           <div
             id="ai-suggestions-bar"
             className={`border-t px-4 sm:px-6 py-2 shrink-0 ${
