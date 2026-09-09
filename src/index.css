@@ -107,9 +107,9 @@
 }
 
 .access-desktop-logo .access-logo-type {
-  font-size: min(clamp(5rem, 11vw, 10rem), 23cqw);
+  font-size: clamp(4rem, 8vw, 8rem);
 }
 
 .access-mobile-logo .access-logo-type {
-  font-size: min(clamp(4rem, 20vw, 5.5rem), 24cqw);
+  font-size: clamp(3rem, 16vw, 5rem);
 }
