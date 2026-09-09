@@ -84,11 +84,8 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   }).length);
   expect(overflow).toBe(0);
   await page.screenshot({ path: 'test-results/mobile-chat.png' });
-  await expect(page.getByRole('region', { name: 'Study music player' })).toHaveCount(0);
-  await page.locator('#music-play-toggle-btn').click();
-  await expect(page.getByRole('region', { name: 'Study music player' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close music player' }).click();
-  await expect(page.getByRole('region', { name: 'Study music player' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Music volume' })).toBeVisible();
   await page.locator('#logout-btn').click();
 });
 test('session restores after refresh and invalid emails show a readable error', async ({ page }) => {
@@ -124,22 +121,21 @@ test('sign-in configuration failures remain visible without the demo form', asyn
   await expect(page.getByRole('alert')).toHaveText('Sign-in configuration unavailable');
 });
 
-for (const source of ['directory', 'pasted link', 'HTTP fallback', 'mobile autoplay']) test(`shared ${source} music plays on both peers without restarting on volume changes`, async ({ browser }) => {
+for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) test(`shared ${source} audio controls play, pause and change volume without exposing video`, async ({ browser }) => {
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
   try {
     for (const [index, context] of contexts.entries()) await context.addInitScript(({ fallback, blocked }) => {
       if (fallback) window.WebSocket = class { constructor() { throw new Error('Offline WebSocket'); } } as any;
       (window as any).musicUnlocked = !blocked;
       (window as any).musicLoads = [];
+      document.addEventListener('click', event => {
+        if ((event.target as Element).closest('#music-play-toggle-btn')) (window as any).musicUnlocked = true;
+      }, true);
       (window as any).YT = { Player: class {
         constructor(element: HTMLElement, private options: any) {
-          const nativePlay = document.createElement('button');
-          nativePlay.textContent = 'YouTube Play';
-          nativePlay.onclick = () => { (window as any).musicUnlocked = true; this.playVideo(); };
-          const nativePause = document.createElement('button');
-          nativePause.textContent = 'YouTube Pause';
-          nativePause.onclick = () => this.pauseVideo();
-          element.append(nativePlay, nativePause);
+          const iframe = document.createElement('iframe');
+          iframe.title = 'Music video';
+          element.replaceWith(iframe);
           setTimeout(() => options.events.onReady({ target: this }), 0);
         }
         loadVideoById(id: string) { (window as any).musicLoads.push(id); this.playVideo(); }
@@ -149,78 +145,74 @@ for (const source of ['directory', 'pasted link', 'HTTP fallback', 'mobile autop
           this.options.events.onStateChange({ target: this, data: 1 });
         }
         pauseVideo() { this.options.events.onStateChange({ target: this, data: 2 }); }
-        setVolume() {}
-        mute() {}
-        unMute() {}
+        setVolume(volume: number) { (window as any).musicVolume = volume; }
+        mute() { (window as any).musicMuted = true; }
+        unMute() { (window as any).musicMuted = false; }
         destroy() {}
       } };
     }, { fallback: source === 'HTTP fallback', blocked: source === 'mobile autoplay' && index === 1 });
     const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
-    if (source === 'mobile autoplay') await b.setViewportSize({ width: 375, height: 667 });
+    if (source.includes('mobile')) for (const page of [a, b]) await page.setViewportSize({ width: 375, height: 667 });
     await signIn(a, 'music-a'); await signIn(b, 'music-b');
     await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
-    if (source !== 'directory') {
-      await a.locator('#top-music-bar button[aria-controls="music-tracks-dropdown"]').click();
-      await a.getByRole('textbox', { name: 'Add YouTube link' }).fill('https://youtu.be/dQw4w9WgXcQ?si=shared');
-      await a.getByRole('button', { name: 'Add YouTube link', exact: true }).click();
-      for (const page of [a, b]) {
-        await expect.poll(() => page.evaluate(() => (window as any).musicLoads)).toEqual(['dQw4w9WgXcQ']);
-      }
-    } else {
-      await a.locator('#music-play-toggle-btn').click();
-    }
-    await expect(b.getByRole('region', { name: 'Study music player' })).toBeVisible();
-    if (source === 'mobile autoplay') {
-      await expect(b.getByText('Tap Play below to enable sound on this device.')).toBeVisible();
-      const panel = await b.getByRole('region', { name: 'Study music player' }).boundingBox();
-      const header = await b.locator('#chat-header').boundingBox();
-      expect(panel!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
-      expect(panel!.x + panel!.width).toBeLessThanOrEqual(375);
-      await expect(b.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
-      await b.getByRole('button', { name: 'YouTube Play' }).click();
-      await expect(b.getByText('Tap Play below to enable sound on this device.')).toHaveCount(0);
-      for (const width of [320, 375, 430]) {
-        await b.setViewportSize({ width, height: 667 });
-        const bar = await b.getByRole('region', { name: 'Study music player' }).boundingBox();
-        expect(bar!.height).toBeLessThan(120);
-        expect(bar!.x + bar!.width).toBeLessThanOrEqual(width);
-        await expect(b.getByRole('slider', { name: 'Music volume' })).toBeInViewport();
-      }
-      await b.setViewportSize({ width: 375, height: 667 });
-      await b.screenshot({ path: 'test-results/mobile-music.png' });
-    }
-    await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    await a.getByRole('slider', { name: 'Music volume' }).fill('40');
-    await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('40');
-    expect(await a.evaluate(() => (window as any).musicLoads.length)).toBe(1);
-    expect(await b.evaluate(() => (window as any).musicLoads.length)).toBe(1);
-    await a.getByRole('slider', { name: 'Music volume' }).fill('0');
-    await a.getByRole('slider', { name: 'Music volume' }).fill('55');
-    await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('55');
-    expect(await a.evaluate(() => (window as any).musicLoads.length)).toBe(1);
-    expect(await b.evaluate(() => (window as any).musicLoads.length)).toBe(1);
-    // The receiving peer can select a new custom track with both players already mounted.
-    await b.getByRole('region', { name: 'Study music player' }).locator('button[aria-controls="music-tracks-dropdown"]').click();
-    await b.getByRole('textbox', { name: 'Add YouTube link' }).fill('https://www.youtube.com/watch?v=jfKfPfyJRdk&list=example');
-    await b.getByRole('button', { name: 'Add YouTube link', exact: true }).click();
-    for (const page of [a, b]) {
-      await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('jfKfPfyJRdk');
-      await expect(page.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    }
-    await a.getByRole('button', { name: 'Pause Study Music' }).click();
-    await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
-    await b.getByRole('button', { name: 'Play Study Music' }).click();
-    await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    await b.setViewportSize({ width: 375, height: 667 });
-    await b.getByRole('button', { name: 'Pause Study Music' }).click();
+    await a.getByRole('slider', { name: 'Music volume' }).fill('45');
     await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await a.getByRole('button', { name: 'Play Study Music' }).click();
-    await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
-    await a.getByRole('button', { name: 'Close music player' }).click();
+    if (source === 'mobile autoplay') {
+      await expect(b.getByText('Press Play to enable sound on this device.')).toBeVisible();
+      await b.getByRole('button', { name: 'Play Study Music' }).click();
+      await expect(b.getByRole('status')).toHaveCount(0);
+    }
+    for (const page of [a, b]) {
+      await expect(page.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+      await expect(page.locator('#top-music-bar')).toHaveAttribute('data-playing', 'true');
+      await expect(page.getByTestId('music-engine')).toHaveAttribute('aria-hidden', 'true');
+      await expect(page.getByTestId('music-engine')).toHaveCSS('opacity', '0');
+      await expect(page.getByTestId('music-engine')).toHaveAttribute('inert', '');
+      await expect(page.getByTestId('music-engine').locator('iframe')).toHaveCount(1);
+      expect((await page.locator('#top-music-bar').boundingBox())!.height).toBeLessThanOrEqual(44);
+    }
+    await a.getByRole('button', { name: 'Choose or search music' }).click();
+    await a.getByRole('button', { name: /lofi hip hop radio/ }).click();
+    for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('jfKfPfyJRdk');
+    await a.route('**/api/music/search?q=*', route => route.fulfill({ json: { tracks: [{ id: 'custom-dQw4w9WgXcQ', title: 'Search result music', artist: 'Test artist', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', youtubeVideoId: 'dQw4w9WgXcQ', category: 'custom' }] } }));
+    await a.getByRole('button', { name: 'Choose or search music' }).click();
+    await a.getByRole('searchbox', { name: 'Search music or paste a YouTube link' }).fill('test music');
+    await a.getByRole('button', { name: 'Go', exact: true }).click();
+    await a.getByRole('button', { name: /Search result music/ }).click();
+    for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('dQw4w9WgXcQ');
+    await b.getByRole('button', { name: 'Choose or search music' }).click();
+    await b.getByRole('searchbox', { name: 'Search music or paste a YouTube link' }).fill('https://youtu.be/5yx6BWlEVcY');
+    await b.getByRole('button', { name: 'Go', exact: true }).click();
+    for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('5yx6BWlEVcY');
+    await expect(b.getByRole('region', { name: 'Choose music' })).toHaveCount(0);
+    await b.getByRole('button', { name: 'Choose or search music' }).click();
+    await b.keyboard.press('Escape');
+    await expect(b.getByRole('region', { name: 'Choose music' })).toHaveCount(0);
+    const loads = await Promise.all([a, b].map(page => page.evaluate(() => (window as any).musicLoads.length)));
+    await a.getByRole('slider', { name: 'Music volume' }).fill('40');
+    await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('40');
+    await expect.poll(() => b.evaluate(() => (window as any).musicVolume)).toBe(40);
+    await a.getByRole('button', { name: 'Mute music', exact: true }).click();
+    await expect(b.locator('#top-music-bar')).toHaveAttribute('data-playing', 'false');
+    await expect.poll(() => b.evaluate(() => (window as any).musicMuted)).toBe(true);
+    await a.getByRole('button', { name: 'Unmute music', exact: true }).click();
+    await expect(b.locator('#top-music-bar')).toHaveAttribute('data-playing', 'true');
+    await a.getByRole('button', { name: 'Pause Study Music' }).click();
     await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
+    await expect(a.locator('#top-music-bar')).toHaveAttribute('data-playing', 'false');
+    await b.getByRole('button', { name: 'Play Study Music' }).click();
+    await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    expect(await Promise.all([a, b].map(page => page.evaluate(() => (window as any).musicLoads.length)))).toEqual(loads);
+    for (const width of [320, 375, 1280]) {
+      await a.setViewportSize({ width, height: 800 });
+      await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeInViewport();
+      await expect(a.getByRole('slider', { name: 'Music volume' })).toBeInViewport();
+      await expect(a.getByTestId('music-engine')).toHaveCSS('opacity', '0');
+    }
+    await a.screenshot({ path: `test-results/music-${source.replaceAll(' ', '-')}.png` });
     await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipForward, Volume2, VolumeX, ChevronDown, Music, LoaderCircle } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { MusicTrack, RoomMusicState } from '../types';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, normalizeSharedTrack } from '../data/musicDirectory';
@@ -20,13 +20,33 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolume] = useState(70);
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [customUrl, setCustomUrl] = useState('');
-  const [urlError, setUrlError] = useState('');
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const searchRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => searchRequestRef.current?.abort(), []);
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    searchRef.current?.focus();
+    const closeOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setIsMenuOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setIsMenuOpen(false); menuButtonRef.current?.focus(); }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+    };
+  }, [isMenuOpen]);
   const [playerError, setPlayerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [playerEnabled, setPlayerEnabled] = useState(false);
@@ -37,7 +57,6 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const wantsPlaybackRef = useRef(false);
   const loadingTrackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const appliedRevision = useRef(0);
   const pendingUpdates = useRef(0);
   const updateQueue = useRef(Promise.resolve());
@@ -169,7 +188,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         width: 320,
         height: 200,
         videoId: latestRef.current.currentTrack.youtubeVideoId,
-        playerVars: { playsinline: 1, controls: 1, origin: window.location.origin },
+        playerVars: { playsinline: 1, controls: 0, origin: window.location.origin },
         events: {
           onReady: ({ target }) => {
             if (disposed) return;
@@ -233,19 +252,6 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     };
   }, [playerEnabled, playerAttempt]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    };
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMenuOpen]);
-
   const startTrack = (track: MusicTrack, resume = false, sync = true) => {
     latestRef.current = { currentTrack: track, volume, isMuted };
     hasSelectedTrackRef.current = true;
@@ -253,11 +259,11 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     setPlayerError('');
     setIsLoading(true);
     loadingTrackRef.current = !resume;
-    if (playerReadyRef.current && playerRef.current) {
+    if (playerEnabled && playerError) {
+      setPlayerAttempt((attempt) => attempt + 1);
+    } else if (playerReadyRef.current && playerRef.current) {
       if (resume) playerRef.current.playVideo();
       else playerRef.current.loadVideoById(track.youtubeVideoId);
-    } else if (playerEnabled && playerError) {
-      setPlayerAttempt((attempt) => attempt + 1);
     } else {
       setPlayerEnabled(true);
     }
@@ -269,6 +275,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       wantsPlaybackRef.current = false;
       if (playerReadyRef.current) playerRef.current?.pauseVideo();
       setIsLoading(false);
+      setIsPlaying(false);
       broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted });
     } else {
       startTrack(currentTrack, true);
@@ -277,6 +284,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
 
   const toggleMute = () => {
     const muted = !isMuted;
+    if (!muted && volume === 0) { changeVolume(70); return; }
     setIsMuted(muted);
     if (playerReadyRef.current && playerRef.current) {
       if (muted) playerRef.current.mute();
@@ -287,6 +295,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const changeVolume = (nextVolume: number) => {
     setVolume(nextVolume);
     setIsMuted(nextVolume === 0);
+    latestRef.current = { currentTrack, volume: nextVolume, isMuted: nextVolume === 0 };
     if (playerReadyRef.current && playerRef.current) {
       playerRef.current.setVolume(nextVolume);
       if (nextVolume === 0) playerRef.current.mute();
@@ -295,272 +304,144 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     broadcast({ trackId: currentTrack.id, isPlaying: wantsPlaybackRef.current, volume: nextVolume, isMuted: nextVolume === 0 });
   };
 
-  const playNextTrack = () => {
-    const nextIndex = (currentTrackIndex + 1) % tracks.length;
-    setCurrentTrackIndex(nextIndex);
-    startTrack(tracks[nextIndex]);
-  };
-
   const selectTrack = (track: MusicTrack) => {
-    const existingIndex = tracks.findIndex(item => item.id === track.id);
-    const index = existingIndex >= 0 ? existingIndex : tracks.length;
-    if (existingIndex < 0) setTracks(previous => [...previous, track]);
-    setCurrentTrackIndex(index);
+    const index = tracks.findIndex(item => item.id === track.id);
+    if (index < 0) setTracks(previous => [...previous, track]);
+    setCurrentTrackIndex(index < 0 ? tracks.length : index);
     startTrack(track);
     setIsMenuOpen(false);
+    menuButtonRef.current?.focus();
   };
 
-
-  const filteredTracks = tracks.filter(track =>
-    `${track.title} ${track.artist} ${track.category}`.toLowerCase().includes(search.trim().toLowerCase())
-  );
-  const searchYouTube = async (event: React.FormEvent) => {
+  const searchMusic = async (event: React.FormEvent) => {
     event.preventDefault();
     const query = search.trim();
-    if (query.length < 2) return;
-    setIsSearching(true);
+    if (!query) return;
+    searchRequestRef.current?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = controller;
     setSearchError('');
-    try {
-      const response = await fetch('/api/music/search?q=' + encodeURIComponent(query));
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Search failed.');
-      setSearchResults(Array.isArray(data.tracks) ? data.tracks : []);
-    } catch (error) {
-      setSearchError((error as Error).message);
-      setSearchResults([]);
-    } finally {
+    setSearchResults([]);
+    const videoId = extractYouTubeVideoId(query);
+    if (videoId) {
       setIsSearching(false);
-    }
-  };
-  const addYouTubeLink = (event: React.FormEvent) => {
-    event.preventDefault();
-    const videoId = extractYouTubeVideoId(customUrl);
-    if (!videoId) {
-      setUrlError('Enter a valid YouTube link or video ID.');
+      selectTrack({ id: `custom-${videoId}`, title: 'Custom YouTube track', artist: 'YouTube', youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`, youtubeVideoId: videoId, category: 'custom' });
       return;
     }
-    const track: MusicTrack = {
-      id: `custom-${videoId}`,
-      title: 'Custom YouTube track',
-      artist: 'YouTube',
-      youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
-      youtubeVideoId: videoId,
-      category: 'custom',
-    };
-    selectTrack(track);
-    setCustomUrl('');
-    setUrlError('');
-    setIsMenuOpen(false);
+    setIsSearching(true);
+    try {
+      const response = await fetch('/api/music/search?q=' + encodeURIComponent(query), { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Search failed. Try again.');
+      const results = (Array.isArray(data.tracks) ? data.tracks : []).map(normalizeSharedTrack).filter((track: MusicTrack | null): track is MusicTrack => !!track);
+      if (controller.signal.aborted) return;
+      setSearchResults(results);
+      if (!results.length) setSearchError('No results. Try another search or paste a YouTube link.');
+    } catch (error) {
+      if (!controller.signal.aborted) setSearchError((error as Error).message);
+    } finally {
+      if (!controller.signal.aborted) setIsSearching(false);
+    }
   };
 
-  return (
-    <div className="relative w-full min-w-0 max-w-[480px]" ref={menuRef}>
-      {/* Keep the same player mounted when paused or muted. Native controls
-          also let the user start playback when the browser blocks autoplay. */}
-      {playerEnabled && (
-        <section aria-label="Study music player" className={`relative w-full min-w-0 rounded-xl border shadow-sm ${
-          isDarkMode ? 'bg-[#181716] border-stone-700 text-stone-200' : 'bg-white border-stone-300 text-stone-800'
-        }`}>
-          <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.75rem] items-center gap-x-1 px-2 py-1 text-xs sm:flex sm:flex-wrap sm:gap-2 sm:px-2.5 sm:py-2">
-            <button aria-label="Close music player" className="flex h-11 w-9 shrink-0 items-center justify-center" onClick={() => { broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted }); wantsPlaybackRef.current = false; setPlayerEnabled(false); setIsPlaying(false); setIsLoading(false); }}>×</button>
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen((prev) => !prev)}
-              aria-expanded={isMenuOpen}
-              aria-controls="music-tracks-dropdown"
-              className="min-h-11 min-w-0 flex-1 truncate text-left font-semibold hover:text-[#991B1B] dark:hover:text-[#F87171]"
-            >
-              {currentTrack.title}
-            </button>
-            <button type="button" onClick={togglePlay} aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'} className="flex h-11 w-11 shrink-0 items-center justify-center">
-              {isLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : isPlaying ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-            </button>
-            <label className="col-span-3 flex min-h-9 w-full min-w-0 items-center gap-3 border-t border-stone-300/40 px-1">
-              <Volume2 className="h-3.5 w-3.5 shrink-0" />
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={isMuted ? 0 : volume}
-                onChange={(event) => changeVolume(Number(event.target.value))}
-                aria-label="Music volume"
-                className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]"
-              />
-              <span className="w-8 shrink-0 text-right text-xs tabular-nums">{isMuted ? 0 : volume}%</span>
-            </label>
-          </div>
-          <p role="status" className={`${playerError || needsGesture || isLoading ? "" : "sr-only sm:not-sr-only"} px-3 pb-2 text-xs text-stone-500 dark:text-stone-400`}>
-            {playerError || (needsGesture ? <><span className="lg:hidden">Tap Play below to enable sound on this device.</span><span className="hidden lg:inline">Press Play to enable sound on this device.</span></> : isLoading ? 'Loading music?' : isPlaying ? 'Playing' : 'Paused ? press Play to listen')}
-          </p>
-          <div ref={playerHostRef} className={`h-[200px] overflow-hidden rounded-b-xl [&_iframe]:h-[200px] [&_iframe]:w-full ${needsGesture ? 'w-full lg:pointer-events-none lg:absolute lg:w-[320px] lg:opacity-0 lg:[clip-path:inset(50%)]' : 'pointer-events-none absolute w-[320px] opacity-0 [clip-path:inset(50%)]'}`} />
-        </section>
-      )}
+  const playbackActive = isPlaying && !isMuted && volume > 0;
 
-      {syncError && <p role="alert" className="py-2 text-xs text-red-600 dark:text-red-400">{syncError}</p>}
-      {/* Sleek Top Music Bar HUD */}
+  return (
+    <div ref={menuRef} className="relative w-[280px] max-w-full min-w-0">
       <div
         id="top-music-bar"
-        className={`${playerEnabled ? 'hidden' : 'flex'} items-center space-x-2 rounded-xl px-2.5 py-1 border text-xs transition-colors ${
-          isDarkMode
-            ? 'bg-[#181716] border-stone-800 text-stone-200'
-            : 'bg-stone-50 border-stone-300 text-stone-800'
-        }`}
+        role="group"
+        aria-label="Study music controls"
+        data-playing={playbackActive}
+        className={`flex h-11 items-center gap-1 rounded-xl border px-1.5 transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none sm:h-9 ${
+          playbackActive ? 'border-red-500/60 shadow-[0_0_18px_2px_rgba(239,68,68,0.25)]' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
+        } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
-        {/* Animated Equalizer Wave / Music Note */}
-        <div className="flex items-center space-x-1 shrink-0">
-          {isPlaying ? (
-            <div className="flex items-end space-x-0.5 h-3.5 px-0.5" title="Audio playing">
-              <span className="w-0.5 bg-[#991B1B] dark:bg-[#F87171] h-3.5 animate-[pulse_0.6s_ease-in-out_infinite]" />
-              <span className="w-0.5 bg-[#991B1B] dark:bg-[#F87171] h-2 animate-[pulse_0.9s_ease-in-out_infinite]" />
-              <span className="w-0.5 bg-[#991B1B] dark:bg-[#F87171] h-3 animate-[pulse_0.75s_ease-in-out_infinite]" />
-            </div>
-          ) : (
-            <Music className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-          )}
-        </div>
-
-        {/* Play / Pause Toggle Button */}
         <button
           id="music-play-toggle-btn"
           type="button"
           onClick={togglePlay}
-          title={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
           aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
-          className="p-1 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
+          title={isPlaying || isLoading ? 'Pause music' : 'Play music'}
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-red-600 hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7 dark:text-red-400"
         >
-          {isLoading ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
         </button>
-
-        {/* Skip Next Button */}
         <button
-          id="music-skip-btn"
+          ref={menuButtonRef}
           type="button"
-          onClick={playNextTrack}
-          title="Skip to next track"
-          aria-label="Skip to next track"
-          className="p-1 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
-        >
-          <SkipForward className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Track Title & Artist (Truncated) */}
-        <button
-          type="button"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
+          onClick={() => setIsMenuOpen(open => !open)}
+          aria-label="Choose or search music"
           aria-expanded={isMenuOpen}
           aria-controls="music-tracks-dropdown"
-          className="text-left flex items-center space-x-1.5 cursor-pointer max-w-[96px] sm:max-w-[190px] md:max-w-[240px] truncate hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors"
-          title={`${currentTrack.title} — ${currentTrack.artist} (Click to switch stations)`}
+          title={`Choose or search music ? ${currentTrack.title}`}
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7"
         >
-          <span className="font-medium truncate text-xs">
-            {currentTrack.title}
-          </span>
-          <ChevronDown className="w-3 h-3 text-stone-400 shrink-0" />
+          <Music2 className="h-4 w-4" />
         </button>
-
-        {/* Volume / Mute Button */}
         <button
           id="music-mute-btn"
           type="button"
           onClick={toggleMute}
-          title={isMuted ? 'Unmute' : 'Mute'}
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
+          aria-label={isMuted ? 'Unmute music' : 'Mute music'}
           aria-pressed={isMuted}
-          className="p-1 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors cursor-pointer shrink-0"
+          title={isMuted ? 'Unmute music' : 'Mute music'}
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-stone-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 sm:h-7 sm:w-7 dark:hover:bg-stone-800"
         >
-          {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-500" /> : <Volume2 className="w-3.5 h-3.5" />}
+          {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
         </button>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={isMuted ? 0 : volume}
+          onChange={(event) => changeVolume(Number(event.target.value))}
+          aria-label="Music volume"
+          className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]"
+        />
+        <span className="w-9 shrink-0 pr-1 text-right text-[11px] tabular-nums">{isMuted ? 0 : volume}%</span>
       </div>
-
-      {/* Channel / Playlist Selection Dropdown Menu */}
       {isMenuOpen && (
-        <div
+        <section
           id="music-tracks-dropdown"
-          className={`absolute top-full left-0 sm:left-auto sm:right-0 mt-1.5 w-[min(288px,calc(100vw-1rem))] max-h-80 overflow-y-auto rounded-xl border shadow-lg z-50 p-1.5 text-xs font-mono transition-colors ${
-            isDarkMode
-              ? 'bg-[#181716] border-stone-700 text-stone-200'
-              : 'bg-white border-stone-300 text-stone-800'
-          }`}
+          aria-label="Choose music"
+          className={`absolute left-0 top-full z-50 mt-2 max-h-[min(360px,50dvh)] w-[min(320px,calc(100vw-3rem))] overflow-y-auto rounded-xl border p-3 shadow-xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}
         >
-          <div className="px-2 py-1 border-b border-stone-200 dark:border-stone-800 font-bold uppercase tracking-wider text-[10px] text-stone-400 flex items-center justify-between">
-            <span>Study Soundtracks</span>
-            <span className="text-[10px] text-[#991B1B] dark:text-[#F87171]">{tracks.length} Channels</span>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold">Choose music</span>
+            <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded p-2 hover:bg-red-500/10"><X className="h-4 w-4" /></button>
           </div>
-          <form onSubmit={searchYouTube} className="p-2 border-b border-stone-200 dark:border-stone-800">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search YouTube music"
-              placeholder="Search YouTube music..."
-              className={`w-full px-2 py-1.5 text-xs rounded border transition-colors ${
-                isDarkMode 
-                  ? 'bg-stone-800 border-stone-700 text-stone-200 placeholder-stone-500 focus:border-[#F87171]' 
-                  : 'bg-stone-100 border-stone-300 text-stone-800 placeholder-stone-400 focus:border-[#991B1B]'
-              } focus:outline-none`}
-            />
-            <button type="submit" disabled={isSearching || search.trim().length < 2} className="mt-2 w-full bg-[#991B1B] px-2 py-1.5 text-white disabled:opacity-50">
-              {isSearching ? 'Searching YouTube…' : 'Search YouTube'}
-            </button>
-            {searchError && <p role="alert" className="mt-1 text-red-600 dark:text-red-400">{searchError}</p>}
-            </form>
-          <form onSubmit={addYouTubeLink} className="border-b border-stone-200 p-2 dark:border-stone-800">
-            <input
-              type="text"
-              value={customUrl}
-              onChange={(event) => { setCustomUrl(event.target.value); setUrlError(''); }}
-              aria-label="Add YouTube link"
-              placeholder="Or paste a YouTube link..."
-              className={`w-full rounded border px-2 py-1.5 text-xs transition-colors ${
-                isDarkMode
-                  ? 'border-stone-700 bg-stone-800 text-stone-200 placeholder-stone-500 focus:border-[#F87171]'
-                  : 'border-stone-300 bg-stone-100 text-stone-800 placeholder-stone-400 focus:border-[#991B1B]'
-              } focus:outline-none`}
-            />
-            <button type="submit" disabled={!customUrl.trim()} className="mt-2 w-full border border-[#991B1B] px-2 py-1.5 text-[#991B1B] hover:bg-[#991B1B] hover:text-white disabled:opacity-50 dark:text-[#F87171]">
-              Add YouTube link
-            </button>
-            {urlError && <p role="alert" className="mt-1 text-red-600 dark:text-red-400">{urlError}</p>}
+          <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
+          <form onSubmit={searchMusic} className="flex gap-2">
+            <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-2 py-2 text-xs outline-none focus:border-red-500" />
+            <button type="submit" disabled={isSearching || !search.trim()} className="rounded-lg bg-[#991B1B] px-3 text-xs text-white disabled:opacity-50">{isSearching ? 'Searching?' : 'Go'}</button>
           </form>
-
-
-          <div className="py-1 space-y-0.5">
-            {[...searchResults, ...filteredTracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map((t) => {
-              const idx = tracks.findIndex(item => item.id === t.id);
-              const isSelected = idx === currentTrackIndex;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => selectTrack(t)}
-                  className={`w-full text-left px-2 py-1.5 flex items-center justify-between transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#991B1B] text-white'
-                      : isDarkMode
-                      ? 'hover:bg-stone-800 text-stone-300'
-                      : 'hover:bg-stone-100 text-stone-700'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="font-semibold truncate text-[11px]">{t.title}</div>
-                    <div
-                      className={`text-[10px] truncate ${
-                        isSelected ? 'text-red-200' : 'text-stone-500 dark:text-stone-400'
-                      }`}
-                    >
-                      {t.artist} • {t.category.toUpperCase()}
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <span className="text-[10px] font-bold shrink-0 uppercase tracking-wide">
-                      Active
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
+          <div className="mt-3 space-y-1">
+            {searchResults.length > 0 && <p className="px-2 py-1 text-[10px] uppercase text-stone-500">Search results</p>}
+            {[...searchResults, ...tracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map(track => (
+              <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} className={`block w-full rounded-lg px-2 py-2 text-left text-xs ${currentTrack.id === track.id ? 'bg-red-500/15 text-red-500' : 'hover:bg-stone-500/10'}`}>
+                <span className="block truncate font-medium">{track.title}</span>
+                <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
+              </button>
+            ))}
           </div>
-        </div>
+        </section>
+      )}
+      {(playerError || syncError || needsGesture) && (
+        <p role="status" className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {playerError || syncError || 'Press Play to enable sound on this device.'}
+        </p>
+      )}
+      {/* Keep playback mounted without exposing video or native controls at any viewport size. */}
+      {playerEnabled && (
+        <div
+          ref={playerHostRef}
+          data-testid="music-engine"
+          aria-hidden="true"
+          inert
+          className="pointer-events-none absolute left-0 top-0 h-px w-px overflow-hidden opacity-0 [clip-path:inset(50%)]"
+        />
       )}
     </div>
   );
