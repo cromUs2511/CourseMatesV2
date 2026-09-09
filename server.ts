@@ -10,6 +10,10 @@ import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/music
 dotenv.config({ path: ['.env.local', '.env'] });
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim() || '';
+if (!youtubeApiKey) {
+  console.error('[config] Missing YOUTUBE_API_KEY. YouTube search is disabled until the environment variable is set.');
+}
 const production = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
 const allowDemo = process.env.ALLOW_DEMO_LOGIN === 'true' || (!production && process.env.ALLOW_DEMO_LOGIN !== 'false');
 const clientId = process.env.MICROSOFT_CLIENT_ID || '';
@@ -96,11 +100,10 @@ app.get('/api/music/search', async (req, res) => {
   if (!authenticate(req)) return res.status(401).json({ error: 'Please sign in first.' });
   const query = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
   if (query.length < 2) return res.status(400).json({ error: 'Search for at least 2 characters.' });
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'YouTube search is not configured on this server.' });
+  if (!youtubeApiKey) return res.status(503).json({ error: 'YouTube search is unavailable because YOUTUBE_API_KEY is missing.' });
   try {
     const params = new URLSearchParams({
-      part: 'snippet', q: query, type: 'video', maxResults: '12', videoCategoryId: '10', key: apiKey,
+      part: 'snippet', q: query, type: 'video', maxResults: '12', videoCategoryId: '10', key: youtubeApiKey,
     });
     const response = await fetch('https://www.googleapis.com/youtube/v3/search?' + params, { signal: AbortSignal.timeout(10000) });
     const data = await response.json() as { items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string; thumbnails?: { medium?: { url?: string } } } }> };
