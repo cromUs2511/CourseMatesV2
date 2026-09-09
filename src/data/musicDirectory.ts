@@ -103,3 +103,19 @@ export function extractYouTubeVideoId(input: string): string | null {
     return null;
   }
 }
+
+/** Validate shared track metadata and rebuild the URL from its video ID. */
+export function normalizeSharedTrack(value: unknown): MusicTrack | null {
+  if (!value || typeof value !== 'object') return null;
+  const track = value as Partial<MusicTrack>;
+  if (typeof track.id !== 'string' || !track.id || track.id.length > 100 ||
+      typeof track.youtubeVideoId !== 'string' || !/^[a-zA-Z0-9_-]{11}$/.test(track.youtubeVideoId)) return null;
+  return {
+    id: track.id,
+    youtubeVideoId: track.youtubeVideoId,
+    youtubeUrl: `https://www.youtube.com/watch?v=${track.youtubeVideoId}`,
+    title: typeof track.title === 'string' ? track.title.slice(0, 200) : 'Custom YouTube track',
+    artist: typeof track.artist === 'string' ? track.artist.slice(0, 100) : 'YouTube',
+    category: 'custom',
+  };
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, Volume2, VolumeX, ChevronDown, Music, LoaderCircle } from 'lucide-react';
 import { MusicTrack } from '../types';
-import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from '../data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, normalizeSharedTrack } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
 interface TopMusicBarProps {
@@ -34,9 +34,9 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   const wantsPlaybackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const broadcast = (state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean }) => {
+  const broadcast = (state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean }, track = tracks.find(item => item.id === state.trackId)) => {
     if (!roomId || isSimulated || ws?.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'music_update', roomId, ...state }));
+    ws.send(JSON.stringify({ type: 'music_update', roomId, ...state, track }));
   };
 
   const currentTrack = tracks[currentTrackIndex] || tracks[0];
@@ -48,11 +48,19 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       try {
         const data = JSON.parse(event.data);
         if (data.type !== 'music_state' || data.roomId !== roomId || !data.music) return;
-        const remote = data.music as { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
-        const index = tracks.findIndex(track => track.id === remote.trackId);
-        if (index < 0) return;
+        const remote = data.music as { track?: MusicTrack; trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
+        let index = tracks.findIndex(track => track.id === remote.trackId);
+        const sharedTrack = normalizeSharedTrack(remote.track);
+        const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
+        if (!track) return;
+        if (index < 0) {
+          index = tracks.length;
+          setTracks(previous => [...previous, track]);
+        }
         hasSelectedTrackRef.current = true;
-        const trackChanged = latestRef.current.currentTrack.id !== remote.trackId;
+        const trackChanged = latestRef.current.currentTrack.youtubeVideoId !== track.youtubeVideoId;
+        latestRef.current = { currentTrack: track, volume: remote.volume, isMuted: remote.isMuted };
+        setPlayerError('');
         setCurrentTrackIndex(index);
         setVolume(remote.volume);
         setIsMuted(remote.isMuted);
@@ -62,8 +70,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           playerRef.current.setVolume(remote.volume);
           if (remote.isMuted) playerRef.current.mute(); else playerRef.current.unMute();
           if (trackChanged) {
-            if (remote.isPlaying) playerRef.current.loadVideoById(tracks[index].youtubeVideoId);
-            else playerRef.current.cueVideoById(tracks[index].youtubeVideoId);
+            if (remote.isPlaying) playerRef.current.loadVideoById(track.youtubeVideoId);
+            else playerRef.current.cueVideoById(track.youtubeVideoId);
           } else if (remote.isPlaying) playerRef.current.playVideo();
           else playerRef.current.pauseVideo();
         } else {
@@ -200,6 +208,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
   }, [isMenuOpen]);
 
   const startTrack = (track: MusicTrack, resume = false, sync = true) => {
+    latestRef.current = { currentTrack: track, volume, isMuted };
     hasSelectedTrackRef.current = true;
     wantsPlaybackRef.current = true;
     setPlayerError('');
@@ -212,7 +221,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     } else {
       setPlayerEnabled(true);
     }
-    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted });
+    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted }, track);
   };
 
   const togglePlay = () => {
@@ -291,16 +300,14 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
       return;
     }
     const track: MusicTrack = {
-      id: `custom-${Date.now()}`,
+      id: `custom-${videoId}`,
       title: 'Custom YouTube track',
       artist: 'YouTube',
       youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
       youtubeVideoId: videoId,
       category: 'custom',
     };
-    setTracks(previous => [track, ...previous]);
-    setCurrentTrackIndex(0);
-    startTrack(track);
+    selectTrack(track);
     setCustomUrl('');
     setUrlError('');
     setIsMenuOpen(false);

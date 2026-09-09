@@ -124,7 +124,7 @@ test('sign-in configuration failures remain visible without the demo form', asyn
   await expect(page.getByRole('alert')).toHaveText('Sign-in configuration unavailable');
 });
 
-test('shared music volume changes do not restart either player', async ({ browser }) => {
+for (const source of ['directory', 'pasted link']) test(`shared ${source} music plays on both peers without restarting on volume changes`, async ({ browser }) => {
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
   try {
     for (const context of contexts) await context.addInitScript(() => {
@@ -148,7 +148,16 @@ test('shared music volume changes do not restart either player', async ({ browse
     await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
-    await a.locator('#music-play-toggle-btn').click();
+    if (source === 'pasted link') {
+      await a.locator('#top-music-bar button[aria-controls="music-tracks-dropdown"]').click();
+      await a.getByRole('textbox', { name: 'Add YouTube link' }).fill('https://youtu.be/dQw4w9WgXcQ?si=shared');
+      await a.getByRole('button', { name: 'Add YouTube link', exact: true }).click();
+      for (const page of [a, b]) {
+        await expect.poll(() => page.evaluate(() => (window as any).musicLoads)).toEqual(['dQw4w9WgXcQ']);
+      }
+    } else {
+      await a.locator('#music-play-toggle-btn').click();
+    }
     await expect(b.getByRole('region', { name: 'Study music player' })).toBeVisible();
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     await expect(b.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
@@ -161,6 +170,18 @@ test('shared music volume changes do not restart either player', async ({ browse
     await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('55');
     expect(await a.evaluate(() => (window as any).musicLoads.length)).toBe(1);
     expect(await b.evaluate(() => (window as any).musicLoads.length)).toBe(1);
+    // The receiving peer can select a new custom track with both players already mounted.
+    await b.getByRole('region', { name: 'Study music player' }).locator('button[aria-controls="music-tracks-dropdown"]').click();
+    await b.getByRole('textbox', { name: 'Add YouTube link' }).fill('https://www.youtube.com/watch?v=jfKfPfyJRdk&list=example');
+    await b.getByRole('button', { name: 'Add YouTube link', exact: true }).click();
+    for (const page of [a, b]) {
+      await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('jfKfPfyJRdk');
+      await expect(page.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
+    }
+    await a.getByRole('button', { name: 'Pause Study Music' }).click();
+    await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
+    await b.getByRole('button', { name: 'Play Study Music' }).click();
+    await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

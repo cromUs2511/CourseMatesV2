@@ -2,12 +2,13 @@ import crypto from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'node:http';
-import type { StudentSession } from './src/types';
+import { normalizeSharedTrack } from './src/data/musicDirectory';
+import type { MusicTrack, StudentSession } from './src/types';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
 type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text'; replyTo?: { id: string; senderHandle: string; text: string } };
-type RoomMusic = { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean };
+type RoomMusic = { trackId: string; track?: MusicTrack; isPlaying: boolean; volume: number; isMuted: boolean };
 type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number>; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
@@ -140,7 +141,10 @@ function updateMusic(session: Identity, room: Room, data: any) {
   const trackId = typeof data.trackId === 'string' ? data.trackId.slice(0, 100) : '';
   if (!trackId) throw new Error('Invalid music track.');
   const volume = Number.isFinite(data.volume) ? Math.max(0, Math.min(100, Number(data.volume))) : 70;
-  room.music = { trackId, isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
+  const track = normalizeSharedTrack(data.track);
+  if (data.track !== undefined && (!track || track.id !== trackId)) throw new Error('Invalid music track.');
+  const sharedTrack = track || (room.music?.trackId === trackId ? room.music.track : undefined);
+  room.music = { trackId, ...(sharedTrack ? { track: sharedTrack } : {}), isPlaying: data.isPlaying === true, volume, isMuted: data.isMuted === true };
   for (const peer of room.peers) if (peer.id !== session.id) notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
 }
 export function attachRuntime(app: Express, server: Server) {
