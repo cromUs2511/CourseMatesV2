@@ -119,6 +119,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (!isAtLatestRef.current && newPeerMessages.length > 0) {
         setUnreadMessageCount(count => count + newPeerMessages.length);
       }
+      if (!replace && newPeerMessages.length > 0) playChime('message');
       if (replace) {
         const system = previous.filter(m => m.type === 'system');
         return [...system, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
@@ -182,12 +183,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       timestamp: Date.now(), type: 'system' }]);
     if (peer.isSimulated) {
       simulationTimers.current.push(setTimeout(() => {
-        setMessages(previous => [...previous, {
+        receiveMessages([{
           id: 'sim_init', senderHandle: peer.handle, senderAvatar: '', isMe: false,
           text: 'Hi! What would you like to study together today?', timestamp: Date.now(),
         }]);
       }, 800));
-      return () => { simulationTimers.current.forEach(clearTimeout); simulationTimers.current = []; };
+      return () => {
+        simulationTimers.current.forEach(clearTimeout);
+        simulationTimers.current = [];
+      };
     }
     if (!roomId) return;
     let disposed = false;
@@ -371,6 +375,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               background: `radial-gradient(ellipse at 50% 50%, transparent 30%, ${ambient.color}30 68%, transparent 82%)`,
             }}
           />
+          <div
+            aria-hidden="true"
+            className="ambient-spectrum"
+            style={{ '--spectrum-color': ambient.color } as React.CSSProperties}
+          >
+            {Array.from({ length: 24 }, (_, index) => (
+              <span key={index} className="ambient-spectrum-bar" />
+            ))}
+          </div>
         </>
       )}
       <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">

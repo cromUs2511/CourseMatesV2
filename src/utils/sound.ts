@@ -23,11 +23,25 @@ export function playChime(type: 'match' | 'message' | 'timer' | 'purge' | 'click
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
-    if (type === 'click') return;
     const ctx = audioContext ??= new AudioCtx();
     if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
 
-    if (type === 'match') {
+    if (type === 'click') {
+      // Short bell click with a bright harmonic overtone.
+      const now = ctx.currentTime;
+      [880, 1320].forEach((frequency, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(frequency, now);
+        gain.gain.setValueAtTime(index === 0 ? 0.06 : 0.025, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      });
+    } else if (type === 'match') {
       // Pleasant rising harmonic chime
       const now = ctx.currentTime;
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
@@ -43,18 +57,20 @@ export function playChime(type: 'match' | 'message' | 'timer' | 'purge' | 'click
         osc.stop(now + i * 0.08 + 0.4);
       });
     } else if (type === 'message') {
-      // Soft single pop note
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(650, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.15);
+      // Slightly longer bell notification.
+      const now = ctx.currentTime;
+      [659.25, 987.77].forEach((frequency, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(frequency, now + index * 0.025);
+        gain.gain.setValueAtTime(index === 0 ? 0.08 : 0.035, now + index * 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + index * 0.025);
+        osc.stop(now + 0.3);
+      });
     } else if (type === 'timer') {
       // Double warm bell
       const now = ctx.currentTime;
