@@ -7,14 +7,19 @@ export interface ChatTheme {
   lightBackground: string;
   darkBackground: string;
   accent: string;
+  accentHover: string;
   swatch: string;
 }
 
 export const CHAT_THEMES: ChatTheme[] = [
-  { id: 'mapua', label: 'Mapua red', lightBackground: '#FAF8F5', darkBackground: '#141312', accent: '#991B1B', swatch: '#991B1B' },
-  { id: 'ocean', label: 'Ocean blue', lightBackground: '#F2F8FC', darkBackground: '#101A22', accent: '#126782', swatch: '#168AAD' },
-  { id: 'forest', label: 'Forest green', lightBackground: '#F3F8F1', darkBackground: '#142018', accent: '#2F6B3D', swatch: '#4F8A5B' },
-  { id: 'violet', label: 'Violet dusk', lightBackground: '#F7F3FB', darkBackground: '#1C1724', accent: '#704B9B', swatch: '#8B5FBF' },
+  { id: 'mapua', label: 'Mapua red', lightBackground: '#FAF8F5', darkBackground: '#141312', accent: '#991B1B', accentHover: '#7F1D1D', swatch: '#991B1B' },
+  { id: 'ocean', label: 'Ocean blue', lightBackground: '#F2F8FC', darkBackground: '#101A22', accent: '#126782', accentHover: '#0E5268', swatch: '#168AAD' },
+  { id: 'forest', label: 'Forest green', lightBackground: '#F3F8F1', darkBackground: '#142018', accent: '#2F6B3D', accentHover: '#245631', swatch: '#4F8A5B' },
+  { id: 'violet', label: 'Violet dusk', lightBackground: '#F7F3FB', darkBackground: '#1C1724', accent: '#704B9B', accentHover: '#5B3D80', swatch: '#8B5FBF' },
+  { id: 'sunset', label: 'Sunset orange', lightBackground: '#FFF7ED', darkBackground: '#241711', accent: '#C2410C', accentHover: '#9A3412', swatch: '#EA580C' },
+  { id: 'rose', label: 'Rose pink', lightBackground: '#FFF1F2', darkBackground: '#241419', accent: '#BE185D', accentHover: '#9D174D', swatch: '#DB2777' },
+  { id: 'amber', label: 'Amber glow', lightBackground: '#FFFBEB', darkBackground: '#211B0D', accent: '#A16207', accentHover: '#854D0E', swatch: '#D97706' },
+  { id: 'slate', label: 'Slate graphite', lightBackground: '#F1F5F9', darkBackground: '#111827', accent: '#475569', accentHover: '#334155', swatch: '#64748B' },
 ];
 
 interface ChatThemeMenuProps {
@@ -51,7 +56,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         aria-expanded={open}
         title={`Chat theme: ${theme.label}`}
         onClick={() => setOpen(value => !value)}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-stone-50 text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200"
+        className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-stone-50 text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200"
       >
         <Palette className="h-4 w-4" />
       </button>

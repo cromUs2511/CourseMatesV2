@@ -14,9 +14,11 @@ interface TopMusicBarProps {
   token?: string;
   remoteMusic?: RoomMusicState;
   onAmbientChange?: (ambient: { active: boolean; enabled: boolean; color: string }) => void;
+  accent?: string;
+  accentHover?: string;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic, onAmbientChange }) => {
+export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic, onAmbientChange, accent = '#991B1B', accentHover = '#7F1D1D' }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -406,7 +408,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           aria-expanded={isMenuOpen}
           aria-controls="music-tracks-dropdown"
           title={`Music controls: ${currentTrack.title}`}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-red-600 hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400"
+          style={{ color: accent }}
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg hover:bg-stone-500/10 focus-visible:outline focus-visible:outline-2"
         >
           {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className="h-5 w-5" />}
         </button>
@@ -428,10 +431,10 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           >
             <div className="mb-3 flex shrink-0 items-center justify-between">
               <div className="flex items-center gap-2">
-                <Music2 className="h-4 w-4 text-[#991B1B] dark:text-red-400" />
+                <Music2 className="h-4 w-4" style={{ color: accent }} />
                 <span className="text-sm font-semibold">Music controls</span>
               </div>
-              <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 hover:bg-red-500/10"><X className="h-4 w-4" /></button>
+              <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 hover:bg-stone-500/10"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 overflow-y-auto pr-0.5">
               <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
@@ -441,7 +444,10 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                   type="button"
                   onClick={togglePlay}
                   aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
-                  className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-[#991B1B] px-3 text-xs font-semibold text-white"
+                  style={{ backgroundColor: accent }}
+                  onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }}
+                  onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }}
+                  className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-white"
                 >
                   {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
                   {isPlaying || isLoading ? 'Pause' : 'Play'}
@@ -458,7 +464,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                 </button>
               </div>
               <div className="mb-4 flex items-center gap-2">
-                <input type="range" min="0" max="100" value={isMuted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} aria-label="Music volume" className="h-8 min-w-0 flex-1 cursor-pointer accent-[#991B1B]" />
+                <input type="range" min="0" max="100" value={isMuted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} aria-label="Music volume" style={{ accentColor: accent }} className="h-8 min-w-0 flex-1 cursor-pointer" />
                 <span className="w-9 text-right text-[11px] tabular-nums">{isMuted ? 0 : volume}%</span>
               </div>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-400/20 pt-3 text-xs">
@@ -473,7 +479,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
               </div>
               <form onSubmit={searchMusic} className="flex gap-2">
                 <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-3 py-2.5 text-xs outline-none focus:border-red-500" />
-                <button type="submit" aria-label="Go" className="rounded-lg bg-[#991B1B] px-4 text-xs text-white disabled:opacity-50">Go</button>
+                <button type="submit" aria-label="Go" style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="rounded-lg px-4 text-xs text-white disabled:opacity-50">Go</button>
               </form>
               {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
               <div className="mt-3 space-y-1">
@@ -494,7 +500,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         <div className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
           <div role="status" className={`pointer-events-auto relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
             <div className="flex items-start gap-3">
-              <Music2 className="mt-0.5 h-5 w-5 shrink-0 text-[#991B1B] dark:text-red-400" />
+              <Music2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: accent }} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">Enable music playback</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">Press Play to enable sound on this device.</p>

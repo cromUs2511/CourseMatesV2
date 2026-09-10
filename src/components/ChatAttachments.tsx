@@ -4,7 +4,7 @@ import { MAX_CHAT_IMAGES, type ImageUpload } from '../data/chatImages';
 import { prepareChatImage } from '../utils/prepareChatImage';
 import { PhotoDialog } from './PhotoDialog';
 
-function CameraCapture({ onCapture }: { onCapture: (file: File) => void }) {
+function CameraCapture({ onCapture, accent, accentHover }: { onCapture: (file: File) => void; accent: string; accentHover: string }) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
@@ -57,14 +57,14 @@ function CameraCapture({ onCapture }: { onCapture: (file: File) => void }) {
     {error ? <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p> : <>
       <video ref={video} autoPlay playsInline muted onLoadedData={() => setReady(true)} className="max-h-[45dvh] w-full rounded-xl bg-black object-contain" aria-label="Camera preview" />
       {!ready && <p role="status" className="text-xs text-stone-500">Waiting for camera access. Respond to your browser’s permission prompt.</p>}
-      <button type="button" disabled={!ready || capturing} onClick={capture} className="flex w-full items-center justify-center gap-2 bg-[#991B1B] px-4 py-3 text-sm text-white disabled:opacity-40"><Camera className="h-4 w-4" />Capture photo</button>
+      <button type="button" disabled={!ready || capturing} onClick={capture} style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="flex w-full items-center justify-center gap-2 px-4 py-3 text-sm text-white disabled:opacity-40"><Camera className="h-4 w-4" />Capture photo</button>
     </>}
   </div>;
 }
 
-export function ChatAttachments({ images, onChange, disabled, onError, onBusyChange }: {
+export function ChatAttachments({ images, onChange, disabled, onError, onBusyChange, accent = '#991B1B', accentHover = '#7F1D1D' }: {
   images: ImageUpload[]; onChange: (images: ImageUpload[]) => void; disabled: boolean;
-  onError: (message: string) => void; onBusyChange: (busy: boolean) => void;
+  onError: (message: string) => void; onBusyChange: (busy: boolean) => void; accent?: string; accentHover?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [camera, setCamera] = useState(false);
@@ -96,11 +96,11 @@ export function ChatAttachments({ images, onChange, disabled, onError, onBusyCha
     <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" aria-label="Choose photos to attach"
       onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void choose(files); }} />
     <button type="button" aria-label="Attach photos" title="Attach photos" disabled={disabled || busy || images.length >= MAX_CHAT_IMAGES}
-      onClick={() => setOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
+      onClick={() => setOpen(true)} className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
     </button>
     {open && !disabled && <PhotoDialog title={camera ? 'Take a photo' : 'Attach photos'} onClose={close}>
-      {camera ? <CameraCapture onCapture={file => void choose([file])} /> : <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Choose up to 4 photos. Preview them before sending.</p>}
+      {camera ? <CameraCapture onCapture={file => void choose([file])} accent={accent} accentHover={accentHover} /> : <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Choose up to 4 photos. Preview them before sending.</p>}
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => fileInput.current?.click()} className="flex flex-1 items-center justify-center gap-2 border border-stone-300 px-4 py-3 text-sm dark:border-stone-700"><ImagePlus className="h-4 w-4" />Choose photos</button>
         {!camera && <button type="button" onClick={() => setCamera(true)} className="flex flex-1 items-center justify-center gap-2 border border-stone-300 px-4 py-3 text-sm dark:border-stone-700"><Camera className="h-4 w-4" />Take photo</button>}

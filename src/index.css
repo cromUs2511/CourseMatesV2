@@ -26,6 +26,29 @@
     overscroll-behavior: none;
   }
 
+  .chat-theme-scope {
+    --chat-accent: #991B1B;
+    --chat-accent-hover: #7F1D1D;
+  }
+
+  .chat-theme-accent-button {
+    background-color: var(--chat-accent);
+  }
+
+  .chat-theme-accent-button:hover:not(:disabled) {
+    background-color: var(--chat-accent-hover);
+  }
+
+  .chat-theme-outline:hover:not(:disabled),
+  .chat-theme-outline:focus-visible,
+  .chat-theme-input:focus {
+    border-color: var(--chat-accent);
+  }
+
+  .chat-theme-input:focus {
+    box-shadow: 0 0 0 1px var(--chat-accent);
+  }
+
   body {
     font-family: var(--font-sans);
     letter-spacing: -0.011em;
