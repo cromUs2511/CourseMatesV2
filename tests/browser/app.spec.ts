@@ -7,6 +7,7 @@ async function signIn(page: Page, name: string) {
 }
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.keyboard.press('Escape');
+  if (!await page.locator('#logout-btn').isVisible()) await page.getByRole('button', { name: 'Account and display settings' }).click();
   await page.locator('#logout-btn').click();
   await page.getByRole('button', { name: 'Log out', exact: true }).click();
 }

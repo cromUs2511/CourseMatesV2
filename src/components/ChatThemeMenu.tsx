@@ -49,7 +49,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
   }, [open]);
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="contents min-[960px]:relative min-[960px]:block">
       <button
         type="button"
         aria-label="Choose chat color theme"
@@ -64,7 +64,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         <div
           role="dialog"
           aria-label="Chat color themes"
-          className={`absolute right-0 top-11 z-30 w-52 rounded-xl border p-2 shadow-xl ${
+          className={`order-last w-full rounded-xl border p-2 min-[960px]:absolute min-[960px]:right-0 min-[960px]:top-11 min-[960px]:z-30 min-[960px]:max-h-[calc(100dvh-80px)] min-[960px]:w-52 min-[960px]:overflow-y-auto min-[960px]:shadow-xl ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
           }`}
         >

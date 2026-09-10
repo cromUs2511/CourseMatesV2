@@ -5,6 +5,7 @@ import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
+import { Header, type HeaderProps } from './Header';
 import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
@@ -13,6 +14,7 @@ import { PhotoDialog } from './PhotoDialog';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
+const CONVERSATION_STARTER_LIMIT = 3;
 
 const CONVERSATION_STARTER_POOL = [
   'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
@@ -47,6 +49,7 @@ interface ChatRoomProps {
   onNextMatch: () => void;
   onLeaveChat: () => void;
   isDarkMode?: boolean;
+  headerProps: HeaderProps;
 }
 
 export const ChatRoom: React.FC<ChatRoomProps> = ({
@@ -58,6 +61,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   onNextMatch,
   onLeaveChat,
   isDarkMode = false,
+  headerProps,
 }) => {
   const [roomMusic, setRoomMusic] = useState<RoomMusicState>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -71,6 +75,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [starterPool, setStarterPool] = useState<string[]>(() => shuffleList(CONVERSATION_STARTER_POOL));
+  const [startersSent, setStartersSent] = useState(0);
+  const [selectedStarter, setSelectedStarter] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
@@ -109,10 +115,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   }, []);
 
   useEffect(() => {
-    const nextSuggestions = shuffleList(starterPool).slice(0, 3);
+    const nextSuggestions = shuffleList(starterPool).slice(0, CONVERSATION_STARTER_LIMIT - startersSent);
     setAiSuggestions(nextSuggestions);
     setIsSuggestionsLoading(false);
-  }, [starterPool]);
+  }, [starterPool, startersSent]);
 
   const receiveMessages = useCallback((incoming: any[], replace = false) => {
     if (endedRef.current) return;
@@ -276,6 +282,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   };
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(event.target.value);
+    if (!event.target.value.trim()) setSelectedStarter(null);
     if (Date.now() - lastTypingAt.current > 1000) { sendTyping(true); lastTypingAt.current = Date.now(); }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => { sendTyping(false); typingTimeoutRef.current = null; }, 1200);
@@ -323,6 +330,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         retryMessageRef.current = null;
       }
       setInputText(current => current.trim() === text ? '' : current);
+      if (selectedStarter && startersSent < CONVERSATION_STARTER_LIMIT) {
+        setStartersSent(count => Math.min(count + 1, CONVERSATION_STARTER_LIMIT));
+        setStarterPool(current => current.filter(prompt => prompt !== selectedStarter));
+        setSelectedStarter(null);
+      }
       setPendingImages(current => current === images ? [] : current);
       setReplyingTo(null);
       sendTyping(false);
@@ -382,8 +394,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setMessageActionsPosition(null);
   };
   const handleSuggestionClick = (text: string) => {
+    if (sendingRef.current || startersSent >= CONVERSATION_STARTER_LIMIT) return;
     setInputText(text);
-    setStarterPool(current => current.filter((prompt) => prompt !== text));
+    setSelectedStarter(text);
+    document.getElementById('chat-message-input')?.focus();
   };
   const leave = async (next: boolean) => {
     if (roomId && !peer.isSimulated) {
@@ -456,26 +470,21 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         </>
       )}
       <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
-        {/* Pinned Header - Clean, solid, no user emojis/icons */}
-        <div
-          id="chat-header"
-          className={`border-b px-3 sm:px-6 py-1.5 sm:py-3 flex flex-row items-center justify-between gap-2 z-10 shrink-0 ${
-            isDarkMode ? 'bg-black/20 border-stone-800' : 'bg-white/75 border-stone-300'
-          }`}
-        >
-          {/* Peer Info - Pure typography */}
+        <Header {...headerProps} showReroll={false}
+          conversation={
           <div className="flex min-w-0 flex-1 items-center space-x-2">
             <div className="min-w-0">
-              <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto">
-                <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
+                  className="min-w-0 font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
                 {!peerDisconnected ? (
-                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                     {peer.isSimulated ? 'AI' : 'CONNECTED'}
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800">
+                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800">
                     LEFT
                   </span>
                 )}
@@ -488,30 +497,35 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </div>
           </div>
 
-          {/* Controls - Solid buttons, no gradients */}
-          <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2">
-            {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
+          }
+          displayActions={<>
             <ChatThemeMenu theme={chatTheme} onChange={updateChatTheme} isDarkMode={isDarkMode} />
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}
+              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="chat-theme-outline p-2 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="chat-theme-outline flex h-9 w-9 items-center justify-center border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
 
+          </>}
+          chatActions={<>
+            {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
             <button
               id="next-match-btn"
+              aria-label="Next Peer"
+              title="Find next peer"
               onClick={requestNext}
-              className="chat-theme-accent-button flex-none py-2 px-2 sm:px-4 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="chat-theme-accent-button h-10 flex-none px-2 sm:px-3 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <span className="next-peer-label">Next Peer</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
-          </div>
-        </div>
+          </>}
+        />
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -717,8 +731,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           )}
         </div>
 
-        {/* Dynamic AI Topic Suggestions Bar - Context aware, auto-shuffles after use */}
-        {!peerDisconnected && aiSuggestions.length > 0 && (
+        {/* Each chat allows three successfully sent conversation starters. */}
+        {!peerDisconnected && startersSent < CONVERSATION_STARTER_LIMIT && aiSuggestions.length > 0 && (
           <div
             id="ai-suggestions-bar"
             className={`border-t px-4 sm:px-6 py-2 shrink-0 ${
@@ -730,13 +744,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 <span className="text-[11px] font-mono font-bold uppercase tracking-wider" style={{ color: chatTheme.accent }}>
                   Conversation starters
                 </span>
+                <span className="text-[10px] font-mono" aria-live="polite">{CONVERSATION_STARTER_LIMIT - startersSent} left</span>
               </div>
 
               {/* Shuffle button */}
               <button
                 type="button"
                 onClick={() => fetchAiSuggestions()}
-                disabled={isSuggestionsLoading}
+                disabled={isSuggestionsLoading || isSending}
                 title="Shuffle and generate new topic prompts"
                 className="chat-theme-outline flex items-center space-x-1 px-2 py-0.5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-[10px] font-mono uppercase text-stone-600 dark:text-stone-300 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
               >
@@ -750,9 +765,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               {aiSuggestions.map((prompt, idx) => (
                 <button
                   key={idx}
+                  disabled={isSending}
                   onClick={() => handleSuggestionClick(prompt)}
                   title="Use this conversation starter"
-                  className={`text-[11px] font-mono px-2.5 py-1 whitespace-nowrap border transition-colors shrink-0 cursor-pointer ${
+                  className={`text-[11px] font-mono px-2.5 py-1 whitespace-nowrap border transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${
                     isDarkMode
                       ? 'bg-stone-900 border-stone-800 text-stone-300 hover:text-white'
                       : 'bg-stone-50 border-stone-300 text-stone-700'
@@ -762,6 +778,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+        )}
             {deleteMenuMessageId && messageActionsPosition && createPortal(
               <div
                 className="reaction-picker-layer fixed inset-0 z-[100]"
@@ -809,8 +827,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               </div>,
               document.fullscreenElement || document.body,
             )}
-          </div>
-        )}
 
         {/* Bottom Input Console */}
         <div

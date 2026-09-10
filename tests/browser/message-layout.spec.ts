@@ -40,9 +40,12 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     for (const width of [320, 375, 768, 1280]) {
       await a.setViewportSize({ width, height: 900 });
       for (const mode of ['light', 'dark']) {
+        const settings = a.getByRole('button', { name: 'Account and display settings' });
+        if (await settings.isVisible()) await settings.click();
         const toggle = a.getByRole('button', { name: `Switch to ${mode} mode` });
         if (await toggle.count()) await toggle.click();
         await expect(a.getByRole('button', { name: `Switch to ${mode === 'light' ? 'dark' : 'light'} mode` })).toBeVisible();
+        if (await settings.isVisible()) await a.keyboard.press('Escape');
         await a.screenshot({ path: `test-results/replies-${width}-${mode}.png`, animations: 'disabled' });
         const issues = await a.locator('[data-message-bubble]').evaluateAll(bubbles => bubbles.flatMap(bubble => {
           const box = bubble.getBoundingClientRect();
