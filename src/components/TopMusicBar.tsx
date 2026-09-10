@@ -34,7 +34,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     try { return localStorage.getItem('coursemates_music_glow') !== 'false'; } catch { return true; }
   });
   const [glowColor, setGlowColor] = useState(() => {
-    try { return localStorage.getItem('coursemates_music_glow_color') || '#e52329'; } catch { return '#e52329'; }
+    try { return localStorage.getItem('coursemates_music_glow_color') || '#6ee7b7'; } catch { return '#6ee7b7'; }
   });
   const menuRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);

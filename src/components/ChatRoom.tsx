@@ -6,6 +6,7 @@ import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { Header, type HeaderProps } from './Header';
+import { AmbientAurora } from './AmbientAurora';
 import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
@@ -83,7 +84,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [deleteMenuMessageId, setDeleteMenuMessageId] = useState<string | null>(null);
   const [messageActionsPosition, setMessageActionsPosition] = useState<{ left: number; top: number } | null>(null);
   const messageBubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#e52329' });
+  const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#6ee7b7' });
   const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
     try {
       const saved = localStorage.getItem('coursemates_chat_theme');
@@ -437,38 +438,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         '--chat-accent-hover': chatTheme.accentHover,
       } as React.CSSProperties}
     >
-      {ambientActive && (
-        <>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-0 animate-ambient-glow"
-            style={{
-              background: `
-                radial-gradient(circle at 50% 42%, ${ambient.color}65 0%, ${ambient.color}28 28%, transparent 66%),
-                radial-gradient(ellipse at 8% 90%, ${ambient.color}38, transparent 52%),
-                radial-gradient(ellipse at 92% 12%, ${ambient.color}32, transparent 48%)
-              `,
-            }}
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-[-12%] z-0 animate-ambient-glow-drift"
-            style={{
-              background: `radial-gradient(ellipse at 50% 50%, transparent 30%, ${ambient.color}30 68%, transparent 82%)`,
-            }}
-          />
-          <div
-            aria-hidden="true"
-            className="ambient-aurora"
-            style={{ '--aurora-color': ambient.color } as React.CSSProperties}
-          >
-            <span className="aurora-ribbon aurora-ribbon-top-left" />
-            <span className="aurora-ribbon aurora-ribbon-top-right" />
-            <span className="aurora-ribbon aurora-ribbon-bottom-left" />
-            <span className="aurora-ribbon aurora-ribbon-bottom-right" />
-          </div>
-        </>
-      )}
+      {ambientActive && <AmbientAurora color={ambient.color} />}
       <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         <Header {...headerProps} showReroll={false}
           conversation={
