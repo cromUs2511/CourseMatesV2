@@ -5,6 +5,7 @@ import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
+import { reconcileMessageSnapshot } from '../utils/chatMessages';
 import { Header, type HeaderProps } from './Header';
 import { AmbientAurora } from './AmbientAurora';
 import { TopMusicBar } from './TopMusicBar';
@@ -97,7 +98,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
-  const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number } | null>(null);
+  const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number; axis: 'x' | 'y' | null } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
@@ -124,16 +125,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const receiveMessages = useCallback((incoming: any[], replace = false) => {
     if (endedRef.current) return;
     setMessages(previous => {
+      if (replace) return reconcileMessageSnapshot(previous, incoming, session.id);
       const ids = new Set(previous.map(m => m.id));
       const fresh = incoming.filter(m => !ids.has(m.id)).map(m => ({
         ...m, isMe: m.senderId === session.id,
       }));
-      if (replace) {
-        const incomingIds = new Set(incoming.map(message => message.id));
-        const localSystem = previous.filter(message => message.type === 'system' && !incomingIds.has(message.id));
-        return [...localSystem, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
-      }
-      return [...previous, ...fresh].slice(-501);
+      return fresh.length ? [...previous, ...fresh].slice(-501) : previous;
     });
   }, [session.id]);
   const markDisconnected = useCallback(() => {
@@ -240,7 +237,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         if (disposed || endedRef.current) return;
         failures = 0;
         if (!data.active || data.peerDisconnected) { markDisconnected(); return; }
-        setRoomMusic(data.music);
+        setRoomMusic(current => current?.revision === data.music?.revision ? current : data.music);
         receiveMessages(data.messages, true);
         setIsPeerTyping(data.isPeerTyping);
         setError(current => current.startsWith('Connection interrupted') ? '' : current);
@@ -439,7 +436,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       } as React.CSSProperties}
     >
       {ambientActive && <AmbientAurora color={ambient.color} />}
-      <div className="relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
+      <div className="chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         <Header {...headerProps} showReroll={false}
           conversation={
           <div className="flex min-w-0 flex-1 items-center space-x-2">
@@ -531,8 +528,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   onTouchStart={(event) => {
                     const touch = event.touches[0];
                     if (touch) {
-                      touchRef.current = { id: msg.id, startX: touch.clientX, startY: touch.clientY, offset: 0 };
-                      setSwipe({ id: msg.id, offset: 0 });
+                      touchRef.current = { id: msg.id, startX: touch.clientX, startY: touch.clientY, offset: 0, axis: null };
                     }
                   }}
                   onTouchMove={(event) => {
@@ -541,7 +537,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     if (!touch || !current || current.id !== msg.id) return;
                     const deltaX = touch.clientX - current.startX;
                     const deltaY = touch.clientY - current.startY;
-                    if (Math.abs(deltaY) > Math.abs(deltaX) || Math.abs(deltaX) < 4) return;
+                    if (!current.axis && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+                      current.axis = Math.abs(deltaY) >= Math.abs(deltaX) ? 'y' : 'x';
+                    }
+                    if (current.axis !== 'x') return;
                     const allowedOffset = msg.isMe ? Math.min(0, deltaX) : Math.max(0, deltaX);
                     current.offset = Math.max(-96, Math.min(96, allowedOffset));
                     setSwipe({ id: msg.id, offset: current.offset });
@@ -622,7 +621,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           : 'bg-white/75 border-stone-300 text-stone-900'
                       }`}
                       style={{
-                      transform: `translateX(${swipe?.id === msg.id ? swipe.offset : 0}px)`,
+                      transform: swipe?.id === msg.id && swipe.offset !== 0 ? `translateX(${swipe.offset}px)` : undefined,
                       ...(msg.isMe ? { backgroundColor: chatTheme.accent, borderColor: chatTheme.accent } : {}),
                       }}
                     >
