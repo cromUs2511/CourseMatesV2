@@ -4,12 +4,15 @@ import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'node:http';
 import { normalizeSharedTrack } from './src/data/musicDirectory';
 import type { RoomMusicState, StudentSession } from './src/types';
+import { MESSAGE_REACTIONS } from './src/data/reactions';
+import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImages';
+import type { ChatImage } from './src/data/chatImages';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; timestamp: number; type: 'text'; replyTo?: { id: string; senderHandle: string; text: string } };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string } };
 type RoomMusic = RoomMusicState;
-type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; typing: Map<string, number>; music?: RoomMusic };
+type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; imageBytes: number; typing: Map<string, number>; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
 const rooms = new Map<string, Room>();
@@ -75,6 +78,8 @@ function leave(id: string) {
     notify(peer.ws, { type: 'peer_disconnected', roomId: room.id });
   }
   room.messages.length = 0;
+  room.images.clear();
+  room.imageBytes = 0;
   rooms.delete(room.id);
 }
 function join(session: Identity, data: any, ws?: WebSocket) {
@@ -98,7 +103,7 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   const room: Room = {
     id: crypto.randomUUID(), peers: [peer, participant],
     topic: participant.interests.find(i => peer.interests.includes(i)) || participant.interests[0] || 'General Peer Discovery',
-    messages: [], typing: new Map(),
+    messages: [], images: new Map(), imageBytes: 0, typing: new Map(),
   };
   rooms.set(room.id, room);
   for (const p of room.peers) matches.set(p.id, room.id);
@@ -112,22 +117,33 @@ function requireRoom(session: Identity, id: unknown) {
   return room;
 }
 function send(session: Identity, room: Room, data: any) {
-  if (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 4000) throw new Error('Messages must contain 1–4000 characters.');
+  if (typeof data.text !== 'string' || data.text.length > 4000) throw new Error('Messages must contain at most 4000 characters.');
   const id = typeof data.clientMessageId === 'string' && data.clientMessageId.length <= 100 ? session.id + ':' + data.clientMessageId : crypto.randomUUID();
   const duplicate = room.messages.find(m => m.id === id && m.senderId === session.id);
   if (duplicate) return duplicate;
+  const images = parseImages(data.images);
+  if (!data.text.trim() && !images.length) throw new Error('Write a message or attach a photo.');
+  const imageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
+  if (room.imageBytes + imageBytes > MAX_ROOM_IMAGE_BYTES) throw new Error('This chat has reached its photo limit. Delete some of your earlier photos before sending more.');
   const message: Message = {
     id, senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: session.sessionAvatar,
     text: data.text.trim(), timestamp: Date.now(), type: 'text',
+    ...(images.length ? { images: images.map(({ id: imageId, name, width, height }) => ({ id: imageId, name, width, height,
+      url: '/api/chat/images/' + [room.id, id, imageId].map(encodeURIComponent).join('/') })) } : {}),
     replyTo: typeof data.replyTo?.id === 'string' && typeof data.replyTo?.text === 'string'
       ? { id: data.replyTo.id, senderHandle: String(data.replyTo.senderHandle || '').slice(0, 100), text: String(data.replyTo.text).slice(0, 300) }
       : undefined,
   };
   room.messages.push(message);
-  if (room.messages.length > 500) room.messages.shift();
+  if (images.length) { room.images.set(id, images); room.imageBytes += imageBytes; }
+  if (room.messages.length > 500) clearMessageImages(room, room.messages.shift()!.id);
   room.typing.delete(session.id);
   for (const peer of room.peers) notify(peer.ws, { type: 'new_message', roomId: room.id, message });
   return message;
+}
+function clearMessageImages(room: Room, messageId: string) {
+  for (const image of room.images.get(messageId) || []) room.imageBytes -= image.bytes.length;
+  room.images.delete(messageId);
 }
 function removeMessage(session: Identity, room: Room, messageId: unknown) {
   if (typeof messageId !== 'string') throw new Error('Invalid message.');
@@ -135,6 +151,7 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   if (index < 0) throw new Error('Message not found.');
   if (room.messages[index].senderId !== session.id) throw new Error('You can only delete your own messages.');
   room.messages.splice(index, 1);
+  clearMessageImages(room, messageId);
   for (const peer of room.peers) notify(peer.ws, { type: 'message_deleted', roomId: room.id, messageId });
 }
 function updateMusic(session: Identity, room: Room, data: any) {
@@ -200,6 +217,27 @@ export function attachRuntime(app: Express, server: Server) {
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     try { res.json({ success: true, message: send(session, room, req.body) }); }
     catch (error) { res.status(400).json({ error: (error as Error).message }); }
+  });
+  app.get('/api/chat/images/:roomId/:messageId/:imageId', (req, res) => {
+    const room = requireRoom(authenticate(req)!, req.params.roomId);
+    const image = room?.images.get(req.params.messageId)?.find(image => image.id === req.params.imageId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (!image) return res.status(404).json({ error: 'This photo is no longer available.' });
+    res.type(image.mimeType).send(image.bytes);
+  });
+  app.post('/api/chat/react', (req, res) => {
+    const session = authenticate(req); if (!session) return res.status(401).json({ error: 'Sign in again.' });
+    const room = requireRoom(session, req.body.roomId); if (!room) return res.status(404).json({ error: 'Chat ended.' });
+    const message = room.messages.find(item => item.id === req.body.messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found.' });
+    const emoji = req.body.emoji;
+    if (emoji !== null && !MESSAGE_REACTIONS.some(item => item.emoji === emoji)) return res.status(400).json({ error: 'Choose a supported reaction.' });
+    message.reactions ??= {};
+    if (emoji === null) delete message.reactions[session.id];
+    else message.reactions[session.id] = emoji;
+    for (const peer of room.peers) notify(peer.ws, { type: 'message_reactions', roomId: room.id, messageId: message.id, reactions: message.reactions });
+    res.json({ reactions: message.reactions });
   });
   app.post('/api/chat/delete', (req, res) => {
     const session = authenticate(req)!;

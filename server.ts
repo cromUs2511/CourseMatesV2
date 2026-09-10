@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { attachRuntime, authenticate, cookie, issueSession, isSchoolEmail } from './runtime';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
+import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 
 dotenv.config({ path: ['.env.local', '.env'] });
 const app = express();
@@ -21,6 +22,10 @@ const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || '';
 const tenant = process.env.MICROSOFT_TENANT_ID || 'organizations';
 const microsoftEnabled = Boolean(clientId && clientSecret);
 app.disable('x-powered-by');
+app.post('/api/chat/send', (req, res, next) => {
+  if (!authenticate(req)) return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
+  next();
+}, express.json({ limit: CHAT_SEND_BODY_LIMIT }));
 app.use(express.json({ limit: '64kb' }));
 app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 const server = http.createServer(app);

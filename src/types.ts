@@ -43,10 +43,11 @@ export interface ChatMessage {
   senderAvatar: string;
   isMe: boolean;
   text: string;
+  images?: import('./data/chatImages').ChatImage[];
   timestamp: number;
   type?: 'text' | 'icebreaker' | 'code' | 'system' | 'ai_summary' | 'study_timer';
   codeLanguage?: string;
-  reactions?: Record<string, number>;
+  reactions?: Record<string, string>;
   replyTo?: { id: string; senderHandle: string; text: string };
 }
 

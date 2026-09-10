@@ -74,6 +74,25 @@ test('HTTP matching, member-only messages, idempotent delivery, typing and immed
   assert.equal((await request('/api/match/join', b, {})).data.status, 'matched');
   await request('/api/match/cancel', a, {});
 });
+test('reactions are member-only, replaceable, removable and shared through polling', async () => {
+  const { a, b, roomId } = await pair();
+  try {
+    const message = (await request('/api/chat/send', a, { roomId, text: 'React here' })).data.message;
+    const payload = { roomId, messageId: message.id, emoji: '❤️' };
+    assert.equal((await request('/api/chat/react', identity(), payload)).status, 404);
+    assert.equal((await request('/api/chat/react', a, { ...payload, emoji: 'invalid' })).status, 400);
+    await request('/api/chat/react', a, payload);
+    await request('/api/chat/react', a, payload);
+    await request('/api/chat/react', b, payload);
+    assert.deepEqual((await request('/api/chat/messages?roomId=' + roomId, b)).data.messages[0].reactions, { [a.id]: '❤️', [b.id]: '❤️' });
+    await request('/api/chat/react', a, { ...payload, emoji: '👍' });
+    await request('/api/chat/react', b, { ...payload, emoji: null });
+    assert.deepEqual((await request('/api/chat/messages?roomId=' + roomId, b)).data.messages[0].reactions, { [a.id]: '👍' });
+    await request('/api/chat/delete', a, { roomId, messageId: message.id });
+    assert.equal((await request('/api/chat/react', a, payload)).status, 404);
+  } finally { await request('/api/match/cancel', a, {}); }
+});
+
 test('verified sessions do not match demo sessions', async () => {
   const a = identity(), verified = identity(true), b = identity();
   await request('/api/match/join', a, {});

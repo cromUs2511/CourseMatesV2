@@ -1,5 +1,6 @@
 import React from 'react';
 import { Moon, Sun } from 'lucide-react';
+import { toggleThemeWithReveal } from '../utils/themeTransition';
 
 interface ThemeToggleProps {
   isDarkMode: boolean;
@@ -13,24 +14,30 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ isDarkMode, onToggle, 
   <button
     type="button"
     id={id}
-    onClick={onToggle}
+    onClick={event => void toggleThemeWithReveal(event.currentTarget, onToggle)}
     aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+    aria-pressed={isDarkMode}
     title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-    className={`group relative inline-flex shrink-0 items-center rounded-full border p-1 transition-colors duration-300 ${
+    className={`group relative inline-flex shrink-0 items-center rounded-full border p-1 transition-all duration-300 ease-out ${
       compact ? 'h-7 w-12' : 'h-8 w-[58px]'
     } ${
       isDarkMode
         ? 'border-stone-700 bg-stone-900'
         : 'border-stone-300 bg-stone-200'
     } ${className}`}
+    data-state={isDarkMode ? 'dark' : 'light'}
   >
-    <span className={`absolute left-1 flex items-center justify-center rounded-full shadow-md transition-transform duration-300 ease-out ${
-      compact ? 'h-5 w-5' : 'h-6 w-6'
-    } ${
-      isDarkMode
-        ? compact ? 'translate-x-[18px] bg-stone-100 text-stone-800' : 'translate-x-[24px] bg-stone-100 text-stone-800'
-        : 'translate-x-0 bg-white text-amber-500'
-    }`}>
+    <span
+      className={`absolute left-1 flex items-center justify-center rounded-full shadow-md transition-all duration-300 ease-out animate-toggle-icon ${
+        compact ? 'h-5 w-5' : 'h-6 w-6'
+      } ${
+        isDarkMode
+          ? compact
+            ? 'translate-x-[18px] bg-stone-100 text-stone-800'
+            : 'translate-x-[24px] bg-stone-900 text-amber-300'
+          : 'translate-x-0 bg-white text-amber-500'
+      }`}
+    >
       {isDarkMode ? <Sun className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} /> : <Moon className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />}
     </span>
     <span className={`ml-auto mr-1 transition-opacity duration-300 ${isDarkMode ? 'text-amber-300 opacity-100' : 'text-stone-500 opacity-70'}`}>

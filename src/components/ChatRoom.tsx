@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, ChevronDown } from 'lucide-react';
+import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, ChevronDown, X } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { TopMusicBar } from './TopMusicBar';
+import { MessageReactions } from './MessageReactions';
+import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
+import { ChatAttachments } from './ChatAttachments';
+import { PhotoDialog } from './PhotoDialog';
+import type { ChatImage, ImageUpload } from '../data/chatImages';
 
 const CONVERSATION_STARTER_POOL = [
   'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
@@ -54,6 +59,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [roomMusic, setRoomMusic] = useState<RoomMusicState>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [pendingImages, setPendingImages] = useState<ImageUpload[]>([]);
+  const [preparingImages, setPreparingImages] = useState(false);
+  const [viewingImage, setViewingImage] = useState<ChatImage | null>(null);
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -64,6 +72,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#e52329' });
+  const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
+    try {
+      const saved = localStorage.getItem('coursemates_chat_theme');
+      return CHAT_THEMES.find(theme => theme.id === saved) || CHAT_THEMES[0];
+    } catch {
+      return CHAT_THEMES[0];
+    }
+  });
+  const [pendingAction, setPendingAction] = useState<'leave' | 'next' | null>(null);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
@@ -74,7 +91,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTypingAt = useRef(0);
-  const retryMessageRef = useRef<{ text: string; id: string } | null>(null);
+  const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; replyId?: string; id: string } | null>(null);
   const endedRef = useRef(false);
   const sendingRef = useRef(false);
   const suggestionRequestRef = useRef<AbortController | null>(null);
@@ -115,10 +132,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setIsPeerTyping(false);
     setMessages([]);
     setInputText('');
+    setPendingImages([]);
+    setViewingImage(null);
     setReplyingTo(null);
     retryMessageRef.current = null;
     setError('');
   }, []);
+  useEffect(() => {
+    if (viewingImage && !messages.some(message => message.images?.some(image => image.id === viewingImage.id))) setViewingImage(null);
+  }, [messages, viewingImage]);
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener('fullscreenchange', handler);
@@ -192,6 +214,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         const data = JSON.parse(event.data);
         if (data.roomId !== roomId) return;
         if (data.type === 'new_message') receiveMessages([data.message]);
+        else if (data.type === 'message_reactions') setMessages(previous => previous.map(message => message.id === data.messageId ? { ...message, reactions: data.reactions } : message));
         else if (data.type === 'peer_typing') {
           setIsPeerTyping(data.isTyping);
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
@@ -225,14 +248,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   };
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend ?? inputText).trim();
-    if (!text || text.length > 4000 || peerDisconnected || sendingRef.current) return;
+    const images = pendingImages;
+    const replyTo = replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text || 'Photo' } : undefined;
+    if ((!text && !images.length) || text.length > 4000 || peerDisconnected || sendingRef.current || preparingImages) return;
     sendingRef.current = true;
     setIsSending(true);
     setError('');
     try {
       if (peer.isSimulated) {
         scrollAfterOwnMessageRef.current = true;
-        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text, timestamp: Date.now(), replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined }]);
+        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text,
+          images: images.map(image => ({ id: crypto.randomUUID(), name: image.name, url: image.dataUrl, width: image.width, height: image.height })),
+          timestamp: Date.now(), replyTo }]);
         setIsPeerTyping(true);
         simulationTimers.current.push(setTimeout(() => {
           setIsPeerTyping(false);
@@ -241,21 +268,42 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           receiveMessages([{ id: crypto.randomUUID(), senderId: peer.sessionId, senderHandle: peer.handle, senderAvatar: '', text: snippets[Math.floor(Math.random() * snippets.length)], timestamp: Date.now() }]);
         }, 1500));
       } else {
-        if (retryMessageRef.current?.text !== text) retryMessageRef.current = { text, id: crypto.randomUUID() };
+        if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
+          retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
+        }
         const data = await apiRequest('/api/chat/send', session.token, {
-          roomId, text, clientMessageId: retryMessageRef.current.id,
-          replyTo: replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text } : undefined,
+          roomId, text, images, clientMessageId: retryMessageRef.current.id, replyTo,
         });
+        if (endedRef.current) return;
         scrollAfterOwnMessageRef.current = true;
         receiveMessages([data.message]);
         retryMessageRef.current = null;
       }
       setInputText(current => current.trim() === text ? '' : current);
+      setPendingImages(current => current === images ? [] : current);
       setReplyingTo(null);
       sendTyping(false);
       playChime('message');
     } catch (err) { setError((err as Error).message); }
     finally { sendingRef.current = false; setIsSending(false); }
+  };
+  const handleReact = async (messageId: string, emoji: string | null) => {
+    if (peerDisconnected) return;
+    try {
+      if (peer.isSimulated) {
+        setMessages(previous => previous.map(message => {
+          if (message.id !== messageId) return message;
+          const reactions = { ...message.reactions };
+          if (emoji === null) delete reactions[session.id];
+          else reactions[session.id] = emoji;
+          return { ...message, reactions };
+        }));
+      } else {
+        const data = await apiRequest('/api/chat/react', session.token, { roomId, messageId, emoji });
+        setMessages(previous => previous.map(message => message.id === messageId ? { ...message, reactions: data.reactions } : message));
+      }
+      setError('');
+    } catch (err) { setError((err as Error).message); }
   };
   const handleDeleteMessage = async (message: ChatMessage) => {
     if (!message.isMe || peerDisconnected) return;
@@ -276,20 +324,32 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     if (next) onNextMatch(); else onLeaveChat();
   };
-  const handleLeave = () => { void leave(false); };
-  const handleNext = () => { void leave(true); };
+  const requestLeave = () => setPendingAction('leave');
+  const requestNext = () => setPendingAction('next');
+  const confirmPendingAction = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action) void leave(action === 'next');
+  };
   const handleAmbientChange = useCallback((next: { active: boolean; enabled: boolean; color: string }) => {
     setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color ? current : next);
   }, []);
   const ambientActive = ambient.active && ambient.enabled;
+  const updateChatTheme = (next: ChatTheme) => {
+    setChatTheme(next);
+    try {
+      localStorage.setItem('coursemates_chat_theme', next.id);
+    } catch {
+      // Storage may be unavailable in private browsers.
+    }
+  };
 
   return (
     <div
       className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
-      } ${
-        isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'
-      }`}
+      } ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
+      style={{ backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground }}
     >
       {ambientActive && (
         <>
@@ -318,7 +378,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         <div
           id="chat-header"
           className={`border-b px-3 sm:px-6 py-1.5 sm:py-3 flex flex-row items-center justify-between gap-2 z-10 shrink-0 ${
-            isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
+            isDarkMode ? 'bg-black/20 border-stone-800' : 'bg-white/75 border-stone-300'
           }`}
         >
           {/* Peer Info - Pure typography */}
@@ -340,7 +400,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               </div>
 
               <div className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
-                <span className="truncate text-[#991B1B] dark:text-[#F87171] font-semibold">{topic}</span>
+                <span className="truncate font-semibold" style={{ color: chatTheme.accent }}>{topic}</span>
               </div>
 
             </div>
@@ -349,6 +409,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           {/* Controls - Solid buttons, no gradients */}
           <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2">
             {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} />}
+            <ChatThemeMenu theme={chatTheme} onChange={updateChatTheme} isDarkMode={isDarkMode} />
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}
@@ -360,21 +421,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
             <button
               id="next-match-btn"
-              onClick={handleNext}
+              onClick={requestNext}
               className="flex-none py-2 px-2 sm:px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <span className="next-peer-label">Next Peer</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
-            <button
-              id="leave-chat-btn"
-              onClick={handleLeave}
-              title="Disconnect and Leave"
-              className="p-2 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
         {/* Scrollable Messages Area */}
@@ -460,15 +513,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         Reply
                       </span>
                     )}
+                    <MessageReactions reactions={msg.reactions} sessionId={session.id} onReact={emoji => handleReact(msg.id, emoji)}>
                     <div
                       className={`rounded-2xl p-3.5 text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
                         msg.isMe
-                          ? 'bg-[#991B1B] border-[#991B1B] text-white'
+                          ? 'text-white'
                           : isDarkMode
-                          ? 'bg-[#181716] border-stone-800 text-stone-100'
-                          : 'bg-white border-stone-300 text-stone-900'
+                          ? 'bg-black/20 border-stone-800 text-stone-100'
+                          : 'bg-white/75 border-stone-300 text-stone-900'
                       }`}
-                      style={{ transform: `translateX(${swipe?.id === msg.id ? swipe.offset : 0}px)` }}
+                      style={{
+                      transform: `translateX(${swipe?.id === msg.id ? swipe.offset : 0}px)`,
+                      ...(msg.isMe ? { backgroundColor: chatTheme.accent, borderColor: chatTheme.accent } : {}),
+                      }}
                     >
                       {msg.replyTo && (
                         <div className="mb-2 border-l-2 border-current/50 pl-2 text-[11px] opacity-75">
@@ -476,8 +533,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           <div className="truncate">{msg.replyTo.text}</div>
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>
+                      {!!msg.images?.length && <div className={`grid gap-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} ${msg.text ? 'mb-2' : ''}`}>
+                        {msg.images.map(image => <button key={image.id} type="button" onClick={() => setViewingImage(image)} aria-label={'View photo ' + image.name}
+                          className="block overflow-hidden rounded-lg bg-black/10">
+                          <img src={image.url} alt={image.name} width={image.width} height={image.height}
+                            className="max-h-64 w-full max-w-80 object-contain" loading="lazy" draggable={false} />
+                        </button>)}
+                      </div>}
+                      {msg.text && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>}
                     </div>
+                    </MessageReactions>
                   </div>
                   <div className="mt-1 flex items-center gap-2 px-1">
                     <button type="button" onClick={() => setReplyingTo(msg)} className="text-[10px] font-mono text-stone-400 hover:text-[#991B1B]">
@@ -514,7 +579,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   RAM buffer cleared. Ready for next study match.
                 </p>
                 <button
-                  onClick={handleNext}
+                  onClick={requestNext}
                   className="mt-2 px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
                   Find Next Mapúa Peer
@@ -545,12 +610,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           <div
             id="ai-suggestions-bar"
             className={`border-t px-4 sm:px-6 py-2 shrink-0 ${
-              isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
+            isDarkMode ? 'bg-black/15 border-stone-800' : 'bg-white/75 border-stone-300'
             }`}
           >
             <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
               <div className="flex items-center space-x-1.5 shrink-0 text-stone-500 dark:text-stone-400">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#F87171]">
+                <span className="text-[11px] font-mono font-bold uppercase tracking-wider" style={{ color: chatTheme.accent }}>
                   Conversation starters
                 </span>
               </div>
@@ -592,17 +657,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         <div
           id="chat-input-console"
           className={`border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4 shrink-0 ${
-            isDarkMode ? 'bg-[#181716] border-stone-800' : 'bg-white border-stone-300'
+            isDarkMode ? 'bg-black/15 border-stone-800' : 'bg-white/75 border-stone-300'
           }`}
         >
           <div className="max-w-3xl mx-auto">
             {replyingTo && (
               <div className="mb-2 flex items-center justify-between border-l-2 border-[#991B1B] bg-stone-100 px-3 py-2 text-xs dark:bg-stone-900">
-                <span className="truncate">Replying to {replyingTo.senderHandle}: {replyingTo.text}</span>
+                <span className="truncate">Replying to {replyingTo.senderHandle}: {replyingTo.text || 'Photo'}</span>
                 <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="ml-2 text-stone-500">×</button>
               </div>
             )}
             {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+            {preparingImages && <p role="status" className="mb-2 text-xs text-stone-500">Preparing photos…</p>}
+            {pendingImages.length > 0 && <div aria-label="Photo attachments" className="mb-2 flex gap-2 overflow-x-auto py-1">
+              {pendingImages.map((image, index) => <div key={index} className="relative shrink-0">
+                <img src={image.dataUrl} alt={'Preview of ' + image.name} className="h-16 w-16 rounded-lg border border-stone-300 object-cover dark:border-stone-700" />
+                <button type="button" disabled={isSending || preparingImages} onClick={() => setPendingImages(current => current.filter((_, position) => position !== index))}
+                  aria-label={'Remove photo ' + image.name} className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow disabled:opacity-40"><X className="h-3 w-3" /></button>
+              </div>)}
+            </div>}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -610,6 +683,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               }}
               className="flex items-center space-x-2"
             >
+              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending} onError={setError} onBusyChange={setPreparingImages} />
               <input
                 id="chat-message-input"
                 type="text"
@@ -622,7 +696,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 placeholder={
                   peerDisconnected
                     ? "Session ended. Click 'Next Peer' above."
-                    : `Message ${peer.handle}... (Press Enter to send)`
+                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.handle}... (Press Enter to send)`
                 }
                 className={`min-w-0 flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none focus:border-[#991B1B] disabled:opacity-50 transition-colors ${
                   isDarkMode
@@ -633,16 +707,65 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               <button
                 id="send-message-btn"
                 type="submit"
-                disabled={peerDisconnected || isSending || !inputText.trim()}
-                className="py-2.5 px-5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
+                aria-label={isSending ? 'Sending message' : 'Send message'}
+                disabled={peerDisconnected || isSending || preparingImages || (!inputText.trim() && !pendingImages.length)}
+                className="py-2.5 px-3 sm:px-5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
               >
                 <span>{isSending ? 'Sending…' : 'Send'}</span>
                 <Send className="w-3.5 h-3.5" />
               </button>
+              {!peerDisconnected && (
+                <button
+                  id="leave-chat-btn"
+                  type="button"
+                  onClick={requestLeave}
+                  aria-label="Disconnect and leave chat"
+                  title="Disconnect and leave chat"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center border transition-colors ${
+                    isDarkMode
+                      ? 'border-stone-700 bg-stone-900 text-stone-300 hover:border-red-400 hover:text-red-400'
+                      : 'border-stone-300 bg-stone-50 text-stone-600 hover:border-red-600 hover:text-red-600'
+                  }`}
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
             </form>
           </div>
         </div>
       </div>
+      {viewingImage && <PhotoDialog title="Photo" onClose={() => setViewingImage(null)}>
+        <img src={viewingImage.url} alt={viewingImage.name} className="mx-auto max-h-[70dvh] max-w-full rounded-lg object-contain" />
+      </PhotoDialog>}
+      {pendingAction && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" role="presentation">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-action-confirm-title"
+            className={`w-full max-w-sm rounded-xl border p-5 shadow-2xl ${
+            isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-100' : 'border-stone-300 bg-white text-stone-900'
+            }`}
+          >
+            <h2 id="chat-action-confirm-title" className="text-base font-semibold">
+            {pendingAction === 'next' ? 'Find another peer?' : 'Leave this chat?'}
+            </h2>
+            <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            {pendingAction === 'next'
+              ? 'This conversation will end before searching for a new match.'
+              : 'This conversation will end and its messages will be cleared.'}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={() => setPendingAction(null)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs dark:border-stone-700">
+              Cancel
+            </button>
+            <button type="button" onClick={confirmPendingAction} className="rounded-lg bg-[#991B1B] px-3 py-2 text-xs font-semibold text-white">
+              {pendingAction === 'next' ? 'Find next peer' : 'Disconnect'}
+            </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

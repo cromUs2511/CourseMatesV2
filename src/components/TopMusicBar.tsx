@@ -422,6 +422,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           <section
             ref={dialogRef}
             id="music-tracks-dropdown"
+            role="region"
             aria-label="Choose music"
             className={`relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border p-3 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-4 ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}
           >
@@ -472,7 +473,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
               </div>
               <form onSubmit={searchMusic} className="flex gap-2">
                 <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-3 py-2.5 text-xs outline-none focus:border-red-500" />
-                <button type="submit" disabled={isSearching || !search.trim()} className="rounded-lg bg-[#991B1B] px-4 text-xs text-white disabled:opacity-50">{isSearching ? 'Searching…' : 'Search'}</button>
+                <button type="submit" aria-label="Go" className="rounded-lg bg-[#991B1B] px-4 text-xs text-white disabled:opacity-50">Go</button>
               </form>
               {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
               <div className="mt-3 space-y-1">
@@ -490,19 +491,13 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         document.body,
       )}
       {needsGesture && !playbackNotification && !notificationDismissed && createPortal(
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Close music notification"
-            onClick={() => setNotificationDismissed(true)}
-            className="absolute inset-0 bg-black/20 backdrop-blur-[2px] dark:bg-black/45"
-          />
-          <div role="status" className={`relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
+        <div className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
+          <div role="status" className={`pointer-events-auto relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
             <div className="flex items-start gap-3">
               <Music2 className="mt-0.5 h-5 w-5 shrink-0 text-[#991B1B] dark:text-red-400" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">Enable music playback</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">Press Play again to enable sound on this device.</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">Press Play to enable sound on this device.</p>
               </div>
               <button type="button" aria-label="Close music notification" onClick={() => setNotificationDismissed(true)} className="rounded-lg p-1.5 hover:bg-red-500/10">
                 <X className="h-4 w-4" />
@@ -513,14 +508,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         document.body,
       )}
       {playbackNotification && !notificationDismissed && createPortal(
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Close music notification"
-            onClick={() => setNotificationDismissed(true)}
-            className="absolute inset-0 bg-black/20 backdrop-blur-[2px] dark:bg-black/45"
-          />
-          <div role="alert" className={`relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
+        <div className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
+          <div role="alert" className={`pointer-events-auto relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}>
             <div className="flex items-start gap-3">
               <Music2 className="mt-0.5 h-5 w-5 shrink-0 text-[#991B1B] dark:text-red-400" />
               <div className="min-w-0 flex-1">
@@ -535,7 +524,6 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         </div>,
         document.body,
       )}
-      {/* Keep playback mounted without exposing video or native controls at any viewport size. */}
       {playerEnabled && (
         <div
           ref={playerHostRef}

@@ -5,6 +5,14 @@ async function signIn(page: Page, name: string) {
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
+async function logout(page: Page) {
+  if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.keyboard.press('Escape');
+  await page.locator('#logout-btn').click();
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
+}
+async function openMusic(page: Page) {
+  if (!await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.getByRole('button', { name: 'Open music controls' }).click();
+}
 test('two browser sessions match, exchange once, preserve drafts on failure and rematch', async ({ browser }) => {
   const first = await browser.newContext();
   const second = await browser.newContext();
@@ -23,6 +31,11 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await a.locator('#send-message-btn').click();
   await expect(b.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
   await expect(a.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
+  await b.getByRole('button', { name: 'React to message', exact: true }).click();
+  await b.getByRole('button', { name: 'Love', exact: true }).click();
+  await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
+  await b.getByRole('button', { name: 'Love reaction, 1' }).click();
+  await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toHaveCount(0);
   await b.getByRole('textbox', { name: 'Chat message' }).fill('Hello back');
   await b.locator('#send-message-btn').click();
   await expect(a.getByText('Hello back', { exact: true })).toHaveCount(1);
@@ -35,16 +48,18 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await b.getByRole('button', { name: 'Reply', exact: true }).first().click();
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await a.locator('#leave-chat-btn').click();
+  await a.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click();
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toHaveCount(0);
   await expect(b.getByText('Peer disconnected from this session')).toBeVisible();
   await expect(b.getByText('Hello back', { exact: true })).toHaveCount(0);
   await b.locator('#next-match-btn').click();
+  await b.getByRole('dialog').getByRole('button', { name: 'Find next peer' }).click();
   await expect(b.getByText(/Finding active Mapúa study peers/)).toBeVisible();
   await a.locator('#start-chat-btn').click();
   await expect(a.locator('#chat-header')).toBeVisible();
   await expect(b.locator('#chat-header')).toBeVisible();
-  await a.locator('#logout-btn').click();
-  await b.locator('#logout-btn').click();
+  await logout(a);
+  await logout(b);
   expect(errors).toEqual([]);
   await first.close(); await second.close();
 });
@@ -61,7 +76,7 @@ test('HTTP fallback matches and delivers when WebSockets are unavailable', async
   await a.getByRole('textbox', { name: 'Chat message' }).fill('HTTP fallback works');
   await a.locator('#send-message-btn').click();
   await expect(b.getByText('HTTP fallback works', { exact: true })).toHaveCount(1);
-  await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
+  await logout(a); await logout(b);
   await Promise.all(contexts.map(c => c.close()));
 });
 test('mobile layout, theme persistence, demo chat and music controls', async ({ page }) => {
@@ -84,9 +99,30 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   }).length);
   expect(overflow).toBe(0);
   await page.screenshot({ path: 'test-results/mobile-chat.png' });
+  await openMusic(page);
   await expect(page.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Music volume' })).toBeVisible();
-  await page.locator('#logout-btn').click();
+  await logout(page);
+});
+
+test('mobile long press opens reactions and scrolling cancels the gesture', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await signIn(page, 'reactions');
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+  const bubble = page.getByText('Hi! What would you like to study together today?', { exact: true });
+  await expect(bubble).toBeVisible();
+  await bubble.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 200 }] });
+  await expect(page.getByRole('dialog', { name: 'React to message' })).toBeVisible();
+  await bubble.dispatchEvent('touchend', { touches: [] });
+  await page.getByRole('button', { name: 'Like', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Like reaction, 1' })).toHaveAttribute('aria-pressed', 'true');
+  await bubble.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 200 }] });
+  await bubble.dispatchEvent('touchmove', { touches: [{ identifier: 0, clientX: 100, clientY: 240 }] });
+  await page.waitForTimeout(550);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await bubble.dispatchEvent('touchend', { touches: [] });
+  await logout(page);
 });
 test('session restores after refresh and invalid emails show a readable error', async ({ page }) => {
   await page.goto('/');
@@ -96,7 +132,7 @@ test('session restores after refresh and invalid emails show a readable error', 
   await signIn(page, 'restore');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
-  await page.locator('#logout-btn').click();
+  await logout(page);
   await page.getByRole('textbox', { name: /student email/i }).fill('student@example.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByText('Enter a valid Mapúa school email address.')).toBeVisible();
@@ -157,15 +193,20 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
     await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
+    await openMusic(a);
     await a.getByRole('slider', { name: 'Music volume' }).fill('45');
     await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await a.getByRole('button', { name: 'Play Study Music' }).click();
     if (source === 'mobile autoplay') {
       await expect(b.getByText('Press Play to enable sound on this device.')).toBeVisible();
+      await openMusic(b);
       await b.getByRole('button', { name: 'Play Study Music' }).click();
       await expect(b.getByRole('status')).toHaveCount(0);
     }
     for (const page of [a, b]) {
+      if (page === b && source !== 'mobile autoplay') {
+        await openMusic(page);
+      }
       await expect(page.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
       await expect(page.locator('#top-music-bar')).toHaveAttribute('data-playing', 'true');
       await expect(page.getByTestId('music-engine')).toHaveAttribute('aria-hidden', 'true');
@@ -174,24 +215,25 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
       await expect(page.getByTestId('music-engine').locator('iframe')).toHaveCount(1);
       expect((await page.locator('#top-music-bar').boundingBox())!.height).toBeLessThanOrEqual(44);
     }
-    await a.getByRole('button', { name: 'Choose or search music' }).click();
+    await openMusic(a);
     await a.getByRole('button', { name: /lofi hip hop radio/ }).click();
     for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('jfKfPfyJRdk');
     await a.route('**/api/music/search?q=*', route => route.fulfill({ json: { tracks: [{ id: 'custom-dQw4w9WgXcQ', title: 'Search result music', artist: 'Test artist', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', youtubeVideoId: 'dQw4w9WgXcQ', category: 'custom' }] } }));
-    await a.getByRole('button', { name: 'Choose or search music' }).click();
+    await openMusic(a);
     await a.getByRole('searchbox', { name: 'Search music or paste a YouTube link' }).fill('test music');
     await a.getByRole('button', { name: 'Go', exact: true }).click();
     await a.getByRole('button', { name: /Search result music/ }).click();
     for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('dQw4w9WgXcQ');
-    await b.getByRole('button', { name: 'Choose or search music' }).click();
+    await openMusic(b);
     await b.getByRole('searchbox', { name: 'Search music or paste a YouTube link' }).fill('https://youtu.be/5yx6BWlEVcY');
     await b.getByRole('button', { name: 'Go', exact: true }).click();
     for (const page of [a, b]) await expect.poll(() => page.evaluate(() => (window as any).musicLoads.at(-1))).toBe('5yx6BWlEVcY');
     await expect(b.getByRole('region', { name: 'Choose music' })).toHaveCount(0);
-    await b.getByRole('button', { name: 'Choose or search music' }).click();
+    await openMusic(b);
     await b.keyboard.press('Escape');
     await expect(b.getByRole('region', { name: 'Choose music' })).toHaveCount(0);
     const loads = await Promise.all([a, b].map(page => page.evaluate(() => (window as any).musicLoads.length)));
+    await openMusic(a); await openMusic(b);
     await a.getByRole('slider', { name: 'Music volume' }).fill('40');
     await expect(b.getByRole('slider', { name: 'Music volume' })).toHaveValue('40');
     await expect.poll(() => b.evaluate(() => (window as any).musicVolume)).toBe(40);
@@ -213,6 +255,6 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
       await expect(a.getByTestId('music-engine')).toHaveCSS('opacity', '0');
     }
     await a.screenshot({ path: `test-results/music-${source.replaceAll(' ', '-')}.png` });
-    await a.locator('#logout-btn').click(); await b.locator('#logout-btn').click();
+    await logout(a); await logout(b);
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
