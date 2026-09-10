@@ -101,6 +101,43 @@ test('verified sessions do not match demo sessions', async () => {
   await request('/api/match/cancel', a, {});
   await request('/api/match/cancel', verified, {});
 });
+
+test('expired queue entries cannot consume an active student match', async () => {
+  const expired = identity(), a = identity(), b = identity();
+  await request('/api/match/join', expired, {});
+  expired.expiresAt = Date.now() - 1;
+  try {
+    assert.equal((await request('/api/match/join', a, {})).data.status, 'queued');
+    const result = await request('/api/match/join', b, {});
+    assert.equal(result.data.status, 'matched');
+    assert.equal(result.data.peer.sessionId, a.id);
+  } finally {
+    await request('/api/match/cancel', a, {});
+    await request('/api/match/cancel', b, {});
+  }
+});
+
+test('reply previews use the original message and clear text when it is unsent', async () => {
+  const { a, b, roomId } = await pair();
+  try {
+    const original = (await request('/api/chat/send', a, { roomId, text: 'Original text' })).data.message;
+    const reply = (await request('/api/chat/send', b, {
+      roomId, text: 'My reply', replyTo: { id: original.id, senderHandle: 'Impersonated name', text: 'Invented quote' },
+    })).data.message;
+    assert.deepEqual(reply.replyTo, { id: original.id, senderHandle: a.sessionHandle, text: original.text });
+    await request('/api/chat/delete', a, { roomId, messageId: original.id });
+    const messages = (await request('/api/chat/messages?roomId=' + roomId, b)).data.messages;
+    assert.equal(messages.find((message: any) => message.id === reply.id).replyTo.text, 'Message unsent.');
+    const staleReply = (await request('/api/chat/send', b, {
+      roomId, text: 'Late reply', replyTo: { id: original.id, senderHandle: a.sessionHandle, text: original.text },
+    })).data.message;
+    assert.equal(staleReply.replyTo.text, 'Message unsent.');
+    const missingReply = await request('/api/chat/send', b, {
+      roomId, text: 'Reply without a source', replyTo: { id: 'missing', senderHandle: 'Other person', text: 'Fake quote' },
+    });
+    assert.equal(missingReply.status, 400);
+  } finally { await request('/api/match/cancel', a, {}); }
+});
 test('WebSocket and REST clients share the same room and recover after transport loss', async () => {
   const a = identity(), b = identity();
   const ws = new WebSocket(base.replace('http:', 'ws:') + '/ws/chat');

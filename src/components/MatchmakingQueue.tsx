@@ -5,6 +5,9 @@ import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 
+const MATCH_POLL_INTERVAL_MS = 400;
+const MATCH_SOCKET_TIMEOUT_MS = 1500;
+
 interface MatchmakingQueueProps {
   session: StudentSession;
   onMatched: (peer: ActivePeerInfo, topic: string, ws?: WebSocket, roomId?: string) => void;
@@ -112,19 +115,23 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         const data = await apiRequest('/api/match/join', session.token, { interests: selectedInterests });
         if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
         if (data.status === 'matched') handleMatchSuccess(data);
-        else pollIntervalRef.current = setInterval(poll, 1500);
+        else {
+          void poll();
+          pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+        }
       } catch (err) { fail(err); }
     };
     try {
       const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/chat');
       wsRef.current = ws;
-      const connectionTimeout = setTimeout(() => { if (current() && ws.readyState !== WebSocket.OPEN) void fallback(); }, 4000);
+      const connectionTimeout = setTimeout(() => { if (current() && ws.readyState !== WebSocket.OPEN) void fallback(); }, MATCH_SOCKET_TIMEOUT_MS);
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
         if (!current()) { closeSocket(); return; }
         ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: selectedInterests }));
         // Poll the same state as the socket; this also keeps the queue lease alive.
-        pollIntervalRef.current = setInterval(poll, 1500);
+        void poll();
+        pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
       };
       ws.onmessage = event => {
         if (!current()) return;

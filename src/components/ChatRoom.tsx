@@ -100,7 +100,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; replyId?: string; id: string } | null>(null);
   const endedRef = useRef(false);
   const sendingRef = useRef(false);
-  const suggestionRequestRef = useRef<AbortController | null>(null);
+  const receivedMessageIds = useRef(new Set<string>());
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAiSuggestions = useCallback(() => {
@@ -121,14 +121,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       const fresh = incoming.filter(m => !ids.has(m.id)).map(m => ({
         ...m, isMe: m.senderId === session.id,
       }));
-      const newPeerMessages = fresh.filter(message => !message.isMe);
-      if (!isAtLatestRef.current && newPeerMessages.length > 0) {
-        setUnreadMessageCount(count => count + newPeerMessages.length);
-      }
-      if (!replace && newPeerMessages.length > 0) playChime('message');
       if (replace) {
-        const system = previous.filter(m => m.type === 'system');
-        return [...system, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
+        const incomingIds = new Set(incoming.map(message => message.id));
+        const localSystem = previous.filter(message => message.type === 'system' && !incomingIds.has(message.id));
+        return [...localSystem, ...incoming.map(m => ({ ...m, isMe: m.senderId === session.id }))].slice(-501);
       }
       return [...previous, ...fresh].slice(-501);
     });
@@ -177,11 +173,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   };
   useEffect(() => {
-    if (!scrollAfterOwnMessageRef.current) return;
+    const freshPeerMessages = messages.filter(message => !message.isMe && message.type !== 'system' && !receivedMessageIds.current.has(message.id));
+    receivedMessageIds.current = new Set(messages.map(message => message.id));
+    if (freshPeerMessages.length) {
+      if (!isAtLatestRef.current) setUnreadMessageCount(count => count + freshPeerMessages.length);
+      playChime('message');
+    }
+    if (!isAtLatestRef.current && !scrollAfterOwnMessageRef.current) return;
     scrollAfterOwnMessageRef.current = false;
-    const frame = requestAnimationFrame(scrollToLatest);
+    const frame = requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      isAtLatestRef.current = true;
+      setIsAtLatest(true);
+      setUnreadMessageCount(0);
+      container.scrollTop = container.scrollHeight;
+    });
     return () => cancelAnimationFrame(frame);
-  }, [messages]);
+  }, [messages, isPeerTyping]);
   useEffect(() => {
     endedRef.current = false;
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
@@ -615,7 +624,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`inline-flex min-w-[72px] min-h-[52px] w-fit max-w-full items-center justify-center rounded-2xl p-3 text-center text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
+                      className={`inline-flex flex-col min-w-[72px] min-h-[52px] w-fit max-w-full items-center justify-center rounded-2xl p-3 text-center text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
                         msg.isMe
                           ? 'text-white'
                           : isDarkMode

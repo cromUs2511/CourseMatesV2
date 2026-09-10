@@ -92,8 +92,20 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   };
   // A repeated join updates one queue entry; it cannot match with itself.
   queue.delete(session.id);
-  const candidates = [...queue.values()].filter(p => Date.now() - p.lastSeen < 30000 && (!p.ws || p.ws.readyState === WebSocket.OPEN));
-  const sameVerification = candidates.filter(p => [...sessions.values()].some(s => s.id === p.id && s.isVerified === session.isVerified));
+  const now = Date.now();
+  const candidates = [...queue.values()].filter(p => {
+    const queuedSession = [...sessions.values()].find(candidate => candidate.id === p.id);
+    const activeSocket = !p.ws || p.ws.readyState === WebSocket.OPEN;
+    if (!queuedSession || queuedSession.expiresAt <= now || now - p.lastSeen >= 30000 || !activeSocket) {
+      queue.delete(p.id);
+      return false;
+    }
+    return true;
+  });
+  const sameVerification = candidates.filter(p => {
+    const queuedSession = [...sessions.values()].find(candidate => candidate.id === p.id);
+    return queuedSession?.isVerified === session.isVerified;
+  });
   const peer = sameVerification.find(p => p.interests.some(i => participant.interests.includes(i))) || sameVerification[0];
   if (!peer) {
     queue.set(session.id, participant);
@@ -125,14 +137,23 @@ function send(session: Identity, room: Room, data: any) {
   if (!data.text.trim() && !images.length) throw new Error('Write a message or attach a photo.');
   const imageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
   if (room.imageBytes + imageBytes > MAX_ROOM_IMAGE_BYTES) throw new Error('This chat has reached its photo limit. Delete some of your earlier photos before sending more.');
+  let replyTo: Message['replyTo'];
+  if (data.replyTo !== undefined) {
+    if (!data.replyTo || typeof data.replyTo.id !== 'string') throw new Error('Reply source not found.');
+    const source = room.messages.find(candidate => candidate.id === data.replyTo.id);
+    if (!source) throw new Error('Reply source not found.');
+    replyTo = {
+      id: source.id,
+      senderHandle: source.senderHandle,
+      text: source.type === 'system' ? 'Message unsent.' : source.text,
+    };
+  }
   const message: Message = {
     id, senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: session.sessionAvatar,
     text: data.text.trim(), timestamp: Date.now(), type: 'text',
     ...(images.length ? { images: images.map(({ id: imageId, name, width, height }) => ({ id: imageId, name, width, height,
       url: '/api/chat/images/' + [room.id, id, imageId].map(encodeURIComponent).join('/') })) } : {}),
-    replyTo: typeof data.replyTo?.id === 'string' && typeof data.replyTo?.text === 'string'
-      ? { id: data.replyTo.id, senderHandle: String(data.replyTo.senderHandle || '').slice(0, 100), text: String(data.replyTo.text).slice(0, 300) }
-      : undefined,
+    replyTo,
   };
   room.messages.push(message);
   if (images.length) { room.images.set(id, images); room.imageBytes += imageBytes; }
@@ -157,6 +178,9 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   message.replyTo = undefined;
   message.type = 'system';
   message.text = 'Message unsent.';
+  for (const reply of room.messages) {
+    if (reply.replyTo?.id === messageId) reply.replyTo.text = 'Message unsent.';
+  }
   for (const peer of room.peers) notify(peer.ws, { type: 'message_unsent', roomId: room.id, messageId });
   return message;
 }
