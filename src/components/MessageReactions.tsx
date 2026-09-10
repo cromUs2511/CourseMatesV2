@@ -61,8 +61,8 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
     finally { setPending(false); }
   };
   return <>
-    <div className={`flex w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
-      <div ref={anchor} className={`reaction-message-anchor w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
+    <div className={`relative flex w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
+      <div ref={anchor} className={`reaction-message-anchor relative w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
       onTouchStart={event => {
         clearPress();
         if (event.touches.length !== 1) return;
@@ -77,16 +77,26 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
       }}
       onTouchEnd={clearPress} onTouchCancel={clearPress}
       onContextMenu={event => { event.preventDefault(); clearPress(); open(true); }}
-      >{children}</div>
+      >
+        {children}
+        {MESSAGE_REACTIONS.some(({ emoji }) => Object.values(reactions).includes(emoji)) && (
+          <div className={`pointer-events-none absolute bottom-[-0.65rem] z-10 flex gap-0.5 ${align === 'end' ? 'right-2' : 'left-2'}`}>
+          {MESSAGE_REACTIONS.map(({ emoji, label }) => {
+            const count = Object.values(reactions).filter(value => value === emoji).length;
+            return count > 0 && (
+              <span
+                key={emoji}
+                aria-label={`${label} reaction, ${count}`}
+                className="inline-flex min-h-6 items-center gap-0.5 rounded-full border border-stone-300 bg-white px-1.5 text-xs shadow-sm dark:border-stone-700 dark:bg-stone-900"
+              >
+                {emoji} {count > 1 && <span className="text-[10px] text-stone-500 dark:text-stone-400">{count}</span>}
+              </span>
+            );
+          })}
+          </div>
+        )}
+      </div>
       <div className="mt-1 flex w-fit max-w-full flex-nowrap items-center gap-1">
-      {MESSAGE_REACTIONS.map(({ emoji, label }) => {
-        const count = Object.values(reactions).filter(value => value === emoji).length;
-        return count > 0 && <button key={emoji} type="button" disabled={pending} aria-label={`${label} reaction, ${count}`} aria-pressed={reactions[sessionId] === emoji}
-          onClick={() => void choose(emoji)}
-          className={`min-h-8 rounded-full border px-2 text-sm ${reactions[sessionId] === emoji ? 'border-red-400 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100' : 'border-stone-300 bg-white text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200'}`}>
-          {emoji} <span className="text-xs">{count}</span>
-        </button>;
-      })}
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
         <Smile className="h-3.5 w-3.5" /> React
