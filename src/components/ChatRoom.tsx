@@ -179,12 +179,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   useEffect(() => {
     endedRef.current = false;
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
-      text: peer.isSimulated ? 'Demo conversation with a simulated study partner.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
+      text: peer.isSimulated ? 'Conversation with the CourseMates AI Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
     if (peer.isSimulated) {
       simulationTimers.current.push(setTimeout(() => {
         receiveMessages([{
-          id: 'sim_init', senderHandle: peer.handle, senderAvatar: '', isMe: false,
+          id: 'sim_init', senderHandle: 'AI Assistant', senderAvatar: '', isMe: false,
           text: 'Hi! What would you like to study together today?', timestamp: Date.now(),
         }]);
       }, 800));
@@ -261,16 +261,36 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     try {
       if (peer.isSimulated) {
         scrollAfterOwnMessageRef.current = true;
-        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text,
+        const userMessage = { id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text,
           images: images.map(image => ({ id: crypto.randomUUID(), name: image.name, url: image.dataUrl, width: image.width, height: image.height })),
-          timestamp: Date.now(), replyTo }]);
+          timestamp: Date.now(), replyTo, isMe: true };
+        receiveMessages([userMessage]);
         setIsPeerTyping(true);
-        simulationTimers.current.push(setTimeout(() => {
-          setIsPeerTyping(false);
-          const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
-          const snippets = persona.responseSnippets.academics;
-          receiveMessages([{ id: crypto.randomUUID(), senderId: peer.sessionId, senderHandle: peer.handle, senderAvatar: '', text: snippets[Math.floor(Math.random() * snippets.length)], timestamp: Date.now() }]);
-        }, 1500));
+        const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
+        const history = [...messages, userMessage].slice(-12).map(message => ({
+          sender: message.isMe ? 'Student' : 'AI Assistant',
+          text: message.text,
+        }));
+        const data = await apiRequest<{ result: string }>('/api/ai/demo-chat', session.token, {
+          topic,
+          message: text || 'I sent a photo. What do you notice?',
+          history,
+          persona: {
+            discipline: persona.discipline,
+            campus: persona.campus,
+            interests: persona.interests,
+          },
+        });
+        if (endedRef.current) return;
+        setIsPeerTyping(false);
+        receiveMessages([{
+          id: crypto.randomUUID(),
+          senderId: peer.sessionId,
+          senderHandle: 'AI Assistant',
+          senderAvatar: '',
+          text: data.result,
+          timestamp: Date.now(),
+        }]);
       } else {
         if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
           retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
@@ -288,7 +308,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       setReplyingTo(null);
       sendTyping(false);
       playChime('message');
-    } catch (err) { setError((err as Error).message); }
+    } catch (err) {
+      setIsPeerTyping(false);
+      setError((err as Error).message);
+    }
     finally { sendingRef.current = false; setIsSending(false); }
   };
   const handleReact = async (messageId: string, emoji: string | null) => {
@@ -399,7 +422,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <div className="min-w-0">
               <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto">
                 <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
-                  {peer.handle}
+                  {peer.isSimulated ? 'AI Assistant' : peer.handle}
                 </span>
                 {!peerDisconnected ? (
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
@@ -577,7 +600,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.2s]" />
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.4s]" />
                 </div>
-                <span>{peer.handle} is typing…</span>
+                <span>{peer.isSimulated ? 'AI Assistant' : peer.handle} is typing…</span>
               </div>
             )}
 
@@ -709,7 +732,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 placeholder={
                   peerDisconnected
                     ? "Session ended. Click 'Next Peer' above."
-                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.handle}... (Press Enter to send)`
+                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? 'AI Assistant' : peer.handle}... (Press Enter to send)`
                 }
                 className={`min-w-0 flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none focus:border-[#991B1B] disabled:opacity-50 transition-colors ${
                   isDarkMode
