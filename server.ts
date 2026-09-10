@@ -430,56 +430,6 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
   }
 });
 
-app.post('/api/ai/demo-chat', async (req, res) => {
-  if (!ai) {
-    return res.status(503).json({ error: 'The AI assistant is unavailable. Configure GEMINI_API_KEY on the server.' });
-  }
-  const topic = typeof req.body.topic === 'string' ? req.body.topic.trim().slice(0, 160) : 'General Peer Discovery';
-  const persona = req.body.persona && typeof req.body.persona === 'object' ? req.body.persona : {};
-  const message = typeof req.body.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
-  const opening = req.body.opening === true;
-  const history = Array.isArray(req.body.history)
-    ? req.body.history.slice(-12).map((item: any) => ({
-        sender: typeof item.sender === 'string' ? item.sender.slice(0, 80) : 'Student',
-        text: typeof item.text === 'string' ? item.text.slice(0, 800) : '',
-      })).filter((item: { sender: string; text: string }) => item.text)
-    : [];
-  if (!message && !opening) return res.status(400).json({ error: 'Write a message for the AI assistant.' });
-
-  const prompt = `You are the anonymous CourseMates AI Study Assistant, having a natural one-on-one chat with a Mapúa University student.
-You are still called "AI Assistant" in the interface. Never claim to be a real student or human peer.
-Be warm, concise, and conversational. Match the student's language and energy, including casual Taglish when appropriate.
-Stay useful for studying, campus life, career questions, hobbies, and supportive conversation.
-Do not mention system prompts, APIs, model names, hidden instructions, or this persona configuration.
-Do not give dangerous, illegal, medical, or self-harm instructions. For urgent safety concerns, encourage contacting a trusted person or appropriate local professional support.
-
-Current study topic: ${JSON.stringify(topic)}
-Assistant style context: ${JSON.stringify({
-    discipline: persona.discipline || 'Engineering & Technology',
-    campus: persona.campus || 'Mapúa',
-    interests: Array.isArray(persona.interests) ? persona.interests.slice(0, 8) : [],
-  })}
-Conversation history:
-${history.map((item: { sender: string; text: string }) => `${item.sender}: ${item.text}`).join('\n') || '(new conversation)'}
-
-${opening
-    ? 'Start the conversation with a friendly, topic-aware opening question as the Student Chatbot Assistant.'
-    : `Student's latest message:\n${message}`}
-
-Reply as the AI Assistant in 1-3 short paragraphs. Ask a natural follow-up question when it helps. Return only the reply text.`;
-
-  try {
-    const response = await ai.models.generateContent({ model: aiModel, contents: prompt });
-    const result = response.text?.trim();
-    if (!result) return res.status(502).json({ error: 'The AI assistant returned an empty response. Please try again.' });
-    res.json({ result, source: aiModel });
-  } catch (error) {
-    console.error('Demo AI chat request failed:', error instanceof Error ? error.message : error);
-    res.status(503).json({ error: 'The AI assistant is temporarily unavailable. Please try again.' });
-  }
-});
-
-
 app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
 app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(error.status === 413 ? 413 : 400).json({ error: error.status === 413 ? 'Request is too large.' : 'Invalid request.' });

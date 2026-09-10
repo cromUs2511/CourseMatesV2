@@ -3,11 +3,14 @@ import { createPortal } from 'react-dom';
 import { Smile, X } from 'lucide-react';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
-export function MessageReactions({ children, reactions = {}, sessionId, onReact }: {
+export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start' }: {
   children: React.ReactNode;
   reactions?: Record<string, string>;
   sessionId: string;
   onReact: (emoji: string | null) => Promise<void>;
+  actions?: React.ReactNode;
+  onLongPress?: () => void;
+  align?: 'start' | 'end';
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [pending, setPending] = useState(false);
@@ -17,7 +20,11 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
   const clearPress = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; setIsHolding(false); };
-  const open = () => {
+  const open = (longPress = false) => {
+    if (longPress && onLongPress) {
+      onLongPress();
+      return;
+    }
     const box = anchor.current?.getBoundingClientRect();
     if (box) setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - 304)), top: Math.max(8, Math.min(box.top - 100, window.innerHeight - 108)) });
   };
@@ -54,23 +61,24 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact 
     finally { setPending(false); }
   };
   return <>
-    <div ref={anchor} className={`reaction-message-anchor [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
+    <div className={`flex w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
+      <div ref={anchor} className={`reaction-message-anchor w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
       onTouchStart={event => {
         clearPress();
         if (event.touches.length !== 1) return;
         const touch = event.touches[0];
         start.current = { x: touch.clientX, y: touch.clientY };
         setIsHolding(true);
-        timer.current = setTimeout(open, 450);
+        timer.current = setTimeout(() => open(true), 450);
       }}
       onTouchMove={event => {
         const touch = event.touches[0];
         if (!touch || !start.current || Math.hypot(touch.clientX - start.current.x, touch.clientY - start.current.y) > 10) clearPress();
       }}
       onTouchEnd={clearPress} onTouchCancel={clearPress}
-      onContextMenu={event => { event.preventDefault(); clearPress(); open(); }}
-    >{children}</div>
-    <div className="mt-1 flex flex-wrap items-center gap-1">
+      onContextMenu={event => { event.preventDefault(); clearPress(); open(true); }}
+      >{children}</div>
+      <div className="mt-1 flex w-fit max-w-full flex-nowrap items-center gap-1">
       {MESSAGE_REACTIONS.map(({ emoji, label }) => {
         const count = Object.values(reactions).filter(value => value === emoji).length;
         return count > 0 && <button key={emoji} type="button" disabled={pending} aria-label={`${label} reaction, ${count}`} aria-pressed={reactions[sessionId] === emoji}
@@ -79,10 +87,12 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact 
           {emoji} <span className="text-xs">{count}</span>
         </button>;
       })}
-      <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={open}
+      <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
         <Smile className="h-3.5 w-3.5" /> React
       </button>
+      {actions}
+      </div>
     </div>
     {position && createPortal(<div className="reaction-picker-layer fixed inset-0 z-[100]" onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()}>
       <div className="reaction-picker-backdrop absolute inset-0 bg-black/10" onClick={() => setPosition(null)} />

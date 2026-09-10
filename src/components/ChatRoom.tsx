@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, ChevronDown, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -73,6 +74,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [deleteMenuMessageId, setDeleteMenuMessageId] = useState<string | null>(null);
+  const [messageActionsPosition, setMessageActionsPosition] = useState<{ left: number; top: number } | null>(null);
+  const messageBubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#e52329' });
   const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
     try {
@@ -184,40 +188,28 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       text: peer.isSimulated ? 'Conversation with the Student Chatbot Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
     if (peer.isSimulated) {
-      let disposed = false;
-      const timer = setTimeout(async () => {
-        setIsPeerTyping(true);
+      const timer = setTimeout(() => {
         const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
-        try {
-          const data = await apiRequest<{ result: string }>('/api/ai/demo-chat', session.token, {
-            topic,
-            opening: true,
-            history: [],
-            persona: {
-              discipline: persona.discipline,
-              campus: persona.campus,
-              interests: persona.interests,
-            },
-          });
-          if (disposed || endedRef.current) return;
+        setIsPeerTyping(true);
+        const responseTimer = setTimeout(() => {
+          if (endedRef.current) return;
+          setIsPeerTyping(false);
           receiveMessages([{
-            id: 'ai_init',
+            id: 'sim_init',
             senderId: peer.sessionId,
             senderHandle: STUDENT_CHATBOT_NAME,
             senderAvatar: '',
             isMe: false,
-            text: data.result,
+            text: persona.defaultIcebreaker,
             timestamp: Date.now(),
           }]);
-        } catch (error) {
-          if (!disposed) setError((error as Error).message);
-        } finally {
-          if (!disposed) setIsPeerTyping(false);
-        }
+        }, 700);
+        simulationTimers.current.push(responseTimer);
       }, 600);
+      simulationTimers.current.push(timer);
       return () => {
-        disposed = true;
-        clearTimeout(timer);
+        simulationTimers.current.forEach(clearTimeout);
+        simulationTimers.current = [];
       };
     }
     if (!roomId) return;
@@ -250,7 +242,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           setIsPeerTyping(data.isTyping);
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
           peerTypingTimer.current = setTimeout(() => setIsPeerTyping(false), 3000);
-        } else if (data.type === 'message_deleted') setMessages(previous => previous.filter(message => message.id !== data.messageId));
+        }         else if (data.type === 'message_unsent') setMessages(previous => previous.map(message => message.id === data.messageId
+          ? { ...message, type: 'system', text: 'Message unsent.', images: undefined, reactions: undefined, replyTo: undefined }
+          : message));
         else if (data.type === 'peer_disconnected') markDisconnected();
       } catch { /* REST polling repairs missed events. */ }
     };
@@ -294,30 +288,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         receiveMessages([userMessage]);
         setIsPeerTyping(true);
         const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
-        const history = [...messages, userMessage].slice(-12).map(message => ({
-          sender: message.isMe ? 'Student' : STUDENT_CHATBOT_NAME,
-          text: message.text,
-        }));
-        const data = await apiRequest<{ result: string }>('/api/ai/demo-chat', session.token, {
-          topic,
-          message: text || 'I sent a photo. What do you notice?',
-          history,
-          persona: {
-            discipline: persona.discipline,
-            campus: persona.campus,
-            interests: persona.interests,
-          },
-        });
-        if (endedRef.current) return;
-        setIsPeerTyping(false);
-        receiveMessages([{
-          id: crypto.randomUUID(),
-          senderId: peer.sessionId,
-          senderHandle: STUDENT_CHATBOT_NAME,
-          senderAvatar: '',
-          text: data.result,
-          timestamp: Date.now(),
-        }]);
+        const snippets = persona.responseSnippets.academics;
+        simulationTimers.current.push(setTimeout(() => {
+          if (endedRef.current) return;
+          setIsPeerTyping(false);
+          receiveMessages([{
+            id: crypto.randomUUID(),
+            senderId: peer.sessionId,
+            senderHandle: STUDENT_CHATBOT_NAME,
+            senderAvatar: '',
+            text: snippets[Math.floor(Math.random() * snippets.length)],
+            timestamp: Date.now(),
+          }]);
+        }, 1500));
       } else {
         if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
           retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
@@ -362,10 +345,32 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const handleDeleteMessage = async (message: ChatMessage) => {
     if (!message.isMe || peerDisconnected) return;
     try {
-      if (peer.isSimulated) setMessages(previous => previous.filter(item => item.id !== message.id));
-      else await apiRequest('/api/chat/delete', session.token, { roomId, messageId: message.id });
+      if (peer.isSimulated) {
+        setMessages(previous => previous.map(item => item.id === message.id
+          ? { ...item, type: 'system', text: 'Message unsent.', images: undefined, reactions: undefined, replyTo: undefined }
+          : item));
+      } else {
+        const data = await apiRequest<{ message: ChatMessage }>('/api/chat/delete', session.token, { roomId, messageId: message.id });
+        setMessages(previous => previous.map(item => item.id === message.id ? { ...data.message, isMe: true } : item));
+      }
+      setDeleteMenuMessageId(null);
       setError('');
     } catch (err) { setError((err as Error).message); }
+  };
+  const openMessageActions = (messageId: string) => {
+    const box = messageBubbleRefs.current[messageId]?.getBoundingClientRect();
+    if (!box) return;
+    const message = messages.find(item => item.id === messageId);
+    const pickerWidth = 188;
+    setDeleteMenuMessageId(messageId);
+    setMessageActionsPosition({
+      left: Math.max(8, Math.min(message?.isMe ? box.right - pickerWidth : box.left, window.innerWidth - pickerWidth - 8)),
+      top: Math.max(8, box.top - 82),
+    });
+  };
+  const closeMessageActions = () => {
+    setDeleteMenuMessageId(null);
+    setMessageActionsPosition(null);
   };
   const handleSuggestionClick = (text: string) => {
     setInputText(text);
@@ -503,10 +508,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           <div className="max-w-3xl mx-auto w-full space-y-3">
             {messages.map((msg) => {
               if (msg.type === 'system') {
+                const isUnsentMessage = msg.text === 'Message unsent.';
                 return (
-                  <div key={msg.id} className="my-3 text-center">
+                  <div key={msg.id} className={`my-3 flex w-full ${isUnsentMessage ? (msg.isMe ? 'justify-end' : 'justify-start') : 'justify-center'}`}>
                     <div
-                      className={`inline-block rounded-xl px-3 py-1.5 border text-xs font-mono ${
+                      className={`inline-block max-w-[92%] rounded-xl border px-3 py-1.5 text-xs font-mono ${
+                        isUnsentMessage ? 'text-left' : 'text-center'
+                      } ${
                         isDarkMode
                           ? 'bg-stone-900 border-stone-800 text-stone-400'
                           : 'bg-stone-100 border-stone-300 text-stone-600'
@@ -566,7 +574,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   </div>
 
                   {/* Message Bubble - Solid colors, crisp borders, no AI gradient clichés */}
-                  <div className="relative max-w-[92%] sm:max-w-[75%]">
+                  <div className="relative w-fit max-w-[92%] sm:max-w-[75%]">
                     {swipe?.id === msg.id && swipe.offset !== 0 && (
                       <span
                         className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-mono font-semibold text-[#991B1B] dark:text-[#F87171] ${
@@ -576,9 +584,38 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         Reply
                       </span>
                     )}
-                    <MessageReactions reactions={msg.reactions} sessionId={session.id} onReact={emoji => handleReact(msg.id, emoji)}>
+                    <MessageReactions
+                      reactions={msg.reactions}
+                      sessionId={session.id}
+                      onReact={emoji => handleReact(msg.id, emoji)}
+                      align={msg.isMe ? 'end' : 'start'}
+                      actions={(
+                        <>
+                          <button type="button" onClick={() => setReplyingTo(msg)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
+                            <Reply className="h-3.5 w-3.5" /> Reply
+                          </button>
+                          {msg.isMe && (
+                            <button
+                              type="button"
+                              aria-label="More message actions"
+                              title="More message actions"
+                              onClick={() => {
+                                if (deleteMenuMessageId === msg.id) closeMessageActions();
+                                else openMessageActions(msg.id);
+                              }}
+                              className="hidden min-h-8 items-center justify-center rounded-full px-1.5 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800 sm:inline-flex"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                      onLongPress={msg.isMe ? () => openMessageActions(msg.id) : undefined}
+                    >
                     <div
-                      className={`rounded-2xl p-3.5 text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
+                      ref={element => { messageBubbleRefs.current[msg.id] = element; }}
+                      data-message-bubble
+                      className={`inline-flex min-w-[72px] min-h-[52px] w-fit max-w-full items-center justify-center rounded-2xl p-3 text-center text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
                         msg.isMe
                           ? 'text-white'
                           : isDarkMode
@@ -606,14 +643,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       {msg.text && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>}
                     </div>
                     </MessageReactions>
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 px-1">
-                    <button type="button" onClick={() => setReplyingTo(msg)} className="text-[10px] font-mono text-stone-400 hover:text-[#991B1B]">
-                      <Reply className="inline h-3 w-3" /> Reply
-                    </button>
-                    {msg.isMe && <button type="button" onClick={() => void handleDeleteMessage(msg)} className="text-[10px] font-mono text-stone-400 hover:text-red-600">
-                      <Trash2 className="inline h-3 w-3" /> Delete
-                    </button>}
                   </div>
                 </div>
               );
@@ -713,6 +742,53 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 </button>
               ))}
             </div>
+            {deleteMenuMessageId && messageActionsPosition && createPortal(
+              <div
+                className="reaction-picker-layer fixed inset-0 z-[100]"
+                onKeyDown={event => { if (event.key === 'Escape') closeMessageActions(); }}
+              >
+                <div className="reaction-picker-backdrop absolute inset-0 bg-black/10" onClick={closeMessageActions} />
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Message actions"
+                  style={messageActionsPosition}
+                  className="reaction-picker fixed w-[188px] max-w-[calc(100vw-16px)] rounded-2xl border border-stone-200 bg-[#FAF8F5] p-1.5 text-stone-800 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                >
+                  <div className="mb-0.5 flex items-center justify-between px-1.5 text-[10px] font-medium">
+                    Message actions
+                    <button type="button" aria-label="Close message actions" className="p-0.5" onClick={closeMessageActions}>
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const message = messages.find(item => item.id === deleteMenuMessageId);
+                        if (message) void navigator.clipboard?.writeText(message.text).catch(() => {});
+                        closeMessageActions();
+                      }}
+                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] transition-transform hover:scale-105 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 dark:hover:bg-stone-700"
+                    >
+                      <Copy className="h-3.5 w-3.5" /> Copy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const message = messages.find(item => item.id === deleteMenuMessageId);
+                        closeMessageActions();
+                        if (message) void handleDeleteMessage(message);
+                      }}
+                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] text-red-600 transition-transform hover:scale-105 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.fullscreenElement || document.body,
+            )}
           </div>
         )}
 

@@ -10,7 +10,7 @@ import type { ChatImage } from './src/data/chatImages';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string } };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string } };
 type RoomMusic = RoomMusicState;
 type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; imageBytes: number; typing: Map<string, number>; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
@@ -150,9 +150,15 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   const index = room.messages.findIndex(message => message.id === messageId);
   if (index < 0) throw new Error('Message not found.');
   if (room.messages[index].senderId !== session.id) throw new Error('You can only delete your own messages.');
-  room.messages.splice(index, 1);
+  const message = room.messages[index];
   clearMessageImages(room, messageId);
-  for (const peer of room.peers) notify(peer.ws, { type: 'message_deleted', roomId: room.id, messageId });
+  message.images = undefined;
+  message.reactions = undefined;
+  message.replyTo = undefined;
+  message.type = 'system';
+  message.text = 'Message unsent.';
+  for (const peer of room.peers) notify(peer.ws, { type: 'message_unsent', roomId: room.id, messageId });
+  return message;
 }
 function updateMusic(session: Identity, room: Room, data: any) {
   const trackId = typeof data.trackId === 'string' ? data.trackId.slice(0, 100) : '';
@@ -230,7 +236,7 @@ export function attachRuntime(app: Express, server: Server) {
     const session = authenticate(req); if (!session) return res.status(401).json({ error: 'Sign in again.' });
     const room = requireRoom(session, req.body.roomId); if (!room) return res.status(404).json({ error: 'Chat ended.' });
     const message = room.messages.find(item => item.id === req.body.messageId);
-    if (!message) return res.status(404).json({ error: 'Message not found.' });
+    if (!message || message.type !== 'text') return res.status(404).json({ error: 'Message not found.' });
     const emoji = req.body.emoji;
     if (emoji !== null && !MESSAGE_REACTIONS.some(item => item.emoji === emoji)) return res.status(400).json({ error: 'Choose a supported reaction.' });
     message.reactions ??= {};
@@ -243,7 +249,7 @@ export function attachRuntime(app: Express, server: Server) {
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
-    try { removeMessage(session, room, req.body.messageId); res.json({ success: true }); }
+    try { res.json({ success: true, message: removeMessage(session, room, req.body.messageId) }); }
     catch (error) { res.status(400).json({ error: (error as Error).message }); }
   });
   app.get('/api/chat/messages', (req, res) => {
