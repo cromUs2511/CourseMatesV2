@@ -361,7 +361,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       className="w-full sm:w-auto px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Bot className="w-4 h-4" />
-                      <span>Try a simulated study partner</span>
+                      <span>Try Student Chatbot Assistant</span>
                     </button>
                   )}
                 </div>

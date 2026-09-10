@@ -437,13 +437,14 @@ app.post('/api/ai/demo-chat', async (req, res) => {
   const topic = typeof req.body.topic === 'string' ? req.body.topic.trim().slice(0, 160) : 'General Peer Discovery';
   const persona = req.body.persona && typeof req.body.persona === 'object' ? req.body.persona : {};
   const message = typeof req.body.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
+  const opening = req.body.opening === true;
   const history = Array.isArray(req.body.history)
     ? req.body.history.slice(-12).map((item: any) => ({
         sender: typeof item.sender === 'string' ? item.sender.slice(0, 80) : 'Student',
         text: typeof item.text === 'string' ? item.text.slice(0, 800) : '',
       })).filter((item: { sender: string; text: string }) => item.text)
     : [];
-  if (!message) return res.status(400).json({ error: 'Write a message for the AI assistant.' });
+  if (!message && !opening) return res.status(400).json({ error: 'Write a message for the AI assistant.' });
 
   const prompt = `You are the anonymous CourseMates AI Study Assistant, having a natural one-on-one chat with a Mapúa University student.
 You are still called "AI Assistant" in the interface. Never claim to be a real student or human peer.
@@ -461,8 +462,9 @@ Assistant style context: ${JSON.stringify({
 Conversation history:
 ${history.map((item: { sender: string; text: string }) => `${item.sender}: ${item.text}`).join('\n') || '(new conversation)'}
 
-Student's latest message:
-${message}
+${opening
+    ? 'Start the conversation with a friendly, topic-aware opening question as the Student Chatbot Assistant.'
+    : `Student's latest message:\n${message}`}
 
 Reply as the AI Assistant in 1-3 short paragraphs. Ask a natural follow-up question when it helps. Return only the reply text.`;
 

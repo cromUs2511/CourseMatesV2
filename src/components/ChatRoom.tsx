@@ -11,6 +11,8 @@ import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog } from './PhotoDialog';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 
+const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
+
 const CONVERSATION_STARTER_POOL = [
   'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
   'May ma-recommend kang open-world sa Steam na keri lang sa laptop?',
@@ -179,18 +181,43 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   useEffect(() => {
     endedRef.current = false;
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
-      text: peer.isSimulated ? 'Conversation with the CourseMates AI Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
+      text: peer.isSimulated ? 'Conversation with the Student Chatbot Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
     if (peer.isSimulated) {
-      simulationTimers.current.push(setTimeout(() => {
-        receiveMessages([{
-          id: 'sim_init', senderHandle: 'AI Assistant', senderAvatar: '', isMe: false,
-          text: 'Hi! What would you like to study together today?', timestamp: Date.now(),
-        }]);
-      }, 800));
+      let disposed = false;
+      const timer = setTimeout(async () => {
+        setIsPeerTyping(true);
+        const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
+        try {
+          const data = await apiRequest<{ result: string }>('/api/ai/demo-chat', session.token, {
+            topic,
+            opening: true,
+            history: [],
+            persona: {
+              discipline: persona.discipline,
+              campus: persona.campus,
+              interests: persona.interests,
+            },
+          });
+          if (disposed || endedRef.current) return;
+          receiveMessages([{
+            id: 'ai_init',
+            senderId: peer.sessionId,
+            senderHandle: STUDENT_CHATBOT_NAME,
+            senderAvatar: '',
+            isMe: false,
+            text: data.result,
+            timestamp: Date.now(),
+          }]);
+        } catch (error) {
+          if (!disposed) setError((error as Error).message);
+        } finally {
+          if (!disposed) setIsPeerTyping(false);
+        }
+      }, 600);
       return () => {
-        simulationTimers.current.forEach(clearTimeout);
-        simulationTimers.current = [];
+        disposed = true;
+        clearTimeout(timer);
       };
     }
     if (!roomId) return;
@@ -268,7 +295,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         setIsPeerTyping(true);
         const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
         const history = [...messages, userMessage].slice(-12).map(message => ({
-          sender: message.isMe ? 'Student' : 'AI Assistant',
+          sender: message.isMe ? 'Student' : STUDENT_CHATBOT_NAME,
           text: message.text,
         }));
         const data = await apiRequest<{ result: string }>('/api/ai/demo-chat', session.token, {
@@ -286,7 +313,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         receiveMessages([{
           id: crypto.randomUUID(),
           senderId: peer.sessionId,
-          senderHandle: 'AI Assistant',
+          senderHandle: STUDENT_CHATBOT_NAME,
           senderAvatar: '',
           text: data.result,
           timestamp: Date.now(),
@@ -422,11 +449,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <div className="min-w-0">
               <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto">
                 <span className="font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
-                  {peer.isSimulated ? 'AI Assistant' : peer.handle}
+                  {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
                 {!peerDisconnected ? (
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                    {peer.isSimulated ? 'DEMO' : 'CONNECTED'}
+                    {peer.isSimulated ? 'AI' : 'CONNECTED'}
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800">
@@ -600,7 +627,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.2s]" />
                   <div className="w-1.5 h-1.5 bg-[#991B1B] animate-pulse [animation-delay:0.4s]" />
                 </div>
-                <span>{peer.isSimulated ? 'AI Assistant' : peer.handle} is typing…</span>
+                <span>{peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle} is typing…</span>
               </div>
             )}
 
@@ -732,7 +759,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 placeholder={
                   peerDisconnected
                     ? "Session ended. Click 'Next Peer' above."
-                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? 'AI Assistant' : peer.handle}... (Press Enter to send)`
+                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}... (Press Enter to send)`
                 }
                 className={`min-w-0 flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none focus:border-[#991B1B] disabled:opacity-50 transition-colors ${
                   isDarkMode
