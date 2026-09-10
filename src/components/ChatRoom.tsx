@@ -514,7 +514,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           onScroll={handleMessagesScroll}
           className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-3 select-text"
         >
-          <div className="max-w-3xl mx-auto w-full space-y-3">
+          <div className="max-w-3xl mx-auto w-full space-y-2">
             {messages.map((msg) => {
               if (msg.type === 'system') {
                 const isUnsentMessage = msg.text === 'Message unsent.';
@@ -569,12 +569,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   }}
                   onTouchCancel={() => { setSwipe(null); touchRef.current = null; }}
                 >
-                  <div className="flex items-baseline space-x-1.5 text-[11px] font-mono text-stone-400 mb-1 px-1">
-                    <span className="font-semibold text-stone-600 dark:text-stone-300">
+                  <div className="flex max-w-[92%] items-baseline gap-1.5 text-[11px] font-mono text-stone-500 dark:text-stone-400 mb-1 px-1 sm:max-w-[75%]">
+                    <span className="min-w-0 truncate font-semibold text-stone-600 dark:text-stone-300">
                       {msg.isMe ? 'You' : msg.senderHandle}
                     </span>
                     <span>•</span>
-                    <span>
+                    <span className="shrink-0">
                       {new Date(msg.timestamp).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -582,8 +582,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     </span>
                   </div>
 
-                  {/* Message Bubble - Solid colors, crisp borders, no AI gradient clichés */}
-                  <div className="relative w-fit max-w-[92%] sm:max-w-[75%]">
+                  {/* Keep the bubble, quote, and actions within the same message column. */}
+                  <div className={`relative min-w-0 w-fit ${msg.replyTo ? 'max-w-[min(92%,24rem)] sm:max-w-[min(75%,24rem)]' : 'max-w-[92%] sm:max-w-[75%]'}`}>
                     {swipe?.id === msg.id && swipe.offset !== 0 && (
                       <span
                         className={`absolute top-1/2 -translate-y-1/2 text-[10px] font-mono font-semibold text-[#991B1B] dark:text-[#F87171] ${
@@ -624,11 +624,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`inline-flex flex-col min-w-[72px] min-h-[52px] w-fit max-w-full items-center justify-center rounded-2xl p-3 text-center text-xs sm:text-sm leading-relaxed border transition-transform duration-150 ${
+                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch gap-1.5 rounded-2xl px-3 py-2 text-left text-sm leading-5 border transition-transform duration-150 ${
                         msg.isMe
                           ? 'text-white'
                           : isDarkMode
-                          ? 'bg-black/20 border-stone-800 text-stone-100'
+                          ? 'bg-stone-900/90 border-stone-700/70 text-stone-100'
                           : 'bg-white/75 border-stone-300 text-stone-900'
                       }`}
                       style={{
@@ -637,19 +637,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       }}
                     >
                       {msg.replyTo && (
-                        <div className="mb-2 border-l-2 border-current/50 pl-2 text-[11px] opacity-75">
-                          <div className="font-semibold">{msg.replyTo.senderHandle}</div>
-                          <div className="truncate">{msg.replyTo.text}</div>
-                        </div>
+                        <blockquote
+                          data-reply-preview
+                          className={`min-w-0 w-full overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-[11px] leading-4 ${
+                            msg.isMe ? 'border-white/60 bg-black/15 text-white/90' : 'border-stone-400 bg-black/5 text-stone-600 dark:border-stone-500 dark:bg-white/5 dark:text-stone-300'
+                          }`}
+                        >
+                          <div className="truncate font-semibold">{msg.replyTo.senderHandle}</div>
+                          <p className="truncate">{msg.replyTo.text}</p>
+                        </blockquote>
                       )}
-                      {!!msg.images?.length && <div className={`grid gap-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} ${msg.text ? 'mb-2' : ''}`}>
+                      {!!msg.images?.length && <div className={`grid min-w-0 gap-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         {msg.images.map(image => <button key={image.id} type="button" onClick={() => setViewingImage(image)} aria-label={'View photo ' + image.name}
-                          className="block overflow-hidden rounded-lg bg-black/10">
+                          className="block min-w-0 overflow-hidden rounded-lg bg-black/10">
                           <img src={image.url} alt={image.name} width={image.width} height={image.height}
                             className="max-h-64 w-full max-w-80 object-contain" loading="lazy" draggable={false} />
                         </button>)}
                       </div>}
-                      {msg.text && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.text}</p>}
+                      {msg.text && <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.text}</p>}
                     </div>
                     </MessageReactions>
                   </div>
@@ -810,9 +815,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         >
           <div className="max-w-3xl mx-auto">
             {replyingTo && (
-              <div className="mb-2 flex items-center justify-between border-l-2 border-[#991B1B] bg-stone-100 px-3 py-2 text-xs dark:bg-stone-900">
-                <span className="truncate">Replying to {replyingTo.senderHandle}: {replyingTo.text || 'Photo'}</span>
-                <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="ml-2 text-stone-500">×</button>
+              <div className="mb-2 flex min-w-0 items-center gap-3 rounded-xl border-l-[3px] bg-stone-100 px-3 py-2 text-left text-xs dark:bg-stone-900" style={{ borderColor: chatTheme.accent }}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-stone-700 dark:text-stone-200">Replying to {replyingTo.isMe ? 'yourself' : replyingTo.senderHandle}</p>
+                  <p className="truncate text-stone-500 dark:text-stone-400">{replyingTo.text || 'Photo'}</p>
+                </div>
+                <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="h-4 w-4" /></button>
               </div>
             )}
             {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}

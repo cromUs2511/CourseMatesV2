@@ -61,8 +61,8 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
     finally { setPending(false); }
   };
   return <>
-    <div className={`relative flex w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
-      <div ref={anchor} className={`reaction-message-anchor relative w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
+    <div className={`relative flex min-w-0 w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
+      <div ref={anchor} className={`reaction-message-anchor relative min-w-0 w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
       onTouchStart={event => {
         clearPress();
         if (event.touches.length !== 1) return;
@@ -80,7 +80,7 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
       >
         {children}
         {MESSAGE_REACTIONS.some(({ emoji }) => Object.values(reactions).includes(emoji)) && (
-          <div className={`pointer-events-none absolute bottom-[-0.65rem] z-10 flex gap-0.5 ${align === 'end' ? 'right-2' : 'left-2'}`}>
+          <div className={`pointer-events-none relative z-10 -mt-1.5 flex flex-wrap gap-1 px-2 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
           {MESSAGE_REACTIONS.map(({ emoji, label }) => {
             const count = Object.values(reactions).filter(value => value === emoji).length;
             return count > 0 && (
@@ -96,7 +96,7 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           </div>
         )}
       </div>
-      <div className="mt-1 flex w-fit max-w-full flex-nowrap items-center gap-1">
+      <div className="flex w-max flex-nowrap items-center gap-0.5">
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
         <Smile className="h-3.5 w-3.5" /> React
