@@ -445,12 +445,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           />
           <div
             aria-hidden="true"
-            className="ambient-spectrum"
-            style={{ '--spectrum-color': ambient.color } as React.CSSProperties}
+            className="ambient-aurora"
+            style={{ '--aurora-color': ambient.color } as React.CSSProperties}
           >
-            {Array.from({ length: 24 }, (_, index) => (
-              <span key={index} className="ambient-spectrum-bar" />
-            ))}
+            <span className="aurora-ribbon aurora-ribbon-top-left" />
+            <span className="aurora-ribbon aurora-ribbon-top-right" />
+            <span className="aurora-ribbon aurora-ribbon-bottom-left" />
+            <span className="aurora-ribbon aurora-ribbon-bottom-right" />
           </div>
         </>
       )}

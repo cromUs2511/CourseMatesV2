@@ -264,41 +264,68 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
   mix-blend-mode: screen;
 }
 
-.ambient-spectrum {
+.ambient-aurora {
   position: absolute;
-  inset: 12% 8% 8%;
+  inset: 0;
   z-index: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(0.3rem, 1.2vw, 1rem);
   overflow: hidden;
-  opacity: 0.16;
-  filter: blur(8px);
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
 }
 
-.ambient-spectrum-bar {
-  width: clamp(0.35rem, 1vw, 0.8rem);
-  height: 32%;
-  border-radius: 999px;
-  background: var(--spectrum-color);
-  box-shadow: 0 0 1.5rem var(--spectrum-color);
+.aurora-ribbon {
+  position: absolute;
+  width: min(58vw, 42rem);
+  height: min(30vw, 20rem);
+  opacity: 0.42;
+  filter: blur(18px) saturate(1.45);
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(115deg, transparent 16%, color-mix(in srgb, var(--aurora-color) 22%, #67e8f9) 42%, color-mix(in srgb, var(--aurora-color) 42%, #a7f3d0) 52%, transparent 76%);
+  mask-image: linear-gradient(105deg, transparent 4%, black 34%, black 62%, transparent 92%);
   transform-origin: center;
-  animation: spectrum-pulse 1.8s ease-in-out infinite;
+  animation: aurora-sway 10s ease-in-out infinite alternate;
 }
 
-.ambient-spectrum-bar:nth-child(2n) { animation-duration: 1.35s; }
-.ambient-spectrum-bar:nth-child(3n) { animation-duration: 2.1s; }
-.ambient-spectrum-bar:nth-child(4n) { animation-duration: 1.6s; }
-.ambient-spectrum-bar:nth-child(5n) { animation-duration: 2.35s; }
-.ambient-spectrum-bar:nth-child(3n + 1) { animation-delay: -0.55s; }
-.ambient-spectrum-bar:nth-child(4n + 2) { animation-delay: -1.1s; }
+.aurora-ribbon-top-left {
+  top: -5rem;
+  left: -8rem;
+  transform: rotate(-18deg);
+}
 
-@keyframes spectrum-pulse {
-  0%, 100% { transform: scaleY(0.28); opacity: 0.4; }
-  50% { transform: scaleY(1); opacity: 1; }
+.aurora-ribbon-top-right {
+  top: -5rem;
+  right: -8rem;
+  transform: scaleX(-1) rotate(-18deg);
+  animation-delay: -3.5s;
+}
+
+.aurora-ribbon-bottom-left {
+  bottom: -6rem;
+  left: -8rem;
+  transform: scaleY(-1) rotate(-18deg);
+  animation-delay: -6s;
+}
+
+.aurora-ribbon-bottom-right {
+  right: -8rem;
+  bottom: -6rem;
+  transform: scale(-1) rotate(-18deg);
+  animation-delay: -8s;
+}
+
+@keyframes aurora-sway {
+  0% {
+    opacity: 0.28;
+    transform: translate3d(-2%, 1%, 0) rotate(-18deg) skewX(-8deg) scale(0.94);
+  }
+  50% {
+    opacity: 0.58;
+    transform: translate3d(3%, -2%, 0) rotate(-10deg) skewX(6deg) scale(1.08);
+  }
+  100% {
+    opacity: 0.38;
+    transform: translate3d(-1%, 3%, 0) rotate(-22deg) skewX(-4deg) scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -311,9 +338,9 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
   .animate-ambient-glow-drift {
     animation: none;
   }
-  .ambient-spectrum-bar {
+  .aurora-ribbon {
     animation: none;
-    transform: scaleY(0.6);
+    opacity: 0.38;
   }
   .reaction-picker-backdrop,
   .reaction-picker,
