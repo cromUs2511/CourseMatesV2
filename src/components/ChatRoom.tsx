@@ -25,7 +25,7 @@ const CONVERSATION_STARTER_POOL = [
   'Is this the right room? Baka mamaya maling class napasukan ko.',
   'Are you taking the stairs? Ang lala ng pila sa elbi eh.',
   'Do you know any cheap kainan outside Walls? Sawa na ako sa canteen.',
-  'Sira ba yung myMapua niyo? I can\'t check my schedule.',
+  'Sira ba yung student portal niyo? I can\'t check my schedule.',
   'Wait, did the prof post the module sa Blackboard already?',
   'May groupmate ka na ba? Wala pa kasi akong kilala dito.',
   'First week pa lang pero parang midterms na, right?',
@@ -677,7 +677,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   onClick={requestNext}
                   className="chat-theme-accent-button mt-2 px-4 py-2 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
-                  Find Next Mapúa Peer
+                  Find Next Study Peer
                 </button>
               </div>
             )}

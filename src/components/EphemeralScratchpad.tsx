@@ -21,7 +21,7 @@ export const EphemeralScratchpad: React.FC<EphemeralScratchpadProps> = ({
 using namespace std;
 
 int main() {
-    cout << "Mapúa Engineering Peer Session Active." << endl;
+    cout << "Engineering Peer Session Active." << endl;
     return 0;
 }`
   );

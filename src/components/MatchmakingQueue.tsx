@@ -339,7 +339,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 <div className="flex items-center justify-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-[#991B1B]" />
                   <span className="font-semibold text-xs font-mono text-stone-800 dark:text-stone-200">
-                    Finding active Mapúa study peers... ({queueTime}s)
+                    Finding active study peers... ({queueTime}s)
                   </span>
                 </div>
 

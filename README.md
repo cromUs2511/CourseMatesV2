@@ -1,6 +1,6 @@
 # CourseMates
 
-Anonymous study matching for Mapúa students, built with React, Vite, Express and WebSockets.
+Anonymous study matching, built with React, Vite, Express and WebSockets.
 
 ## Run locally
 
@@ -10,7 +10,7 @@ Requires Node.js 22.14 or newer.
 2. Optionally copy `.env.example` to `.env.local` and configure integrations.
 3. Run `npm run dev`, then open http://localhost:3000.
 
-Local development enables clearly labelled demo access by default. Enter a school-formatted email or use a quick-fill button; this does **not** verify email ownership. Open two independent browser profiles/private sessions to test real matching, or choose the simulated partner while waiting.
+Local development enables clearly labelled demo access by default. Enter a valid email or use the Gmail quick-fill button; this does **not** verify email ownership. Open two independent browser profiles/private sessions to test real matching, or choose the simulated partner while waiting.
 
 ## Production
 
@@ -18,7 +18,7 @@ Run `npm run build`, then `npm start`. Set `PORT` and `HOST` when needed. The pr
 
 Production disables demo login by default. Configure Microsoft sign-in, or explicitly set `ALLOW_DEMO_LOGIN=true` for a demonstration. Set `ALLOW_DEMO_LOGIN=false` to disable it in any environment.
 
-For Microsoft sign-in, configure `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` and `APP_URL`. Register `${APP_URL}/auth/callback` as a Web redirect URI and allow the `openid profile email` scopes. Sign-in uses authorization code flow with PKCE, a short-lived state cookie, and Microsoft's UserInfo endpoint. The account must return an email from one of the three accepted school domains. Demo and verified sessions have separate matching pools.
+For Microsoft sign-in, configure `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` and `APP_URL`. Register `${APP_URL}/auth/callback` as a Web redirect URI and allow the `openid profile email` scopes. Sign-in uses authorization code flow with PKCE, a short-lived state cookie, and Microsoft's UserInfo endpoint. The account must return a valid email address. Demo and verified sessions have separate matching pools.
 
 ## Optional services
 

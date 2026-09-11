@@ -27,7 +27,7 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await page.route('**/api/chat/messages?*', route => route.fulfill({ json: { active: true, messages: history, isPeerTyping: false } }));
     for (const [index, target] of [page, peer].entries()) {
       await target.goto('/');
-      await target.getByRole('textbox', { name: /student email/i }).fill(`backread-${index}@mymail.mapua.edu.ph`);
+      await target.getByRole('textbox', { name: /email address/i }).fill(`backread-${index}@gmail.com`);
       await target.getByRole('button', { name: 'Continue in demo mode' }).click();
       await target.locator('#start-chat-btn').click();
     }

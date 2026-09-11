@@ -6,7 +6,7 @@ test('three successful starters exhaust the bar without limiting normal messages
   try {
     for (const [index, page] of [a, b].entries()) {
       await page.goto('/');
-      await page.getByRole('textbox', { name: /student email/i }).fill(`starter-${index}@mymail.mapua.edu.ph`);
+      await page.getByRole('textbox', { name: /email address/i }).fill(`starter-${index}@gmail.com`);
       await page.getByRole('button', { name: 'Continue in demo mode' }).click();
       await page.locator('#start-chat-btn').click();
     }

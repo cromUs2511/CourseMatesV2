@@ -25,7 +25,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ session }) => 
   const [newTitle, setNewTitle] = useState('');
   const [newSubject, setNewSubject] = useState('CS102');
   const [newTopic, setNewTopic] = useState('');
-  const [newCampus] = useState<Campus>('Intramuros');
+  const [newCampus] = useState<Campus>('Main Campus');
 
   const [groupMessages, setGroupMessages] = useState<
     Array<{ id: string; sender: string; avatar: string; text: string; time: string }>
@@ -127,7 +127,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ session }) => 
             EPHEMERAL STUDY HUDDLES
           </h2>
           <p className="text-xs text-stone-600 dark:text-stone-400 mt-1 max-w-xl leading-relaxed">
-            Multi-peer problem-solving nodes (2–6 verified Mapúa scholars). Shared scratchpad buffers, zero disk transcripts.
+            Multi-peer problem-solving nodes (2–6 verified students). Shared scratchpad buffers, zero disk transcripts.
           </p>
         </div>
 

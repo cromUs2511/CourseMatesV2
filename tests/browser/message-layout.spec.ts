@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 async function signIn(page: Page, name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /student email/i }).fill(`${name}@mymail.mapua.edu.ph`);
+  await page.getByRole('textbox', { name: /email address/i }).fill(`${name}@gmail.com`);
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }

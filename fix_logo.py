@@ -42,7 +42,7 @@ new_logo = """        {/* Main Titles Logo Lockup */}
           <div className="mt-12 md:mt-16 flex items-center space-x-4 md:space-x-6 opacity-80">
             <div className={`h-px w-12 md:w-16 ${isDarkMode ? 'bg-stone-700' : 'bg-stone-300'}`}></div>
             <span className={`font-mono text-[9px] md:text-[10px] uppercase tracking-[0.3em] md:tracking-[0.4em] ${isDarkMode ? 'text-stone-500' : 'text-stone-400'}`}>
-              Mapúa Student Network
+              Anonymous Student Network
             </span>
             <div className={`h-px w-12 md:w-16 ${isDarkMode ? 'bg-stone-700' : 'bg-stone-300'}`}></div>
           </div>
@@ -55,4 +55,3 @@ if old_logo in content:
     print("Logo updated.")
 else:
     print("Old logo text not found! Checking alternative match...")
-

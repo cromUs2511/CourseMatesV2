@@ -100,7 +100,7 @@ export const PrivacySecurityModal: React.FC = () => {
             03 // ENTRA ID STRICT GATE
           </h3>
           <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-            Enforced Microsoft OAuth restricted to @mymail.mapua.edu.ph institutional tenant. External bots and non-students are permanently blocked.
+            Optional Microsoft OAuth is restricted to the configured organization. External bots and unauthorized accounts are blocked.
           </p>
         </div>
       </div>

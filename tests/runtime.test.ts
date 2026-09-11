@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import http from 'node:http';
 import { WebSocket } from 'ws';
-import { attachRuntime, issueSession, isSchoolEmail } from '../runtime';
+import { attachRuntime, issueSession, isValidEmail } from '../runtime';
 
 const app = express();
 app.use(express.json());
@@ -19,7 +19,7 @@ after(async () => {
   server.closeAllConnections();
   await new Promise<void>(resolve => server.close(() => resolve()));
 });
-const identity = (verified = false) => issueSession('test@mymail.mapua.edu.ph', {}, verified);
+const identity = (verified = false) => issueSession('test@gmail.com', {}, verified);
 async function request(path: string, session?: ReturnType<typeof identity>, body?: unknown) {
   const response = await fetch(base + path, {
     method: body === undefined ? 'GET' : 'POST',
@@ -35,9 +35,9 @@ async function pair() {
   assert.equal(result.data.status, 'matched');
   return { a, b, roomId: result.data.roomId };
 }
-test('school address validation rejects suffix tricks, empty names, and invalid types', () => {
-  for (const email of ['a@mymail.mapua.edu.ph', 'a@mymapua.edu.ph', 'a@mapua.edu.ph']) assert.equal(isSchoolEmail(email), true);
-  for (const email of ['@mapua.edu.ph', 'a@@mapua.edu.ph', 'a @mapua.edu.ph', 'a@mapua.edu.ph.evil.com', 5, null]) assert.equal(isSchoolEmail(email), false);
+test('email validation rejects malformed addresses and invalid types', () => {
+  for (const email of ['a@gmail.com', 'student@example.org']) assert.equal(isValidEmail(email), true);
+  for (const email of ['@gmail.com', 'a@@gmail.com', 'a gmail.com', 'a@gmail', 5, null]) assert.equal(isValidEmail(email), false);
 });
 test('queue requires a real session and handles repeated joins and cancellation', async () => {
   assert.equal((await request('/api/match/join', undefined, { sessionId: 'fake', handle: 'fake' })).status, 401);

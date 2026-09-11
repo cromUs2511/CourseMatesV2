@@ -1,4 +1,4 @@
-# Core Python Dependencies for CourseMates Mapúa
+# Core Python Dependencies for CourseMates
 # The engine.py runs with Python 3.10 standard libraries (zero third-party dependencies required).
 # If running the FastAPI standalone version (app.py), install:
 fastapi>=0.109.0

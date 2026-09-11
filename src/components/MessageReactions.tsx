@@ -84,13 +84,16 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           {MESSAGE_REACTIONS.map(({ emoji, label }) => {
             const count = Object.values(reactions).filter(value => value === emoji).length;
             return count > 0 && (
-              <span
+              <button
                 key={emoji}
+                type="button"
                 aria-label={`${label} reaction, ${count}`}
-                className="inline-flex min-h-6 items-center gap-0.5 rounded-full border border-stone-300 bg-white px-1.5 text-xs shadow-sm dark:border-stone-700 dark:bg-stone-900"
+                aria-pressed={reactions[sessionId] === emoji}
+                onClick={() => void choose(emoji)}
+                className="pointer-events-auto inline-flex min-h-6 items-center gap-0.5 rounded-full border border-stone-300 bg-white px-1.5 text-xs shadow-sm dark:border-stone-700 dark:bg-stone-900"
               >
                 {emoji} {count > 1 && <span className="text-[10px] text-stone-500 dark:text-stone-400">{count}</span>}
-              </span>
+              </button>
             );
           })}
           </div>

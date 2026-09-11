@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('chat color picker stays inside mobile settings and the viewport', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /student email/i }).fill('header-menu@mymail.mapua.edu.ph');
+  await page.getByRole('textbox', { name: /email address/i }).fill('header-menu@gmail.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();

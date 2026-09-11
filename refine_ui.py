@@ -15,8 +15,8 @@ content = content.replace(mates_old, mates_new)
 # Tighten spacing in title container
 content = content.replace('<div className="flex flex-col items-center justify-center space-y-4 z-10">', '<div className="flex flex-col items-center justify-center space-y-1 z-10">')
 
-# Refine Makati campus button to look distinctly inactive/gray compared to red Intramuros
-# Intramuros active is red, Makati active is red. Makati inactive should be clean.
+# Refine the secondary campus button to look distinctly inactive/gray compared to the primary campus
+# The primary campus is red; the secondary campus inactive state should be clean.
 makati_inactive = "border-stone-300 bg-stone-50 text-stone-600 hover:border-stone-400"
 makati_inactive_new = "border-stone-300 bg-[#FAF8F5] text-stone-500 hover:bg-stone-100 hover:text-stone-700"
 

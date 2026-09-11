@@ -1,6 +1,6 @@
 {
-  "name": "CourseMates - Mapúa Peer Match",
-  "description": "Anonymous, ephemeral real-time study matching and collaborative learning network for verified Mapúa University students.",
+  "name": "CourseMates - Anonymous Peer Match",
+  "description": "Anonymous, ephemeral real-time study matching and collaborative learning network for college students.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

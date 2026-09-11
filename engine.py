@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CourseMates Mapúa - Python Ephemeral In-Memory Backend Engine
+CourseMates - Python Ephemeral In-Memory Backend Engine
 Zero-Log RAM-only Student Matchmaking & Verified Anonymous Peer Network
 Port: 8000
 """
@@ -17,7 +17,7 @@ import hashlib
 
 PORT = 5050
 
-# Adjectives & Nouns for Anonymous Mapúan Identity Generation
+# Adjectives & Nouns for Anonymous Identity Generation
 ADJECTIVES = [
     "Curious", "Astute", "Quantum", "Resilient", "Pragmatic", "Keen", "Ingenious",
     "Analytical", "Dynamic", "Nimble", "Serene", "Luminous", "Vibrant", "Brisk",
@@ -80,7 +80,7 @@ STUDY_GROUPS = [
         "topic": "Integration by Parts & Trigonometric Substitution",
         "membersCount": 4,
         "maxMembers": 6,
-        "campus": "Intramuros",
+        "campus": "Main Campus",
         "activeTopicDescription": "Working through set B exam review problems together.",
         "createdAt": int(time.time() * 1000) - 2400000,
     },
@@ -91,7 +91,7 @@ STUDY_GROUPS = [
         "topic": "Binary Search Trees, AVL Rotations & Dynamic Programming",
         "membersCount": 3,
         "maxMembers": 6,
-        "campus": "Makati",
+        "campus": "City Campus",
         "activeTopicDescription": "Debugging tree rebalancing edge cases before submission.",
         "createdAt": int(time.time() * 1000) - 1200000,
     }
@@ -147,7 +147,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json(200, {
                 "status": "ok",
-                "environment": "Mapúa CourseMates In-Memory Ephemeral Engine (Python Core)",
+                "environment": "CourseMates In-Memory Ephemeral Engine (Python Core)",
                 "engine": "Python 3.10 In-Memory Ephemeral Engine",
                 "python": True,
                 "version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
@@ -234,9 +234,9 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                     {"name": "Term Stress & Wellness Venting", "count": 22, "percentage": 7},
                 ],
                 "campusBreakdown": [
-                    {"campus": "Intramuros", "activeCount": 26},
-                    {"campus": "Makati", "activeCount": 12},
-                    {"campus": "Laguna", "activeCount": 4},
+                    {"campus": "Main Campus", "activeCount": 26},
+                    {"campus": "City Campus", "activeCount": 12},
+                    {"campus": "North Campus", "activeCount": 4},
                     {"campus": "Digital / Online", "activeCount": 8},
                 ]
             })
@@ -261,17 +261,17 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
             if not email:
                 return self._send_json(400, {"error": "Institutional email is required"})
 
-            is_valid_school = email.endswith("@mymail.mapua.edu.ph") or email.endswith("@mymapua.edu.ph") or email.endswith("@mapua.edu.ph")
-            if not is_valid_school:
+            is_valid_email = "@" in email and "." in email.rsplit("@", 1)[-1]
+            if not is_valid_email:
                 return self._send_json(403, {
-                    "error": "ACCESS DENIED: Please use your official Mapúa school email (@mymail.mapua.edu.ph, @mymapua.edu.ph, or @mapua.edu.ph).",
+                    "error": "ACCESS DENIED: Please provide a valid email address.",
                     "attempted": email,
-                    "authorizedDomains": ["@mymail.mapua.edu.ph", "@mymapua.edu.ph", "@mapua.edu.ph"]
+                    "authorizedDomains": ["gmail.com"]
                 })
 
             handle, _ = generate_handle()
             token = f"cm_py_{int(time.time()*1000)}_{random.randint(1000, 9999)}"
-            campus = body.get("campus") or "Intramuros"
+            campus = body.get("campus") or "Main Campus"
             discipline = body.get("discipline") or "Computer Science & IT"
             interests = body.get("interests") or ["Coding, DSA & Software"]
             hashed_id = hashlib.sha256(email.encode("utf-8")).hexdigest()
@@ -289,17 +289,17 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                     "sessionHandle": handle,
                     "sessionAvatar": "",
                     "token": token,
-                    "authProvider": "mapua_institutional_sso",
+                    "authProvider": "email_demo",
                     "createdAt": int(time.time() * 1000),
                 },
-                "message": "Mapúa School Email Verified. Institutional domain access confirmed."
+                "message": "Email address verified."
             })
 
         elif path == "/api/match/join":
             session_id = body.get("sessionId")
             handle = body.get("handle")
             avatar = ""
-            campus = body.get("campus") or "Intramuros"
+            campus = body.get("campus") or "Main Campus"
             discipline = body.get("discipline") or "General Studies"
             interests = body.get("interests") or ["General Chat"]
             topic = body.get("topic") or "General Discussion"
@@ -354,7 +354,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                     "topic": chosen_topic,
                     "messages": [{
                         "id": f"sys_{int(time.time()*1000)}",
-                        "senderHandle": "Mapúa System",
+                        "senderHandle": "CourseMates System",
                         "senderAvatar": "⚡",
                         "text": f"Connected! You are chatting anonymously with {matched_peer['handle']} ({matched_peer['discipline']}, {matched_peer['campus']} Campus). Ephemeral Zero-Log memory active on Python Engine.",
                         "timestamp": int(time.time() * 1000),
@@ -452,7 +452,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                     room["peerDisconnected"] = True
                     room["messages"].append({
                         "id": f"sys_leave_{int(time.time()*1000)}",
-                        "senderHandle": "Mapúa System",
+                        "senderHandle": "CourseMates System",
                         "senderAvatar": "⚡",
                         "text": "Peer has left the conversation. Ephemeral memory purged.",
                         "timestamp": int(time.time() * 1000),
@@ -495,7 +495,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                 "topic": body.get("topic") or "Collaborative Problem Solving",
                 "membersCount": 1,
                 "maxMembers": 6,
-                "campus": body.get("campus") or "Intramuros",
+                "campus": body.get("campus") or "Main Campus",
                 "activeTopicDescription": body.get("activeTopicDescription") or "Working through practice sets together.",
                 "createdAt": int(time.time() * 1000)
             }
@@ -517,7 +517,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
             topic = body.get("topic", "General Discussion")
             discipline = body.get("discipline", "")
             
-            # Mapúa academic and peer context pools
+            # Academic and peer context pools
             academics_pool = [
                 f"How are you approaching your problem sets in {topic}?",
                 "Are you preparing for upcoming midterm departmentals or machine problems?",
@@ -537,7 +537,7 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
                 "Working on any personal Github repositories or portfolio projects?",
             ]
             campus_pool = [
-                "Which campus are you usually at — Intramuros or Makati?",
+                "Which campus are you usually at — main or city campus?",
                 "What are your go-to study nooks or quiet corners around campus?",
                 "How are you managing the fast-paced term schedule this quarter?",
                 "Any good coffee or food recommendations near school?",

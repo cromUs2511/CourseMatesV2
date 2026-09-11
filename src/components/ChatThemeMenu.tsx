@@ -12,7 +12,7 @@ export interface ChatTheme {
 }
 
 export const CHAT_THEMES: ChatTheme[] = [
-  { id: 'mapua', label: 'Mapua red', lightBackground: '#FAF8F5', darkBackground: '#141312', accent: '#991B1B', accentHover: '#7F1D1D', swatch: '#991B1B' },
+  { id: 'crimson', label: 'Crimson red', lightBackground: '#FAF8F5', darkBackground: '#141312', accent: '#991B1B', accentHover: '#7F1D1D', swatch: '#991B1B' },
   { id: 'ocean', label: 'Ocean blue', lightBackground: '#F2F8FC', darkBackground: '#101A22', accent: '#126782', accentHover: '#0E5268', swatch: '#168AAD' },
   { id: 'forest', label: 'Forest green', lightBackground: '#F3F8F1', darkBackground: '#142018', accent: '#2F6B3D', accentHover: '#245631', swatch: '#4F8A5B' },
   { id: 'violet', label: 'Violet dusk', lightBackground: '#F7F3FB', darkBackground: '#1C1724', accent: '#704B9B', accentHover: '#5B3D80', swatch: '#8B5FBF' },

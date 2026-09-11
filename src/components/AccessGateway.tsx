@@ -88,35 +88,32 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
         </div>
         <div className="w-full max-w-[430px]">
           <h1 className={`text-[28px] font-semibold leading-tight tracking-[-0.03em] ${isDarkMode ? 'text-white' : 'text-stone-950'}`}>Verify your account</h1>
-          <p className={`mt-2 text-sm leading-6 ${isDarkMode ? 'text-stone-400' : 'text-stone-600'}`}>Use your official Mapúa email to continue.</p>
+          <p className={`mt-2 text-sm leading-6 ${isDarkMode ? 'text-stone-400' : 'text-stone-600'}`}>Enter your email address to continue.</p>
 
           {config?.microsoftEnabled && <a className="mt-7 block rounded-xl bg-[#e52329] px-4 py-3 text-center font-semibold text-white" href="/auth/microsoft/login">Sign in with Microsoft</a>}
             {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-red-900/60 bg-red-950/30 p-3 text-xs text-red-300"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
           {config?.allowDemo && <form onSubmit={handleSubmit} className="mt-7 space-y-6">
             <div className="space-y-2">
-              <label htmlFor="student-email" className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#f2c52f]">Mapúa student email</label>
+              <label htmlFor="student-email" className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#f2c52f]">Email address</label>
               <div className="relative">
                 <Mail className={`pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 ${
                   isDarkMode ? 'text-stone-300' : 'text-stone-500'
                 }`} />
                 <input id="student-email" autoComplete="email" maxLength={254} type="email" required value={email}
                 onChange={(e) => { setEmail(e.target.value); if (error) setError(null); }}
-                placeholder="you@mymail.mapua.edu.ph" aria-describedby="student-email-help"
+                placeholder="you@gmail.com" aria-describedby="student-email-help"
                 className={`h-12 w-full min-w-0 rounded-xl border pl-11 pr-3 text-base outline-none transition-colors placeholder:text-sm focus:border-[#e52329] focus:ring-2 focus:ring-[#e52329]/20 ${
                   isDarkMode ? 'border-stone-600 bg-[#141414] text-white placeholder:text-stone-400' : 'border-stone-300 bg-white text-stone-900 placeholder:text-stone-400'
                 }`} />
               </div>
-              <p id="student-email-help" className="text-xs leading-5 text-stone-400">Accepted: @mymail.mapua.edu.ph, @mymapua.edu.ph</p>
+              <p id="student-email-help" className="text-xs leading-5 text-stone-400">Use any valid email address for demo access.</p>
               <div className={`flex flex-wrap items-center gap-2 pt-3 text-xs ${
                 isDarkMode ? 'text-stone-400' : 'text-stone-600'
               }`}>
                 <span className="w-full">Quick fill:</span>
-                <button type="button" onClick={() => handleQuickFill('cardinal@mymail.mapua.edu.ph')} className={`min-h-10 rounded-lg border px-3 py-2 hover:border-[#e52329] ${
+                <button type="button" onClick={() => handleQuickFill('student@gmail.com')} className={`min-h-10 rounded-lg border px-3 py-2 hover:border-[#e52329] ${
                   isDarkMode ? 'border-stone-700 bg-white/[0.04] text-stone-100' : 'border-stone-400 bg-stone-50 text-stone-800'
-                }`}>@mymail.mapua.edu.ph</button>
-                <button type="button" onClick={() => handleQuickFill('student@mymapua.edu.ph')} className={`min-h-10 rounded-lg border px-3 py-2 hover:border-[#e52329] ${
-                  isDarkMode ? 'border-stone-700 bg-white/[0.04] text-stone-100' : 'border-stone-400 bg-stone-50 text-stone-800'
-                }`}>@mymapua.edu.ph</button>
+                }`}>student@gmail.com</button>
               </div>
             </div>
 

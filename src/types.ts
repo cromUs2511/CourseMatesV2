@@ -1,4 +1,4 @@
-export type Campus = 'Intramuros' | 'Makati' | 'Laguna' | 'Digital / Online';
+export type Campus = 'Main Campus' | 'City Campus' | 'North Campus' | 'Digital / Online';
 
 export type AcademicDiscipline =
   | 'Computer Science & IT'

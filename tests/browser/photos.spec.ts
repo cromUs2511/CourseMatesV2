@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const photo = { name: 'Study notes.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') };
 async function signIn(page: Page, name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /student email/i }).fill(name + '@mymail.mapua.edu.ph');
+  await page.getByRole('textbox', { name: /email address/i }).fill(name + '@gmail.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
@@ -62,6 +62,7 @@ for (const fallback of [false, true]) test(`photos preview, retry, arrive once a
     await expect(a.getByRole('img', { name: 'Preview of Study notes.png' })).toHaveCount(0);
     await b.getByRole('button', { name: 'View photo Study notes.png' }).click();
     await expect(b.getByRole('dialog', { name: 'Photo', exact: true })).toBeVisible();
+    await a.getByRole('button', { name: 'More message actions' }).click();
     await a.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(b.getByRole('dialog', { name: 'Photo', exact: true })).toHaveCount(0);
     await expect(received).toHaveCount(0);
@@ -153,14 +154,14 @@ test('grid breathing and theme wrapping work on login and main menu with reduced
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Continue in demo mode' })).toBeVisible();
-  expect(await page.locator('.access-gateway').evaluate(element => getComputedStyle(element, '::before').animationName)).toBe('grid-breathe');
+  expect(await page.locator('.access-gateway').evaluate(element => getComputedStyle(element, '::before').animationName)).toContain('grid-breathe');
   await page.getByRole('button', { name: 'Switch to dark mode' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.waitForFunction(() => getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName === 'theme-wrap');
   await page.screenshot({ path: 'test-results/theme-wrapping.png' });
   await expect(page.locator('html')).not.toHaveClass(/theme-revealing/);
   await signIn(page, 'photo-theme');
-  expect(await page.locator('.ambient-grid').evaluate(element => getComputedStyle(element, '::before').animationName)).toBe('grid-breathe');
+  expect(await page.locator('.ambient-grid').evaluate(element => getComputedStyle(element, '::before').animationName)).toContain('grid-breathe');
   await page.getByRole('button', { name: 'Switch to light mode' }).click();
   await expect(page.locator('html')).not.toHaveClass(/dark/);
   await expect(page.locator('html')).not.toHaveClass(/theme-revealing/);

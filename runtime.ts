@@ -23,14 +23,15 @@ const nouns = ['Cardinal', 'Coder', 'Architect', 'Scholar', 'Explorer', 'Enginee
 export function generateAnonymousHandle() {
   return { handle: adjectives[crypto.randomInt(adjectives.length)] + ' ' + nouns[crypto.randomInt(nouns.length)] + ' #' + crypto.randomInt(1000, 10000), avatar: '' };
 }
-export const isSchoolEmail = (email: unknown): email is string =>
-  typeof email === 'string' && email.length <= 254 && /^[a-z0-9.!#$%&'*+/=?^_\x60{|}~-]+@(mymail\.mapua\.edu\.ph|mymapua\.edu\.ph|mapua\.edu\.ph)$/i.test(email);
+export const isValidEmail = (email: unknown): email is string =>
+  typeof email === 'string' && email.length <= 254 &&
+  /^[a-z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(email);
 export function issueSession(email: string, profile: any = {}, verified = false): Identity {
   const { handle, avatar } = generateAnonymousHandle();
   const session: Identity = {
     id: crypto.randomUUID(), email, token: crypto.randomBytes(32).toString('hex'),
     isVerified: verified, isSchoolVerified: verified,
-    campus: ['Intramuros', 'Makati', 'Laguna', 'Digital / Online'].includes(profile.campus) ? profile.campus : 'Intramuros',
+    campus: ['Main Campus', 'City Campus', 'North Campus', 'Digital / Online'].includes(profile.campus) ? profile.campus : 'Main Campus',
     discipline: typeof profile.discipline === 'string' ? profile.discipline.slice(0, 100) : 'Computer Science & IT',
     interests: cleanInterests(profile.interests),
     sessionHandle: handle, customHandle: false, sessionAvatar: avatar, createdAt: Date.now(),

@@ -4,7 +4,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { attachRuntime, authenticate, cookie, issueSession, isSchoolEmail } from './runtime';
+import { attachRuntime, authenticate, cookie, issueSession, isValidEmail } from './runtime';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 
@@ -50,7 +50,7 @@ app.get('/api/auth/config', (_req, res) => res.json({ microsoftEnabled, allowDem
 app.post(['/api/auth/school-email', '/api/auth/verify-school', '/api/auth/microsoft/verify-test'], (req, res) => {
   if (!allowDemo) return res.status(403).json({ error: 'Demo access is disabled. Sign in with Microsoft.' });
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!isSchoolEmail(email)) return res.status(400).json({ error: 'Enter a valid Mapúa school email address.' });
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
   const session = issueSession(email, req.body);
   sessionCookie(req, res, session.token);
   res.json({ success: true, session });
@@ -92,7 +92,7 @@ app.get(['/auth/callback', '/api/auth/callback'], async (req, res) => {
     });
     const user = await userResponse.json();
     const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
-    if (!userResponse.ok || !isSchoolEmail(email)) return fail('Sign in with a Mapúa school account that provides an email address.');
+    if (!userResponse.ok || !isValidEmail(email)) return fail('Sign in with an account that provides a valid email address.');
     const session = issueSession(email, pending.profile, true);
     sessionCookie(req, res, session.token);
     res.redirect('/');
@@ -142,13 +142,13 @@ const DEFAULT_ICEBREAKERS: Record<string, string[]> = {
   academics: [
     "What's your toughest subject this term and what's making it tricky?",
     "Do you prefer morning 7:30 AM lectures or late afternoon laboratory blocks?",
-    "How are you managing the fast-paced Mapúan term schedule?",
+    "How are you managing the fast-paced term schedule?",
     "What's one study hack or YouTube channel that saved your grade?",
     "Are you working on any cool course projects or capstone ideas right now?"
   ],
   campus: [
-    "What's the best hidden food spot or coffee haven around Intramuros or Makati?",
-    "Do you prefer studying at the Mapúa Library, student lounge, or off-campus cafes?",
+    "What's the best hidden food spot or coffee haven near your campus?",
+    "Do you prefer studying at the library, student lounge, or off-campus cafes?",
     "How is the commute to campus treating you this week?",
     "What's your go-to comfort meal after a grueling 3-hour midterm exam?"
   ],
@@ -197,12 +197,12 @@ app.post('/api/ai/icebreakers', async (req, res) => {
   }
 
   try {
-    const prompt = `You are the Intelligent Conversation Assistant for "CourseMates", an anonymous peer platform exclusively for Mapúa University college students in the Philippines.
+    const prompt = `You are the Intelligent Conversation Assistant for "CourseMates", an anonymous peer platform for college students.
 Context:
 - Selected match topic: ${topic || 'General Peer Discovery'}
-- Campus context: ${campus || 'Mapúa University (Intramuros & Makati)'}
+- Campus context: ${campus || 'Main Campus'}
 - Disciplines involved: Engineering, Computer Science, Architecture, Business, Arts, etc.
-- Culture note: Mapúans deal with intense, fast-paced academic terms (formerly quarterm / now continuous terms), high-stakes project submissions, calculus/physics hurdles, and lively campus life.
+- Culture note: Students deal with intense, fast-paced academic terms, high-stakes project submissions, calculus/physics hurdles, and lively campus life.
 
 Task:
 Generate 4 natural, engaging, friendly, low-stress icebreakers/conversation starters that eliminate social anxiety.
@@ -286,7 +286,7 @@ app.post('/api/ai/suggestions', async (req, res) => {
       ];
     } else if (t.includes('campus') || t.includes('quad') || t.includes('vent') || t.includes('chill') || t.includes('stress')) {
       pool = [
-        'Which campus are you usually stationed at — Intramuros or Makati?',
+        'Which campus are you usually stationed at — main or city campus?',
         'Where is your favorite quiet corner or library nook to study on campus?',
         'How are you holding up with the continuous term pace this week?',
         'Any favorite go-to food or coffee spots around the campus quad?',
@@ -296,7 +296,7 @@ app.post('/api/ai/suggestions', async (req, res) => {
       pool = [
         `What's the main focus of your study session in ${currentTopic}?`,
         'Are you reviewing for an upcoming quiz or finishing a project submission?',
-        'What year and program are you currently taking at Mapúa?',
+        'What year and program are you currently taking?',
         'What study method works best for you — active recall, flashcards, or practice sets?',
         'How are you dividing up your study hours between heavy subjects?',
         'Any helpful campus or course advice you wish you knew earlier?',
@@ -327,17 +327,17 @@ app.post('/api/ai/suggestions', async (req, res) => {
           .join('\n')
       : '';
 
-    const prompt = `You are the intelligent topic-aware suggestion engine for "CourseMates", an anonymous real-time study chat for Mapúa University college students in the Philippines.
+    const prompt = `You are the intelligent topic-aware suggestion engine for "CourseMates", an anonymous real-time study chat for college students.
 Context:
 - Active Study Topic: "${currentTopic}"
 - Academic Discipline: "${discipline || 'Engineering & Technology'}"
-- Campus: "${campus || 'Mapúa (Intramuros & Makati)'}"
+- Campus: "${campus || 'Main Campus'}"
 - Recent Chat Snippet:
 ${recentContext || '(No previous messages yet, starting fresh topic)'}
 
 Task:
 Generate 4 distinct, engaging, highly contextual discussion starter questions or responses that two students chatting about "${currentTopic}" would genuinely ask each other.
-- Make them authentic to college student life at Mapúa (mentioning practical concepts like machine problems, plates, exams, profs, problem sets, or technical specifics naturally).
+- Make them authentic to college student life (mentioning practical concepts like projects, exams, professors, problem sets, or technical specifics naturally).
 - Keep them concise (10-18 words each), conversational, and zero cringe.
 - Every time this is invoked, provide creative and varied suggestions.
 
@@ -403,11 +403,11 @@ app.post('/api/ai/assist', async (req, res) => {
   try {
     let prompt = '';
     if (action === 'summarize') {
-      prompt = `You are the CourseMates Study Assistant. Summarize this anonymous Mapúa student peer discussion into 3 concise bullet points with key takeaways or study insights. Keep it supportive and brief.
+      prompt = `You are the CourseMates Study Assistant. Summarize this anonymous college student peer discussion into 3 concise bullet points with key takeaways or study insights. Keep it supportive and brief.
 Chat Log:
 ${JSON.stringify(chatHistory || [])}`;
     } else if (action === 'explain') {
-      prompt = `You are a friendly Mapúa peer tutor. Explain this engineering, CS, math, science, or university concept concisely and intuitively in 2-3 short paragraphs with an analogy so two students in a study chat can understand it immediately:
+      prompt = `You are a friendly peer tutor. Explain this engineering, CS, math, science, or university concept concisely and intuitively in 2-3 short paragraphs with an analogy so two students in a study chat can understand it immediately:
 Concept/Question: "${query}"`;
     } else {
       prompt = `You are the CourseMates Conversation Wingman. Looking at the recent chat between two anonymous college students:

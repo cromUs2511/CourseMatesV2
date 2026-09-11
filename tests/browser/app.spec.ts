@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 async function signIn(page: Page, name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /student email/i }).fill(name + '@mymail.mapua.edu.ph');
+  await page.getByRole('textbox', { name: /email address/i }).fill(name + '@gmail.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
@@ -55,7 +55,7 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await expect(b.getByText('Hello back', { exact: true })).toHaveCount(0);
   await b.locator('#next-match-btn').click();
   await b.getByRole('dialog').getByRole('button', { name: 'Find next peer' }).click();
-  await expect(b.getByText(/Finding active Mapúa study peers/)).toBeVisible();
+  await expect(b.getByText(/Finding active study peers/)).toBeVisible();
   await a.locator('#start-chat-btn').click();
   await expect(a.locator('#chat-header')).toBeVisible();
   await expect(b.locator('#chat-header')).toBeVisible();
@@ -92,7 +92,7 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   await signIn(page, 'mobile');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.getByText('Demo conversation with a simulated study partner.')).toBeVisible();
+  await expect(page.getByText('Conversation with the Student Chatbot Assistant.')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
   const overflow = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(el => {
     const style = getComputedStyle(el); const box = el.getBoundingClientRect();
@@ -111,7 +111,7 @@ test('mobile long press opens reactions and scrolling cancels the gesture', asyn
   await signIn(page, 'reactions');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  const bubble = page.getByText('Hi! What would you like to study together today?', { exact: true });
+  const bubble = page.locator('[data-message-bubble]').last();
   await expect(bubble).toBeVisible();
   await bubble.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 200 }] });
   await expect(page.getByRole('dialog', { name: 'React to message' })).toBeVisible();
@@ -134,9 +134,9 @@ test('session restores after refresh and invalid emails show a readable error', 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
   await logout(page);
-  await page.getByRole('textbox', { name: /student email/i }).fill('student@example.com');
+  await page.getByRole('textbox', { name: /email address/i }).fill('student@localhost');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
-  await expect(page.getByText('Enter a valid Mapúa school email address.')).toBeVisible();
+  await expect(page.getByText('Enter a valid email address.')).toBeVisible();
 });
 
 

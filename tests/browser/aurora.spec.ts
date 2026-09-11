@@ -20,7 +20,7 @@ test('aurora follows music and glow preferences and respects reduced motion', as
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('textbox', { name: /student email/i }).fill('aurora-review@mymail.mapua.edu.ph');
+  await page.getByRole('textbox', { name: /email address/i }).fill('aurora-review@gmail.com');
   await page.getByRole('button', { name: 'Continue in demo mode' }).click();
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();

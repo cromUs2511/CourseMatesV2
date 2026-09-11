@@ -1,5 +1,5 @@
 """
-CourseMates Mapúa - Standalone FastAPI Python Backend
+CourseMates - Standalone FastAPI Python Backend
 Run with:
     pip install -r requirements.txt
     python3 -m uvicorn app:app --host 0.0.0.0 --port 5050 --reload
@@ -14,8 +14,8 @@ import random
 import hashlib
 
 app = FastAPI(
-    title="CourseMates Mapúa - Python Core Engine",
-    description="Ephemeral zero-log student matchmaking and verified anonymous peer network",
+    title="CourseMates - Python Core Engine",
+    description="Ephemeral zero-log study matchmaking and verified anonymous peer network",
     version="2.0.0"
 )
 
@@ -39,7 +39,7 @@ AVATARS = ["🦅", "🦉", "🦊", "🐺", "🦁", "🚀", "⚡", "🔬", "📐"
 
 class VerifyRequest(BaseModel):
     email: str
-    campus: Optional[str] = "Intramuros"
+    campus: Optional[str] = "Main Campus"
     discipline: Optional[str] = "Computer Science & IT"
     interests: Optional[List[str]] = ["Coding, DSA & Software"]
 
@@ -47,7 +47,7 @@ class JoinQueueRequest(BaseModel):
     sessionId: str
     handle: str
     avatar: Optional[str] = "⚡"
-    campus: Optional[str] = "Intramuros"
+    campus: Optional[str] = "Main Campus"
     discipline: Optional[str] = "Computer Science & IT"
     interests: Optional[List[str]] = []
     topic: Optional[str] = "General Peer Discovery"
@@ -69,10 +69,10 @@ def health():
 @app.post("/api/auth/microsoft/verify-test")
 def verify_identity(req: VerifyRequest):
     email = req.email.strip().lower()
-    if not email.endswith("@mymail.mapua.edu.ph"):
+    if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
         raise HTTPException(
             status_code=403,
-            detail="ACCESS DENIED: Only official @mymail.mapua.edu.ph accounts can be verified."
+            detail="ACCESS DENIED: Please provide a valid email address."
         )
     handle = f"{random.choice(ADJECTIVES)} {random.choice(NOUNS)} #{random.randint(1000, 9999)}"
     avatar = random.choice(AVATARS)
@@ -94,7 +94,7 @@ def verify_identity(req: VerifyRequest):
             "authProvider": "microsoft_entra_id_python",
             "createdAt": int(time.time() * 1000)
         },
-        "message": "Microsoft Identity Verified via Python Engine. Institutional domain access confirmed."
+        "message": "Email identity verified via Python Engine."
     }
 
 @app.post("/api/match/join")

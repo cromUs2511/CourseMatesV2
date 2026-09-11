@@ -6,7 +6,7 @@ export const MATCH_TOPICS: MatchTopic[] = [
     title: 'Cross-Discipline Discovery',
     category: 'academics',
     icon: 'Sparkles',
-    description: 'Meet any fellow Mapúan outside your department for fresh perspective and informal connection.',
+    description: 'Meet any fellow student outside your department for fresh perspective and informal connection.',
     tag: 'All Programs',
   },
   {
@@ -54,8 +54,8 @@ export const MATCH_TOPICS: MatchTopic[] = [
     title: 'Campus Life & Food Havens',
     category: 'campus',
     icon: 'Coffee',
-    description: 'Best cafe study spots in Intramuros and Makati, commute tips, and student hacks.',
-    tag: 'Intramuros & Makati',
+    description: 'Best cafe study spots near campus, commute tips, and student hacks.',
+    tag: 'Campus life',
   },
   {
     id: 'stress-wellness',
@@ -105,7 +105,7 @@ export const SIMULATED_PEERS: SimulatedPeerPersona[] = [
     handle: 'Curious Falcon #2847',
     avatar: '🦅',
     discipline: 'Computer Science & IT',
-    campus: 'Makati',
+    campus: 'City Campus',
     interests: ['Coding & Tech', 'Gaming & Esports', 'Coffee & Cafes'],
     bio: 'Fighting bugs and enjoying chill gaming sessions.',
     defaultIcebreaker: "Hey! What interests got you through this week? Are you into gaming or coding at all?",
@@ -143,7 +143,7 @@ export const SIMULATED_PEERS: SimulatedPeerPersona[] = [
     handle: 'Astute Cardinal #8192',
     avatar: '🦁',
     discipline: 'Civil & Environmental Engineering',
-    campus: 'Intramuros',
+    campus: 'Main Campus',
     interests: ['Music & Bands', 'Coffee & Cafes', 'Chill & Vent'],
     bio: 'Big indie music fan and coffee enthusiast.',
     defaultIcebreaker: "Hello! What kind of music or hobbies do you listen to while focusing on study tasks?",
@@ -179,7 +179,7 @@ export const SIMULATED_PEERS: SimulatedPeerPersona[] = [
     handle: 'Quantum Hawk #4019',
     avatar: '⚡',
     discipline: 'Electrical, Electronics & Computer Engineering',
-    campus: 'Intramuros',
+    campus: 'Main Campus',
     interests: ['Science & Math', 'Coding & Tech', 'Anime & Manga'],
     bio: 'Tech tinkerer, anime watcher, and science nerd.',
     defaultIcebreaker: "Hey! Seen any great anime, shows, or tech breakthroughs lately?",
@@ -214,7 +214,7 @@ export const SIMULATED_PEERS: SimulatedPeerPersona[] = [
     handle: 'Resilient Tamaraw #5521',
     avatar: '📐',
     discipline: 'Architecture & Industrial Design',
-    campus: 'Intramuros',
+    campus: 'Main Campus',
     interests: ['Art & Design', 'Movies & Series', 'Photography'],
     bio: 'Visual artist, cinema buff, and late-night sketcher.',
     defaultIcebreaker: "Hi! What's a movie, series, or visual art style that you've been obsessed with recently?",
@@ -247,7 +247,7 @@ export const SIMULATED_PEERS: SimulatedPeerPersona[] = [
   }
 ];
 
-export const MAPUA_PROGRAMS: AcademicDiscipline[] = [
+export const ACADEMIC_PROGRAMS: AcademicDiscipline[] = [
   'Computer Science & IT',
   'Civil & Environmental Engineering',
   'Mechanical & Manufacturing Engineering',
@@ -259,9 +259,9 @@ export const MAPUA_PROGRAMS: AcademicDiscipline[] = [
   'Health & Life Sciences',
 ];
 
-export const MAPUA_CAMPUSES: Campus[] = [
-  'Intramuros',
-  'Makati',
-  'Laguna',
+export const CAMPUSES: Campus[] = [
+  'Main Campus',
+  'City Campus',
+  'North Campus',
   'Digital / Online',
 ];

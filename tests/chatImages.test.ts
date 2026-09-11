@@ -18,7 +18,7 @@ before(async () => {
   base = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
 });
 after(async () => { stop(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
-const identity = () => issueSession('photos@mymail.mapua.edu.ph');
+const identity = () => issueSession('photos@gmail.com');
 async function request(path: string, session?: ReturnType<typeof identity>, body?: unknown) {
   return fetch(base + path, { method: body === undefined ? 'GET' : 'POST',
     headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: 'Bearer ' + session.token } : {}) },
