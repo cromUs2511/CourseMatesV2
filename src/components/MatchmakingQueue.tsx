@@ -207,10 +207,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
         <div
-          className={`border p-3 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 ${
+          className={`rounded-md border p-3 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
             isDarkMode
-              ? 'bg-[#181716] border-stone-800 text-stone-100'
-              : 'bg-white border-stone-300 text-stone-800'
+              ? 'bg-[#181716] border-stone-700/80 text-stone-100 shadow-black/20'
+              : 'bg-white border-stone-300/90 text-stone-800 shadow-stone-300/30'
           }`}
         >
           <div className="flex items-center space-x-3.5 min-w-0">
@@ -224,7 +224,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     onClick={onRerollHandle}
                     disabled={isSearching}
                     title="Shuffle default name"
-                    className="p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
+                    className="rounded-md p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>}
@@ -232,7 +232,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     type="button"
                     onClick={() => { setNameInput(session.customHandle ? session.sessionHandle : ''); setIsEditingName(true); }}
                     disabled={isSearching}
-                    className="border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white transition-colors hover:bg-[#7F1D1D] disabled:opacity-50"
+                    className="rounded-md border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white transition-colors hover:bg-[#7F1D1D] disabled:opacity-50"
                   >
                     {session.customHandle ? 'Edit name' : 'Use a custom name'}
                   </button>
@@ -246,10 +246,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
                     placeholder="Enter a name"
-                    className="w-44 border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
+                    className="w-44 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
                   />
-                  <button type="submit" className="border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white hover:bg-[#7F1D1D]">Save</button>
-                  <button type="button" onClick={() => setIsEditingName(false)} className="border border-stone-300 px-2.5 py-1 text-[10px] font-mono text-stone-500 dark:border-stone-700">Cancel</button>
+                  <button type="submit" className="rounded-md border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white hover:bg-[#7F1D1D]">Save</button>
+                  <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] font-mono text-stone-500 dark:border-stone-700">Cancel</button>
                 </form>
               )}
 
@@ -273,10 +273,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
         {/* Main Interest / Topic Selection Card */}
         <div
-          className={`border p-4 sm:p-7 space-y-5 sm:space-y-6 shadow-xl ${
+          className={`rounded-md border p-4 sm:p-7 space-y-5 sm:space-y-6 shadow-[0_12px_32px_rgba(0,0,0,0.10)] ${
             isDarkMode
-              ? 'bg-[#181716] border-stone-800 text-stone-100 shadow-stone-950/40'
-              : 'bg-white border-stone-200/80 text-stone-800 shadow-stone-200/50'
+              ? 'bg-[#181716] border-stone-700/80 text-stone-100 shadow-black/25'
+              : 'bg-white border-stone-300/90 text-stone-800 shadow-stone-300/30'
           }`}
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
@@ -296,14 +296,14 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                onChange={(e) => setCustomInterestInput(e.target.value)}
                placeholder="Type an interest (optional)"
                disabled={isSearching}
-               className={`flex-1 px-3 py-2 border text-xs font-mono focus:outline-none focus:border-[#991B1B] ${
+               className={`flex-1 rounded-md px-3 py-2 border text-xs font-mono focus:outline-none focus:border-[#991B1B] ${
                  isDarkMode ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'
                }`}
              />
              <button
                type="submit"
                disabled={isSearching || !customInterestInput.trim()}
-               className="px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+               className="rounded-md px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
              >
                Add
              </button>
@@ -324,7 +324,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   id="start-chat-btn"
                   type="button"
                   onClick={startMatchmaking}
-                  className="w-full py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                  className="w-full rounded-md py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />
@@ -335,7 +335,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="p-5 border border-stone-300 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 space-y-3">
+              <div className="rounded-md p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
                 <div className="flex items-center justify-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-[#991B1B]" />
                   <span className="font-semibold text-xs font-mono text-stone-800 dark:text-stone-200">
