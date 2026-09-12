@@ -229,6 +229,16 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
 .reaction-picker-option { animation: reaction-option-in 260ms cubic-bezier(0.22, 1, 0.36, 1) var(--reaction-delay) both; }
 .reaction-message-anchor.is-holding > [data-message-bubble] { box-shadow: 0 0 0 2px #a8a29e55; }
 
+@keyframes reply-target-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0); }
+  20%, 70% { box-shadow: 0 0 0 4px rgb(245 158 11 / 0.7); }
+}
+
+.reply-target-highlight {
+  scroll-margin-block: 5rem;
+  animation: reply-target-highlight 1.6s ease-out both;
+}
+
 @keyframes reaction-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* Aurora curtains: quiet light around the conversation, with a clear center. */
@@ -340,6 +350,10 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
   .reaction-picker,
   .reaction-picker-option {
     animation: none;
+  }
+  .reply-target-highlight {
+    animation: none;
+    box-shadow: 0 0 0 4px rgb(245 158 11 / 0.7);
   }
 }
 

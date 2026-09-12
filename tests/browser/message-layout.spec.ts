@@ -33,6 +33,7 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     await send(a, 'nah');
     await b.getByRole('button', { name: 'Reply', exact: true }).last().click();
     await send(b, 'Okay, no worries! I’ll keep it between us.');
+    await a.locator('.chat-message-row').nth(1).hover();
     await a.getByRole('button', { name: 'React to message', exact: true }).nth(1).click();
     await a.getByRole('button', { name: 'Love', exact: true }).click();
     await expect(a.getByLabel('Love reaction, 1')).toBeVisible();

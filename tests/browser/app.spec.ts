@@ -32,12 +32,18 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await a.locator('#send-message-btn').click();
   await expect(b.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
   await expect(a.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
+  await b.getByText('Hello from the first student', { exact: true }).hover();
   await expect(b.getByRole('button', { name: 'React to message', exact: true })).toBeVisible();
   await b.getByRole('button', { name: 'React to message', exact: true }).click();
+  // The picker must survive leaving the message's hover target. Otherwise the
+  // collapsing action row can shift the layout and dismiss it as a scroll.
+  await b.mouse.move(0, 0);
+  await expect(b.getByRole('dialog', { name: 'React to message' })).toBeVisible();
   await b.getByRole('button', { name: 'Love', exact: true }).click();
   await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
   await b.getByRole('button', { name: 'Love reaction, 1' }).click();
   await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toHaveCount(0);
+  await a.getByText('Hello from the first student', { exact: true }).hover();
   await a.getByRole('button', { name: 'More message actions' }).click();
   const desktopActions = a.getByRole('dialog', { name: 'Message actions' });
   await expect(desktopActions.getByRole('button', { name: 'Like', exact: true })).toHaveCount(0);
@@ -55,6 +61,7 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await expect(a.getByRole('alert')).toHaveText('Test delivery failure');
   await expect(a.getByRole('textbox', { name: 'Chat message' })).toHaveValue('Keep this draft');
   await a.unroute('**/api/chat/send');
+  await b.getByText('Hello from the first student', { exact: true }).hover();
   await b.getByRole('button', { name: 'Reply', exact: true }).first().click();
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await a.locator('#leave-chat-btn').click();

@@ -101,12 +101,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number; axis: 'x' | 'y' | null } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replyHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingAt = useRef(0);
   const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; replyId?: string; id: string } | null>(null);
   const endedRef = useRef(false);
@@ -181,6 +183,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setUnreadMessageCount(0);
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   };
+  const scrollToRepliedMessage = (messageId: string) => {
+    const target = messageBubbleRefs.current[messageId];
+    if (!target) {
+      setError('The original message is no longer available.');
+      return;
+    }
+    setError('');
+    target.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+    });
+    setHighlightedMessageId(messageId);
+    if (replyHighlightTimerRef.current) clearTimeout(replyHighlightTimerRef.current);
+    replyHighlightTimerRef.current = setTimeout(() => setHighlightedMessageId(null), 1600);
+  };
+  useEffect(() => () => {
+    if (replyHighlightTimerRef.current) clearTimeout(replyHighlightTimerRef.current);
+  }, []);
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -713,7 +733,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3 text-left text-sm leading-5 border transition-transform duration-150 ${
+                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3 text-left text-sm leading-5 border transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
                         isGroupedWithPrevious ? 'gap-1 py-1.5' : 'gap-1.5 py-2'
                       } ${
                         msg.isMe
@@ -728,15 +748,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       }}
                     >
                       {msg.replyTo && (
-                        <blockquote
+                        <button
+                          type="button"
                           data-reply-preview
-                          className={`min-w-0 w-full overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-[11px] leading-4 ${
+                          aria-label={`Jump to message from ${msg.replyTo.senderHandle}`}
+                          onClick={() => scrollToRepliedMessage(msg.replyTo!.id)}
+                          className={`min-w-0 w-full cursor-pointer overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-[11px] leading-4 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 ${
                             msg.isMe ? 'border-white/60 bg-black/15 text-white/90' : 'border-stone-400 bg-black/5 text-stone-600 dark:border-stone-500 dark:bg-white/5 dark:text-stone-300'
                           }`}
                         >
                           <div className="truncate font-semibold">{msg.replyTo.senderHandle}</div>
                           <p className="truncate">{msg.replyTo.text}</p>
-                        </blockquote>
+                        </button>
                       )}
                       {!!msg.images?.length && <div className={`grid min-w-0 gap-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         {msg.images.map(image => <button key={image.id} type="button" onClick={() => setViewingImage(image)} aria-label={'View photo ' + image.name}

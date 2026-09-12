@@ -23,6 +23,7 @@ test('long mobile history stays visible while backreading with aurora and incomi
       id: `history-${index}`, senderId: 'history-peer', senderHandle: 'Study Peer', senderAvatar: '',
       text: `Message ${index + 1}: ${index % 3 ? 'These older notes should remain visible when scrolling back.' : 'A longer study note with enough detail to wrap over several lines, so that backreading covers mixed message heights.'}`,
       timestamp: Date.now() + index,
+      replyTo: index === 139 ? { id: 'history-0', senderHandle: 'Study Peer', text: 'Message 1' } : undefined,
     }));
     await page.route('**/api/chat/messages?*', route => route.fulfill({ json: { active: true, messages: history, isPeerTyping: false } }));
     for (const target of [page, peer]) {
@@ -32,6 +33,9 @@ test('long mobile history stays visible while backreading with aurora and incomi
       await target.locator('#start-chat-btn').click();
     }
     await expect(page.locator('[data-message-bubble]')).toHaveCount(140);
+    await page.getByRole('button', { name: 'Jump to message from Study Peer' }).click();
+    await expect(page.locator('[data-message-bubble]').first()).toBeInViewport();
+    await expect(page.locator('[data-message-bubble]').first()).toHaveClass(/reply-target-highlight/);
     const chatInput = page.getByRole('textbox', { name: 'Chat message' });
     expect(await chatInput.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
     const scroller = page.locator('#chat-messages-container');
