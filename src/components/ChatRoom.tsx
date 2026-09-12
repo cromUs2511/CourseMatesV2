@@ -8,6 +8,7 @@ import { playChime } from '../utils/sound';
 import { reconcileMessageSnapshot } from '../utils/chatMessages';
 import { Header, type HeaderProps } from './Header';
 import { AmbientAurora } from './AmbientAurora';
+import { SpiderWebBackground } from './SpiderWebBackground';
 import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
@@ -88,7 +89,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [deleteMenuMessageId, setDeleteMenuMessageId] = useState<string | null>(null);
   const [messageActionsPosition, setMessageActionsPosition] = useState<{ left: number; top: number } | null>(null);
   const messageBubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [ambient, setAmbient] = useState({ active: false, enabled: true, color: '#6ee7b7' });
+  const [ambient, setAmbient] = useState<{ active: boolean; enabled: boolean; color: string; effect: 'aurora' | 'spider-web' }>({ active: false, enabled: true, color: '#6ee7b7', effect: 'aurora' });
   const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
     try {
       const saved = localStorage.getItem('coursemates_chat_theme');
@@ -464,8 +465,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setPendingAction(null);
     if (action) void leave(action === 'next');
   };
-  const handleAmbientChange = useCallback((next: { active: boolean; enabled: boolean; color: string }) => {
-    setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color ? current : next);
+  const handleAmbientChange = useCallback((next: { active: boolean; enabled: boolean; color: string; effect: 'aurora' | 'spider-web' }) => {
+    setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color && current.effect === next.effect ? current : next);
   }, []);
   const ambientActive = ambient.active && ambient.enabled;
   const updateChatTheme = (next: ChatTheme) => {
@@ -488,7 +489,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         '--chat-accent-hover': chatTheme.accentHover,
       } as React.CSSProperties}
     >
-      {ambientActive && <AmbientAurora color={ambient.color} />}
+      {ambientActive && (ambient.effect === 'spider-web'
+        ? <SpiderWebBackground isDarkMode={isDarkMode} />
+        : <AmbientAurora color={ambient.color} />)}
       <div className="chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         <Header {...headerProps} showReroll={false}
           conversation={

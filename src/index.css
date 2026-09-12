@@ -245,6 +245,23 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
 
 .dark .ambient-aurora { opacity: 0.85; }
 
+.ambient-spider-web {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.72;
+  animation: spider-web-arrive 700ms ease-out both;
+}
+
+.dark .ambient-spider-web { opacity: 1; }
+
+@keyframes spider-web-arrive {
+  from { opacity: 0; }
+}
+
 .aurora-atmosphere {
   position: absolute;
   inset: 0;
@@ -313,6 +330,7 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
   }
   .animate-toggle-icon { animation: none; }
   .ambient-aurora,
+  .ambient-spider-web,
   .aurora-curtain {
     animation: none;
     will-change: auto;

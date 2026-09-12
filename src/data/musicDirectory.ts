@@ -63,6 +63,46 @@ export const DEFAULT_MUSIC_DIRECTORY: MusicTrack[] = [
   },
 ];
 
+// Soundtrack titles associated with the live-action and Spider-Verse films.
+// Keep these as title phrases so search results from different official uploads,
+// lyric videos, and remasters all trigger the same room effect.
+const SPIDER_MAN_SONGS = [
+  { titles: ['vindicated'], artists: ['dashboard confessional'] },
+  { titles: ['gone gone gone'], artists: ['phillip phillips', 'philip phillips'] },
+  { titles: ['sunflower', 'sun flower'], artists: ['post malone', 'swae lee'] },
+  { titles: ["what's up danger", 'whats up danger'], artists: ['blackway', 'black caviar'] },
+  { titles: ['am i dreaming'], artists: ['metro boomin', 'roisee'] },
+  { titles: ['start a riot'], artists: ['duckwrth', 'shaboozey'] },
+  { titles: ['hide'], artists: ['juice wrld', 'seezyn'] },
+  { titles: ['elevate'], artists: ['dj khalil', 'denzel curry'] },
+  { titles: ['home'], artists: ['vince staples'] },
+  { titles: ['scared of the dark'], artists: ['lil wayne', 'ty dolla sign', 'xxxtentacion'] },
+  { titles: ['annihilate'], artists: ['metro boomin', 'swae lee'] },
+  { titles: ['calling'], artists: ['metro boomin', 'nav', 'a boogie wit da hoodie'] },
+  { titles: ['self love'], artists: ['metro boomin', 'coi leray'] },
+  { titles: ['all the way live'], artists: ['metro boomin', 'future', 'lil uzi vert'] },
+  { titles: ['danger spider'], artists: ['offset', 'jid'] },
+] as const;
+
+const normalizeTrackText = (value: string) => value
+  .toLowerCase()
+  .replace(/[\u2018\u2019]/g, "'")
+  .replace(/[^a-z0-9']+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/** True when a track belongs to a Spider-Man or Spider-Verse soundtrack. */
+export function isSpiderManTrack(track: Pick<MusicTrack, 'title' | 'artist'>): boolean {
+  const title = normalizeTrackText(track.title);
+  const artist = normalizeTrackText(track.artist);
+  const combined = `${title} ${artist}`;
+  if (/\bspider ?man\b|\bspider ?verse\b/.test(combined)) return true;
+  return SPIDER_MAN_SONGS.some(song =>
+    song.titles.some(candidate => title.includes(candidate)) &&
+    song.artists.some(candidate => combined.includes(candidate)),
+  );
+}
+
 /**
  * Extracts a YouTube video ID from various YouTube URL formats.
  * Supports:

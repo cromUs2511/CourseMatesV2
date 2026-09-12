@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Play, Pause, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { MusicTrack, RoomMusicState } from '../types';
-import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, normalizeSharedTrack } from '../data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, isSpiderManTrack, normalizeSharedTrack } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
 const AMBIENT_GLOW_COLORS = [
@@ -28,7 +28,7 @@ interface TopMusicBarProps {
   isSimulated?: boolean;
   token?: string;
   remoteMusic?: RoomMusicState;
-  onAmbientChange?: (ambient: { active: boolean; enabled: boolean; color: string }) => void;
+  onAmbientChange?: (ambient: { active: boolean; enabled: boolean; color: string; effect: 'aurora' | 'spider-web' }) => void;
   accent?: string;
   accentHover?: string;
 }
@@ -393,8 +393,13 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
     if (playbackNotification) setNotificationDismissed(false);
   }, [playbackNotification]);
   useEffect(() => {
-    onAmbientChange?.({ active: playbackActive, enabled: glowEnabled, color: glowColor });
-  }, [glowColor, glowEnabled, onAmbientChange, playbackActive]);
+    onAmbientChange?.({
+      active: playbackActive,
+      enabled: glowEnabled,
+      color: glowColor,
+      effect: isSpiderManTrack(currentTrack) ? 'spider-web' : 'aurora',
+    });
+  }, [currentTrack, glowColor, glowEnabled, onAmbientChange, playbackActive]);
   const updateGlowEnabled = (enabled: boolean) => {
     setGlowEnabled(enabled);
     try { localStorage.setItem('coursemates_music_glow', String(enabled)); } catch {}
