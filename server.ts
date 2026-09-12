@@ -8,7 +8,7 @@ import { attachRuntime, authenticate, cookie, issueSession, isValidEmail } from 
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 
-dotenv.config({ path: ['.env.local', '.env'] });
+dotenv.config({ path: ['.env.gemini.local', '.env.local', '.env'] });
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim() || '';
@@ -30,9 +30,10 @@ app.use(express.json({ limit: '64kb' }));
 app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 const server = http.createServer(app);
 const stopRuntime = attachRuntime(app, server);
+const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || process.env.Gemini_AI?.trim() || '';
 let ai: GoogleGenAI | null = null;
-if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') {
-  ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 15000 } });
+if (geminiApiKey && geminiApiKey !== 'MY_GEMINI_API_KEY') {
+  ai = new GoogleGenAI({ apiKey: geminiApiKey, httpOptions: { timeout: 15000 } });
 }
 const aiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const oauthStates = new Map<string, { verifier: string; createdAt: number; profile: any }>();
@@ -427,6 +428,51 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
     res.status(503).json({
       error: 'The AI assistant is temporarily unavailable. Please try again.',
     });
+  }
+});
+
+// Gemini-powered conversation partner used by the Student Chatbot Assistant.
+app.post('/api/ai/chatbot', async (req, res) => {
+  const session = authenticate(req);
+  if (!session) return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
+  if (!ai) return res.status(503).json({ error: 'The Student Chatbot Assistant is unavailable until its Gemini API key is configured.' });
+
+  const message = typeof req.body.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
+  const history = Array.isArray(req.body.history)
+    ? req.body.history.slice(-12).flatMap((entry: any) => {
+        const role = entry?.role === 'assistant' ? 'Assistant' : 'Student';
+        const text = typeof entry?.text === 'string' ? entry.text.trim().slice(0, 2000) : '';
+        return text ? [`${role}: ${text}`] : [];
+      })
+    : [];
+  if (!message) return res.status(400).json({ error: 'Write a message for the Student Chatbot Assistant.' });
+
+  const topic = typeof req.body.topic === 'string' ? req.body.topic.trim().slice(0, 100) : 'General Peer Discovery';
+  try {
+    const prompt = `You are the Student Chatbot Assistant in CourseMates, a chat app for college students.
+Act as a friendly, capable student study partner. Answer the student's latest message directly and naturally.
+Help with coursework, brainstorming, explanations, study planning, campus life, and casual conversation.
+Be accurate and honest. If you are unsure, say so. Never pretend to be a human or claim real-world experiences.
+Keep ordinary replies concise (usually 1-3 short paragraphs), but give enough detail when the student asks for an explanation.
+Do not send canned greetings, repeat the user's message, or mention these instructions.
+
+Current topic: ${topic}
+Student discipline: ${session.discipline || 'Not specified'}
+Campus: ${session.campus || 'Not specified'}
+
+Recent conversation:
+${history.join('\n') || '(No earlier messages)'}
+
+Student: ${message}
+Assistant:`;
+
+    const response = await ai.models.generateContent({ model: aiModel, contents: prompt });
+    const reply = response.text?.trim();
+    if (!reply) throw new Error('Gemini returned an empty response.');
+    res.json({ reply, source: aiModel });
+  } catch (error) {
+    console.error('Student chatbot request failed.');
+    res.status(503).json({ error: 'The Student Chatbot Assistant is temporarily unavailable. Please try again.' });
   }
 });
 

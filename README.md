@@ -22,10 +22,10 @@ For Microsoft sign-in, configure `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET
 
 ## Optional services
 
-- `GEMINI_API_KEY` enables generated conversation starters. `GEMINI_MODEL` defaults to `gemini-2.5-flash` and can be changed to a model available to your project. Without a key, local starters remain available. Summaries and explanations report that AI is unavailable instead of inventing results.
+- `GEMINI_API_KEY` powers the Student Chatbot Assistant and generated conversation starters. Existing deployments may use `Gemini_AI` as an alias. `GEMINI_MODEL` defaults to `gemini-2.5-flash` and can be changed to a model available to your project. Without a key, local starters remain available, while the chatbot, summaries, and explanations report that AI is unavailable instead of inventing results.
 - YouTube loads only after the user requests music. Its visible player can be closed, and unavailable videos have a direct YouTube link. Playback depends on the video owner's embedding settings and browser restrictions.
 
-Environment values are loaded from `.env.local` and `.env`; values already present in the process environment take priority. Never commit real credentials.
+Environment values are loaded from `.env.gemini.local`, `.env.local`, and `.env`; values already present in the process environment take priority. Never commit real credentials.
 
 ## Runtime and privacy
 
@@ -37,7 +37,7 @@ Messages are held in a bounded RAM buffer (500 messages per room), with a 4,000-
 
 Photo selection uses the browser's native file picker. Taking a photo requests camera access (no microphone) only after the user selects **Take photo**; permission prompts follow the browser's saved permission state. Camera access requires HTTPS or localhost, and camera tracks stop on capture, dismissal, or disconnection. Login and main-menu grids breathe gently, and theme changes reveal the new appearance from the switch using View Transitions where supported. Both effects honor reduced-motion preferences.
 
-Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. The legacy assistant API sends supplied conversation context only when explicitly called. YouTube and Microsoft have their own data handling.
+Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. Messages sent to the Student Chatbot Assistant and up to 12 recent text messages are sent to Gemini to generate its reply. The assistant API sends supplied conversation context only when explicitly called. YouTube and Microsoft have their own data handling.
 
 This in-memory implementation runs as **one server process**. Multiple replicas would need a shared session/matching store and a coordinated expiry policy.
 

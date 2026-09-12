@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
-import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { reconcileMessageSnapshot } from '../utils/chatMessages';
@@ -108,7 +107,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const simulationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTypingAt = useRef(0);
   const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; replyId?: string; id: string } | null>(null);
   const endedRef = useRef(false);
@@ -216,31 +214,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
       text: peer.isSimulated ? 'Conversation with the Student Chatbot Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
-    if (peer.isSimulated) {
-      const timer = setTimeout(() => {
-        const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
-        setIsPeerTyping(true);
-        const responseTimer = setTimeout(() => {
-          if (endedRef.current) return;
-          setIsPeerTyping(false);
-          receiveMessages([{
-            id: 'sim_init',
-            senderId: peer.sessionId,
-            senderHandle: STUDENT_CHATBOT_NAME,
-            senderAvatar: '',
-            isMe: false,
-            text: persona.defaultIcebreaker,
-            timestamp: Date.now(),
-          }]);
-        }, 700);
-        simulationTimers.current.push(responseTimer);
-      }, 600);
-      simulationTimers.current.push(timer);
-      return () => {
-        simulationTimers.current.forEach(clearTimeout);
-        simulationTimers.current = [];
-      };
-    }
+    if (peer.isSimulated) return;
     if (!roomId) return;
     let disposed = false;
     let polling = false;
@@ -330,20 +304,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           timestamp: Date.now(), replyTo, isMe: true };
         receiveMessages([userMessage]);
         setIsPeerTyping(true);
-        const persona = SIMULATED_PEERS.find(p => p.handle === peer.handle) || SIMULATED_PEERS[0];
-        const snippets = persona.responseSnippets.academics;
-        simulationTimers.current.push(setTimeout(() => {
-          if (endedRef.current) return;
-          setIsPeerTyping(false);
-          receiveMessages([{
-            id: crypto.randomUUID(),
-            senderId: peer.sessionId,
-            senderHandle: STUDENT_CHATBOT_NAME,
-            senderAvatar: '',
-            text: snippets[Math.floor(Math.random() * snippets.length)],
-            timestamp: Date.now(),
-          }]);
-        }, 1500));
+        const data = await apiRequest<{ reply: string }>('/api/ai/chatbot', session.token, {
+          message: text || 'I shared a photo. Ask me to describe what I would like help with.',
+          topic,
+          history: messages
+            .filter(message => message.type !== 'system' && message.text.trim())
+            .slice(-12)
+            .map(message => ({ role: message.isMe ? 'user' : 'assistant', text: message.text })),
+        });
+        if (endedRef.current) return;
+        setIsPeerTyping(false);
+        receiveMessages([{
+          id: crypto.randomUUID(),
+          senderId: peer.sessionId,
+          senderHandle: STUDENT_CHATBOT_NAME,
+          senderAvatar: '',
+          isMe: false,
+          text: data.reply,
+          timestamp: Date.now(),
+        }]);
       } else {
         if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
           retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
