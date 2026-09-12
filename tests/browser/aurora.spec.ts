@@ -20,8 +20,8 @@ test('aurora follows music and glow preferences and respects reduced motion', as
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('textbox', { name: /email address/i }).fill('aurora-review@gmail.com');
-  await page.getByRole('button', { name: 'Continue in demo mode' }).click();
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
   await expect(page.locator('#chat-header')).toBeVisible();

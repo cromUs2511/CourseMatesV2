@@ -25,10 +25,10 @@ test('long mobile history stays visible while backreading with aurora and incomi
       timestamp: Date.now() + index,
     }));
     await page.route('**/api/chat/messages?*', route => route.fulfill({ json: { active: true, messages: history, isPeerTyping: false } }));
-    for (const [index, target] of [page, peer].entries()) {
+    for (const target of [page, peer]) {
       await target.goto('/');
-      await target.getByRole('textbox', { name: /email address/i }).fill(`backread-${index}@gmail.com`);
-      await target.getByRole('button', { name: 'Continue in demo mode' }).click();
+      await target.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+      await target.getByRole('button', { name: 'Continue to CourseMates' }).click();
       await target.locator('#start-chat-btn').click();
     }
     await expect(page.locator('[data-message-bubble]')).toHaveCount(140);

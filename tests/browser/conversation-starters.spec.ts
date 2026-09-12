@@ -4,10 +4,10 @@ test('three successful starters exhaust the bar without limiting normal messages
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
   const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
   try {
-    for (const [index, page] of [a, b].entries()) {
+    for (const page of [a, b]) {
       await page.goto('/');
-      await page.getByRole('textbox', { name: /email address/i }).fill(`starter-${index}@gmail.com`);
-      await page.getByRole('button', { name: 'Continue in demo mode' }).click();
+      await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+      await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
       await page.locator('#start-chat-btn').click();
     }
     await expect(a.locator('#chat-header')).toBeVisible();

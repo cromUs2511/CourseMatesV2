@@ -1,10 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const photo = { name: 'Study notes.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') };
-async function signIn(page: Page, name: string) {
+async function signIn(page: Page, _name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /email address/i }).fill(name + '@gmail.com');
-  await page.getByRole('button', { name: 'Continue in demo mode' }).click();
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
 async function demo(page: Page, name: string) {
@@ -153,7 +153,7 @@ test('a camera permission grant after dismissal immediately stops its stream', a
 test('grid breathing and theme wrapping work on login and main menu with reduced-motion support', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Continue in demo mode' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to CourseMates' })).toBeVisible();
   expect(await page.locator('.access-gateway').evaluate(element => getComputedStyle(element, '::before').animationName)).toContain('grid-breathe');
   await page.getByRole('button', { name: 'Switch to dark mode' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);

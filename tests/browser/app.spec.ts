@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
-async function signIn(page: Page, name: string) {
+async function signIn(page: Page, _name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /email address/i }).fill(name + '@gmail.com');
-  await page.getByRole('button', { name: 'Continue in demo mode' }).click();
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
 async function logout(page: Page) {
@@ -163,18 +163,19 @@ test('mobile long press opens reactions and scrolling cancels the gesture', asyn
   await bubble.dispatchEvent('touchend', { touches: [] });
   await logout(page);
 });
-test('session restores after refresh and invalid emails show a readable error', async ({ page }) => {
+test('terms acceptance is required and the session restores after refresh', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Continue in demo mode' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Verify your account' })).toBeInViewport();
+  const continueButton = page.getByRole('button', { name: 'Continue to CourseMates' });
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Welcome to CourseMates' })).toBeInViewport();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/desktop-login.png' });
   await signIn(page, 'restore');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
   await logout(page);
-  await page.getByRole('textbox', { name: /email address/i }).fill('student@localhost');
-  await page.getByRole('button', { name: 'Continue in demo mode' }).click();
-  await expect(page.getByText('Enter a valid email address.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to CourseMates' })).toBeDisabled();
 });
 
 

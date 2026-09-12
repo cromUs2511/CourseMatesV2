@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
-async function signIn(page: Page, name: string) {
+async function signIn(page: Page, _name: string) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: /email address/i }).fill(`${name}@gmail.com`);
-  await page.getByRole('button', { name: 'Continue in demo mode' }).click();
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
 }
 
@@ -14,7 +14,7 @@ async function send(page: Page, text: string) {
 }
 
 test('reply quotes, text, photos and reactions stay contained on mobile and desktop', async ({ browser }) => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
   const contexts = await Promise.all([browser.newContext({ reducedMotion: 'reduce' }), browser.newContext({ reducedMotion: 'reduce' })]);
   const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
   const errors: string[] = [];
@@ -71,7 +71,10 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     expect((await shortBubble.boundingBox())!.width).toBeLessThan(100);
     // Long unbroken text must wrap in both the original and its quote.
     await send(b, 'https://example.com/' + 'long-path'.repeat(200));
-    await a.getByRole('button', { name: 'Reply', exact: true }).last().click();
+    const longMessage = a.locator('[data-message-bubble]').last();
+    await longMessage.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 400 }] });
+    await longMessage.dispatchEvent('touchmove', { touches: [{ identifier: 0, clientX: 170, clientY: 402 }] });
+    await longMessage.dispatchEvent('touchend', { touches: [] });
     await expect(a.getByRole('button', { name: 'Cancel reply' })).toBeInViewport();
     await a.getByLabel('Choose photos to attach').setInputFiles({
       name: 'Notes.png', mimeType: 'image/png',

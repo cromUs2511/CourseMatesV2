@@ -255,7 +255,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
               <div className="mt-1 text-xs font-mono text-stone-500 dark:text-stone-400">
                 <span className="text-[#991B1B] dark:text-[#F87171] font-semibold">
-                  {session.isVerified ? 'Verified account' : 'Demo access'}
+                  {session.isVerified ? 'Verified account' : 'Community access'}
                 </span>
               </div>
             </div>
@@ -266,7 +266,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
               Private session
             </span>
             <span className="font-medium text-stone-700 dark:text-stone-300">
-              {session.email}
+              {session.authProvider === 'demo' ? 'Anonymous community session' : session.email}
             </span>
           </div>
         </div>
