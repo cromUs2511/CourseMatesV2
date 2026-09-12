@@ -35,7 +35,7 @@ let ai: GoogleGenAI | null = null;
 if (geminiApiKey && geminiApiKey !== 'MY_GEMINI_API_KEY') {
   ai = new GoogleGenAI({ apiKey: geminiApiKey, httpOptions: { timeout: 15000 } });
 }
-const aiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const aiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-flash-latest';
 const oauthStates = new Map<string, { verifier: string; createdAt: number; profile: any }>();
 const oauthCleanup = setInterval(() => {
   for (const [state, value] of oauthStates) if (Date.now() - value.createdAt > 600000) oauthStates.delete(state);

@@ -22,7 +22,7 @@ For Microsoft sign-in, configure `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET
 
 ## Optional services
 
-- `GEMINI_API_KEY` powers the Student Chatbot Assistant and generated conversation starters. Existing deployments may use `Gemini_AI` as an alias. `GEMINI_MODEL` defaults to `gemini-2.5-flash` and can be changed to a model available to your project. Without a key, local starters remain available, while the chatbot, summaries, and explanations report that AI is unavailable instead of inventing results.
+- `GEMINI_API_KEY` powers the Student Chatbot Assistant and generated conversation starters. Existing deployments may use `Gemini_AI` as an alias. `GEMINI_MODEL` defaults to `gemini-flash-latest` and can be changed to a model available to your project. Without a key, local starters remain available, while the chatbot, summaries, and explanations report that AI is unavailable instead of inventing results.
 - YouTube loads only after the user requests music. Its visible player can be closed, and unavailable videos have a direct YouTube link. Playback depends on the video owner's embedding settings and browser restrictions.
 
 Environment values are loaded from `.env.gemini.local`, `.env.local`, and `.env`; values already present in the process environment take priority. Never commit real credentials.
