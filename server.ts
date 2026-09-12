@@ -35,7 +35,7 @@ let ai: GoogleGenAI | null = null;
 if (geminiApiKey && geminiApiKey !== 'MY_GEMINI_API_KEY') {
   ai = new GoogleGenAI({ apiKey: geminiApiKey, httpOptions: { timeout: 15000 } });
 }
-const aiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-flash-latest';
+const aiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
 const oauthStates = new Map<string, { verifier: string; createdAt: number; profile: any }>();
 const oauthCleanup = setInterval(() => {
   for (const [state, value] of oauthStates) if (Date.now() - value.createdAt > 600000) oauthStates.delete(state);
@@ -466,7 +466,7 @@ ${history.join('\n') || '(No earlier messages)'}
 Student: ${message}
 Assistant:`;
 
-    const modelCandidates = [...new Set([aiModel, 'gemini-flash-latest', 'gemini-2.5-flash-lite'])];
+    const modelCandidates = [...new Set([aiModel, 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'])];
     let reply = '';
     let selectedModel = aiModel;
     let lastError: unknown;
@@ -481,7 +481,7 @@ Assistant:`;
         lastError = error;
         const status = typeof error === 'object' && error && 'status' in error ? error.status : undefined;
         const detail = error instanceof Error ? error.message : String(error);
-        const unavailableModel = status === 404 || /model.*(?:not found|unavailable)|not found.*model/i.test(detail);
+        const unavailableModel = status === 404 || /model.*(?:not found|unavailable|no longer available)|not found.*model/i.test(detail);
         if (!unavailableModel || model === modelCandidates.at(-1)) throw error;
         console.warn(`Gemini model ${model} is unavailable; trying the next configured fallback.`);
       }
@@ -500,7 +500,7 @@ Assistant:`;
     if (status === 429 || /quota|resource_exhausted|rate limit/i.test(detail)) {
       return res.status(503).json({ error: 'The Gemini API quota is currently exhausted. Check usage and billing in Google AI Studio.' });
     }
-    if (status === 404 || /model.*not found/i.test(detail)) {
+    if (status === 404 || /model.*(?:not found|unavailable|no longer available)|not found.*model/i.test(detail)) {
       return res.status(503).json({ error: `The configured Gemini model (${aiModel}) is unavailable to this API key.` });
     }
     if (/fetch failed|network|timeout|timed out/i.test(detail)) {
