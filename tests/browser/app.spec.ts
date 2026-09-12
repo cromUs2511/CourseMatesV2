@@ -32,6 +32,7 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await a.locator('#send-message-btn').click();
   await expect(b.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
   await expect(a.getByText('Hello from the first student', { exact: true })).toHaveCount(1);
+  await expect(b.getByRole('button', { name: 'React to message', exact: true })).toBeVisible();
   await b.getByRole('button', { name: 'React to message', exact: true }).click();
   await b.getByRole('button', { name: 'Love', exact: true }).click();
   await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
@@ -128,13 +129,17 @@ test('student chatbot clears the composer before its reply arrives', async ({ pa
 
 test('mobile long press opens reactions and scrolling cancels the gesture', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
+  await page.route('**/api/ai/chatbot', route => route.fulfill({ json: { reply: 'Test bot greeting', source: 'test-model' } }));
   await signIn(page, 'reactions');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
+  await page.getByRole('textbox', { name: 'Chat message' }).fill('Show the reaction controls');
+  await page.locator('#send-message-btn').click();
+  await expect(page.getByText('Test bot greeting', { exact: true })).toBeVisible();
   const bubble = page.locator('[data-message-bubble]').last();
   await expect(bubble).toBeVisible();
   await bubble.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 200 }] });
-  await expect(page.getByRole('dialog', { name: 'React to message' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Message actions' })).toBeVisible();
   await bubble.dispatchEvent('touchend', { touches: [] });
   await page.getByRole('button', { name: 'Like', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Like reaction, 1' })).toHaveAttribute('aria-pressed', 'true');

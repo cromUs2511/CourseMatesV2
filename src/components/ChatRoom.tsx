@@ -182,6 +182,26 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   };
   useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    let frame = 0;
+    const keepLatestVisible = () => {
+      if (!isAtLatestRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(keepLatestVisible);
+    observer?.observe(container);
+    window.visualViewport?.addEventListener('resize', keepLatestVisible);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.visualViewport?.removeEventListener('resize', keepLatestVisible);
+    };
+  }, []);
+  useEffect(() => {
     const freshPeerMessages = messages.filter(message => !message.isMe && message.type !== 'system' && !receivedMessageIds.current.has(message.id));
     receivedMessageIds.current = new Set(messages.map(message => message.id));
     if (freshPeerMessages.length) {
@@ -1011,7 +1031,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 disabled={peerDisconnected || isSending || preparingImages || (!hasInputText && !pendingImages.length) || (editingMessageId && !inputRef.current?.value.trim())}
                 className="chat-theme-accent-button py-2.5 px-3 sm:px-5 text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
               >
-                <span>{editingMessageId ? 'Save' : isSending ? 'Sending…' : 'Send'}</span>
+                <span className="hidden sm:inline">{editingMessageId ? 'Save' : isSending ? 'Sending…' : 'Send'}</span>
                 {editingMessageId ? null : <Send className="w-3.5 h-3.5" />}
               </button>
               {!peerDisconnected && (

@@ -18,7 +18,7 @@
 @layer base {
   html, body, #root {
     height: 100%;
-    height: var(--app-height, 100dvh);
+    height: 100dvh;
     width: 100%;
     margin: 0;
     padding: 0;
@@ -27,6 +27,7 @@
   }
 
   .app-shell {
+    top: var(--app-top, 0px);
     height: var(--app-height, 100dvh);
   }
 

@@ -35,6 +35,7 @@ export default function App() {
     const viewport = window.visualViewport;
     const updateAppHeight = () => {
       document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
     };
     updateAppHeight();
     viewport?.addEventListener('resize', updateAppHeight);
@@ -45,6 +46,7 @@ export default function App() {
       viewport?.removeEventListener('scroll', updateAppHeight);
       window.removeEventListener('orientationchange', updateAppHeight);
       document.documentElement.style.removeProperty('--app-height');
+      document.documentElement.style.removeProperty('--app-top');
     };
   }, []);
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function App() {
     onToggleSound: () => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; }),
   };
   return (
-    <div className={'app-shell fixed inset-x-0 top-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
+    <div className={'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
       {session && !activePeer && <Header {...headerProps} />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">

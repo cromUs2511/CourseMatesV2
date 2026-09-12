@@ -34,13 +34,15 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await expect(page.locator('[data-message-bubble]')).toHaveCount(140);
     const chatInput = page.getByRole('textbox', { name: 'Chat message' });
     expect(await chatInput.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+    const scroller = page.locator('#chat-messages-container');
+    await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
     await chatInput.focus();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect.poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
     await page.getByRole('button', { name: 'Open music controls' }).click();
     await page.getByRole('button', { name: 'Play Study Music' }).click();
     await page.keyboard.press('Escape');
     await expect(page.locator('.ambient-aurora')).toBeVisible();
-    const scroller = page.locator('#chat-messages-container');
     const cdp = await context.newCDPSession(page);
     await cdp.send('Performance.enable');
     await cdp.send('LayerTree.enable');
