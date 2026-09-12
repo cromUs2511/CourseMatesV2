@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Smile, X } from 'lucide-react';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
-export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start' }: {
+export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start', showMobileReaction = false }: {
   children: React.ReactNode;
   reactions?: Record<string, string>;
   sessionId: string;
@@ -11,6 +11,7 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
   actions?: React.ReactNode;
   onLongPress?: () => void;
   align?: 'start' | 'end';
+  showMobileReaction?: boolean;
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [pending, setPending] = useState(false);
@@ -99,13 +100,26 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           </div>
         )}
       </div>
-      <div className="flex w-max flex-nowrap items-center gap-0.5">
+      <div className="hidden w-max flex-nowrap items-center gap-0.5 group-hover:flex focus-within:flex">
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
         <Smile className="h-3.5 w-3.5" /> React
       </button>
       {actions}
       </div>
+      {showMobileReaction && (
+        <button
+          type="button"
+          aria-label="React to message"
+          aria-haspopup="dialog"
+          aria-expanded={Boolean(position)}
+          disabled={pending}
+          onClick={() => open()}
+          className="mt-0.5 flex min-h-6 items-center gap-1 rounded-full px-1.5 text-[10px] text-stone-500 sm:hidden dark:text-stone-400"
+        >
+          <Smile className="h-3 w-3" /> React
+        </button>
+      )}
     </div>
     {position && createPortal(<div className="reaction-picker-layer fixed inset-0 z-[100]" onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()}>
       <div className="reaction-picker-backdrop absolute inset-0 bg-black/10" onClick={() => setPosition(null)} />

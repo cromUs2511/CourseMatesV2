@@ -20,6 +20,13 @@ export const CHAT_THEMES: ChatTheme[] = [
   { id: 'rose', label: 'Rose pink', lightBackground: '#FFF1F2', darkBackground: '#241419', accent: '#BE185D', accentHover: '#9D174D', swatch: '#DB2777' },
   { id: 'amber', label: 'Amber glow', lightBackground: '#FFFBEB', darkBackground: '#211B0D', accent: '#A16207', accentHover: '#854D0E', swatch: '#D97706' },
   { id: 'slate', label: 'Slate graphite', lightBackground: '#F1F5F9', darkBackground: '#111827', accent: '#475569', accentHover: '#334155', swatch: '#64748B' },
+  { id: 'neon-cyan', label: 'Neon cyan', lightBackground: '#ECFEFF', darkBackground: '#071B22', accent: '#0891B2', accentHover: '#0E7490', swatch: '#06B6D4' },
+  { id: 'electric-blue', label: 'Electric blue', lightBackground: '#EFF6FF', darkBackground: '#0C1630', accent: '#2563EB', accentHover: '#1D4ED8', swatch: '#3B82F6' },
+  { id: 'neon-magenta', label: 'Neon magenta', lightBackground: '#FDF2F8', darkBackground: '#261025', accent: '#C026D3', accentHover: '#A21CAF', swatch: '#E879F9' },
+  { id: 'teal', label: 'Deep teal', lightBackground: '#F0FDFA', darkBackground: '#09201F', accent: '#0F766E', accentHover: '#115E59', swatch: '#14B8A6' },
+  { id: 'gold', label: 'Cyber gold', lightBackground: '#FEFCE8', darkBackground: '#211B08', accent: '#CA8A04', accentHover: '#A16207', swatch: '#FACC15' },
+  { id: 'indigo', label: 'Indigo night', lightBackground: '#EEF2FF', darkBackground: '#11132D', accent: '#4F46E5', accentHover: '#4338CA', swatch: '#6366F1' },
+  { id: 'graphite', label: 'Graphite neon', lightBackground: '#F4F4F5', darkBackground: '#09090B', accent: '#71717A', accentHover: '#52525B', swatch: '#A1A1AA' },
 ];
 
 interface ChatThemeMenuProps {

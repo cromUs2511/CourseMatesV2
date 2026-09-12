@@ -6,6 +6,21 @@ import { MusicTrack, RoomMusicState } from '../types';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, normalizeSharedTrack } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
 
+const AMBIENT_GLOW_COLORS = [
+  { name: 'Aurora mint', color: '#6ee7b7' },
+  { name: 'Arctic cyan', color: '#67e8f9' },
+  { name: 'Sky blue', color: '#60a5fa' },
+  { name: 'Violet', color: '#a78bfa' },
+  { name: 'Neon pink', color: '#f472b6' },
+  { name: 'Rose', color: '#fb7185' },
+  { name: 'Sunset orange', color: '#fb923c' },
+  { name: 'Solar yellow', color: '#facc15' },
+  { name: 'Emerald', color: '#34d399' },
+  { name: 'Lime', color: '#a3e635' },
+  { name: 'Electric purple', color: '#c084fc' },
+  { name: 'Ice white', color: '#e0f2fe' },
+] as const;
+
 interface TopMusicBarProps {
   isDarkMode: boolean;
   roomId?: string;
@@ -396,8 +411,12 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         role="group"
         aria-label="Study music controls"
         data-playing={playbackActive}
+        style={playbackActive ? {
+          borderColor: `${accent}99`,
+          boxShadow: `0 0 0 1px ${accent}55, 0 0 18px 2px ${accent}99`,
+        } : undefined}
         className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none ${
-          playbackActive ? 'border-red-500/60 shadow-[0_0_18px_2px_rgba(239,68,68,0.25)]' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
+          playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
         } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
         <button
@@ -473,9 +492,39 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                   Ambient glow
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-stone-500">Color</span>
-                  <input type="color" value={glowColor} onChange={(event) => updateGlowColor(event.target.value)} aria-label="Ambient glow color" className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0" />
+                  <span className="text-stone-500">Custom</span>
+                  <input type="color" value={glowColor} onChange={(event) => updateGlowColor(event.target.value)} aria-label="Custom ambient glow color" className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0" />
                 </label>
+              </div>
+              <div className="mb-4 border-b border-stone-400/20 pb-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold">Aurora color</span>
+                  <span className="text-[10px] text-stone-500">{AMBIENT_GLOW_COLORS.find(option => option.color.toLowerCase() === glowColor.toLowerCase())?.name || 'Custom color'}</span>
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                  {AMBIENT_GLOW_COLORS.map(option => (
+                    <button
+                      key={option.color}
+                      type="button"
+                      aria-label={`Use ${option.name} aurora color`}
+                      aria-pressed={glowColor.toLowerCase() === option.color.toLowerCase()}
+                      title={option.name}
+                      onClick={() => updateGlowColor(option.color)}
+                      className="group flex h-8 items-center justify-center rounded-lg border border-stone-400/30 bg-stone-500/5 transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2"
+                      style={{
+                        outlineColor: option.color,
+                        borderColor: glowColor.toLowerCase() === option.color.toLowerCase() ? option.color : undefined,
+                        boxShadow: glowColor.toLowerCase() === option.color.toLowerCase() ? `0 0 12px ${option.color}99` : undefined,
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-5 w-5 rounded-full border border-white/40 shadow-[0_0_10px_currentColor] transition-transform group-hover:scale-110"
+                        style={{ backgroundColor: option.color, color: option.color }}
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
               <form onSubmit={searchMusic} className="flex gap-2">
                 <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-3 py-2.5 text-xs outline-none focus:border-red-500" />

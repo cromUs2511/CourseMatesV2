@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X } from 'lucide-react';
+import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -14,6 +14,7 @@ import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
 import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog } from './PhotoDialog';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
+import { MESSAGE_REACTIONS } from '../data/reactions';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
 const CONVERSATION_STARTER_LIMIT = 3;
@@ -550,10 +551,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           id="chat-messages-container"
           ref={messagesContainerRef}
           onScroll={handleMessagesScroll}
-          className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-3 select-text"
+          className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-1 select-text"
         >
-          <div className="max-w-3xl mx-auto w-full space-y-2">
-            {messages.map((msg) => {
+          <div className="max-w-3xl mx-auto w-full space-y-0.5">
+            {messages.map((msg, index) => {
               if (msg.type === 'system') {
                 const isUnsentMessage = msg.text === 'Message unsent.';
                 return (
@@ -573,10 +574,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 );
               }
 
+              const previousMessage = messages[index - 1];
+              const isGroupedWithPrevious = Boolean(
+                previousMessage &&
+                previousMessage.type !== 'system' &&
+                previousMessage.isMe === msg.isMe &&
+                previousMessage.senderHandle === msg.senderHandle &&
+                msg.timestamp - previousMessage.timestamp <= 120000,
+              );
+              const nextMessage = messages[index + 1];
+              const isGroupedWithNext = Boolean(
+                nextMessage &&
+                nextMessage.type !== 'system' &&
+                nextMessage.isMe === msg.isMe &&
+                nextMessage.senderHandle === msg.senderHandle &&
+                nextMessage.timestamp - msg.timestamp <= 120000,
+              );
+
               return (
                 <div
                   key={msg.id}
-                  className={`chat-message-row group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                  className={`chat-message-row group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'} ${isGroupedWithPrevious ? 'mt-0' : ''}`}
                   onTouchStart={(event) => {
                     const touch = event.touches[0];
                     if (touch) {
@@ -609,20 +627,22 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   }}
                   onTouchCancel={() => { setSwipe(null); touchRef.current = null; }}
                 >
-                  <div className="flex max-w-[92%] items-baseline gap-1.5 text-[11px] font-mono text-stone-500 dark:text-stone-400 mb-1 px-1 sm:max-w-[75%]">
-                    <span className="min-w-0 truncate font-semibold text-stone-600 dark:text-stone-300">
-                      {msg.isMe ? 'You' : msg.senderHandle}
-                    </span>
-                    <span>•</span>
-                    <span className="shrink-0">
-                      {messageTimeFormatter.format(msg.timestamp)}
-                    </span>
-                    {msg.edited && (
-                      <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] text-stone-500/80 dark:text-stone-400/80">
-                        Edited
+                  {!isGroupedWithPrevious && (
+                    <div className="flex max-w-[92%] items-baseline gap-1.5 text-[11px] font-mono text-stone-500 dark:text-stone-400 mb-1 px-1 sm:max-w-[75%]">
+                      <span className="min-w-0 truncate font-semibold text-stone-600 dark:text-stone-300">
+                        {msg.isMe ? 'You' : msg.senderHandle}
                       </span>
-                    )}
-                  </div>
+                      <span>•</span>
+                      <span className="shrink-0">
+                        {messageTimeFormatter.format(msg.timestamp)}
+                      </span>
+                      {msg.edited && (
+                        <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] text-stone-500/80 dark:text-stone-400/80">
+                          Edited
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Keep the bubble, quote, and actions within the same message column. */}
                   <div className={`relative min-w-0 w-fit ${msg.replyTo ? 'max-w-[min(92%,24rem)] sm:max-w-[min(75%,24rem)]' : 'max-w-[92%] sm:max-w-[75%]'}`}>
@@ -641,6 +661,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       sessionId={session.id}
                       onReact={emoji => handleReact(msg.id, emoji)}
                       align={msg.isMe ? 'end' : 'start'}
+                      showMobileReaction={!isGroupedWithNext}
                       actions={(
                         <>
                           <button type="button" onClick={() => setReplyingTo(msg)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
@@ -662,12 +683,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           )}
                         </>
                       )}
-                      onLongPress={msg.isMe ? () => openMessageActions(msg.id) : undefined}
+                      onLongPress={() => openMessageActions(msg.id)}
                     >
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch gap-1.5 rounded-2xl px-3 py-2 text-left text-sm leading-5 border transition-transform duration-150 ${
+                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3 text-left text-sm leading-5 border transition-transform duration-150 ${
+                        isGroupedWithPrevious ? 'gap-1 py-1.5' : 'gap-1.5 py-2'
+                      } ${
                         msg.isMe
                           ? 'text-white'
                           : isDarkMode
@@ -698,6 +721,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         </button>)}
                       </div>}
                       {msg.text && <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.text}</p>}
+                      {msg.edited && isGroupedWithPrevious && (
+                        <span className={`text-[9px] uppercase tracking-[0.12em] ${msg.isMe ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}`}>
+                          Edited
+                        </span>
+                      )}
                     </div>
                     </MessageReactions>
                   </div>
@@ -813,14 +841,39 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   role="dialog"
                   aria-modal="true"
                   aria-label="Message actions"
-                  style={messageActionsPosition}
-                  className="reaction-picker fixed w-[188px] max-w-[calc(100vw-16px)] rounded-2xl border border-stone-200 bg-[#FAF8F5] p-1.5 text-stone-800 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                  className="reaction-picker fixed w-[244px] max-w-[calc(100vw-16px)] rounded-2xl border bg-[#17191f] p-2 text-stone-100"
+                  data-theme-glow
+                  style={{
+                    ...messageActionsPosition,
+                    borderColor: `${chatTheme.accent}cc`,
+                    boxShadow: `0 0 0 1px ${chatTheme.accent}66, 0 0 24px ${chatTheme.accent}b3`,
+                  }}
                 >
-                  <div className="mb-0.5 flex items-center justify-between px-1.5 text-[10px] font-medium">
+                  <div className="mb-1 flex items-center justify-between px-1.5 text-[11px] font-medium italic">
                     Message actions
-                    <button type="button" aria-label="Close message actions" className="p-0.5" onClick={closeMessageActions}>
+                    <button type="button" aria-label="Close message actions" className="p-0.5 text-stone-300 hover:text-white" onClick={closeMessageActions}>
                       <X className="h-3.5 w-3.5" />
                     </button>
+                  </div>
+                  <div className="mb-1.5 flex items-center justify-between rounded-xl bg-white/[0.06] px-1 py-0.5">
+                    {MESSAGE_REACTIONS.map(({ emoji, label }) => {
+                      const selected = messages.find(item => item.id === deleteMenuMessageId)?.reactions?.[session.id] === emoji;
+                      return (
+                        <button
+                          key={emoji}
+                          type="button"
+                          aria-label={label}
+                          aria-pressed={selected}
+                          onClick={() => {
+                            if (deleteMenuMessageId) void handleReact(deleteMenuMessageId, emoji);
+                            closeMessageActions();
+                          }}
+                          className={`flex h-8 w-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-white/10 ${selected ? 'bg-red-500/25' : ''}`}
+                        >
+                          {emoji}
+                        </button>
+                      );
+                    })}
                   </div>
                   <div className="flex gap-1">
                     <button
@@ -830,39 +883,43 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         if (message) void navigator.clipboard?.writeText(message.text).catch(() => {});
                         closeMessageActions();
                       }}
-                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] transition-transform hover:scale-105 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 dark:hover:bg-stone-700"
+                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
                     >
                       <Copy className="h-3.5 w-3.5" /> Copy
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const message = messages.find(item => item.id === deleteMenuMessageId);
-                        closeMessageActions();
-                        if (message) {
-                          setEditingMessageId(message.id);
-                          if (inputRef.current) {
-                            inputRef.current.value = message.text;
-                            setHasInputText(Boolean(message.text.trim()));
-                            inputRef.current.focus();
-                          }
-                        }
-                      }}
-                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] transition-transform hover:scale-105 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 dark:hover:bg-stone-700"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const message = messages.find(item => item.id === deleteMenuMessageId);
-                        closeMessageActions();
-                        if (message) void handleDeleteMessage(message);
-                      }}
-                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] text-red-600 transition-transform hover:scale-105 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/40"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> Delete
-                    </button>
+                    {messages.find(item => item.id === deleteMenuMessageId)?.isMe && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const message = messages.find(item => item.id === deleteMenuMessageId);
+                            closeMessageActions();
+                            if (message) {
+                              setEditingMessageId(message.id);
+                              if (inputRef.current) {
+                                inputRef.current.value = message.text;
+                                setHasInputText(Boolean(message.text.trim()));
+                                inputRef.current.focus();
+                              }
+                            }
+                          }}
+                          className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const message = messages.find(item => item.id === deleteMenuMessageId);
+                            closeMessageActions();
+                            if (message) void handleDeleteMessage(message);
+                          }}
+                          className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-red-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>,
