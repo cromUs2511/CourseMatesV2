@@ -106,6 +106,26 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   await logout(page);
 });
 
+test('student chatbot clears the composer before its reply arrives', async ({ page }) => {
+  await signIn(page, 'chatbot-composer');
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+  let releaseReply!: () => void;
+  const replyGate = new Promise<void>(resolve => { releaseReply = resolve; });
+  await page.route('**/api/ai/chatbot', async route => {
+    await replyGate;
+    await route.fulfill({ json: { reply: 'Delayed test response', source: 'test-model' } });
+  });
+  const composer = page.getByRole('textbox', { name: 'Chat message' });
+  await composer.fill('Clear this immediately');
+  await page.locator('#send-message-btn').click();
+  await expect(composer).toHaveValue('');
+  await expect(page.getByText('Clear this immediately', { exact: true })).toBeVisible();
+  releaseReply();
+  await expect(page.getByText('Delayed test response', { exact: true })).toBeVisible();
+  await logout(page);
+});
+
 test('mobile long press opens reactions and scrolling cancels the gesture', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await signIn(page, 'reactions');

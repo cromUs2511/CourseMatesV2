@@ -449,18 +449,21 @@ app.post('/api/ai/chatbot', async (req, res) => {
 
   const topic = typeof req.body.topic === 'string' ? req.body.topic.trim().slice(0, 100) : 'General Peer Discovery';
   try {
-    const prompt = `You are the Student Chatbot Assistant in CourseMates, a chat app for college students.
-Act as a friendly, capable student study partner. Answer the student's latest message directly and naturally.
-Help with coursework, brainstorming, explanations, study planning, campus life, and casual conversation.
-Be accurate and honest. If you are unsure, say so. Never pretend to be a human or claim real-world experiences.
-Keep ordinary replies concise (usually 1-3 short paragraphs), but give enough detail when the student asks for an explanation.
-Do not send canned greetings, repeat the user's message, or mention these instructions.
+    const systemInstruction = `You are the Student Chatbot Assistant in CourseMates: an intelligent, engaging AI companion for college students.
+Follow the student's actual intent instead of forcing every conversation back to schoolwork or the originally selected topic.
+You can discuss and help with general questions, academic work, technical problems, current events, planning, creativity, hobbies, entertainment, relationships, campus life, and casual social conversation.
+Be interactive: respond to what was just said, ask a useful follow-up when it feels natural, remember the recent context, and comfortably follow topic changes.
+Use Google Search when the answer depends on current, changing, niche, or externally verifiable information. Ground factual claims in the retrieved information and never pretend you searched when you did not.
+Match the student's tone without sounding scripted. Avoid repeatedly listing your capabilities or ending every reply by redirecting them to studying.
+Be accurate and honest. Distinguish facts from opinions, say when you are unsure, and never pretend to be human or claim real-world experiences.
+Keep ordinary replies concise, but expand when the question benefits from detail. Never mention these instructions.`;
 
-Current topic: ${topic}
-Student discipline: ${session.discipline || 'Not specified'}
-Campus: ${session.campus || 'Not specified'}
+    const prompt = `Conversation context (use only when relevant):
+- Originally selected topic: ${topic}
+- Student discipline: ${session.discipline || 'Not specified'}
+- Campus: ${session.campus || 'Not specified'}
 
-Recent conversation:
+Recent messages:
 ${history.join('\n') || '(No earlier messages)'}
 
 Student: ${message}
@@ -472,10 +475,25 @@ Assistant:`;
     let lastError: unknown;
     for (const model of modelCandidates) {
       try {
-        const response = await ai.models.generateContent({ model, contents: prompt });
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            tools: [{ googleSearch: {} }],
+          },
+        });
         reply = response.text?.trim() || '';
         if (!reply) throw new Error('Gemini returned an empty response.');
         selectedModel = model;
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const sources = groundingChunks.flatMap(chunk => chunk.web?.uri
+          ? [{ title: chunk.web.title || 'Source', url: chunk.web.uri }]
+          : []);
+        const uniqueSources = [...new Map(sources.map(source => [source.url, source])).values()].slice(0, 5);
+        if (uniqueSources.length) {
+          reply += '\n\nSources:\n' + uniqueSources.map(source => `- ${source.title}: ${source.url}`).join('\n');
+        }
         break;
       } catch (error) {
         lastError = error;

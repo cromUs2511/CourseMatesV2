@@ -37,7 +37,7 @@ Messages are held in a bounded RAM buffer (500 messages per room), with a 4,000-
 
 Photo selection uses the browser's native file picker. Taking a photo requests camera access (no microphone) only after the user selects **Take photo**; permission prompts follow the browser's saved permission state. Camera access requires HTTPS or localhost, and camera tracks stop on capture, dismissal, or disconnection. Login and main-menu grids breathe gently, and theme changes reveal the new appearance from the switch using View Transitions where supported. Both effects honor reduced-motion preferences.
 
-Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. Messages sent to the Student Chatbot Assistant and up to 12 recent text messages are sent to Gemini to generate its reply. The assistant API sends supplied conversation context only when explicitly called. YouTube and Microsoft have their own data handling.
+Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. Messages sent to the Student Chatbot Assistant and up to 12 recent text messages are sent to Gemini to generate its reply. The chatbot can use Google Search grounding when a question needs current or externally verifiable information; relevant search queries and retrieved public-web context are processed by Google, and source links are included in the reply. The assistant API sends supplied conversation context only when explicitly called. YouTube and Microsoft have their own data handling.
 
 This in-memory implementation runs as **one server process**. Multiple replicas would need a shared session/matching store and a coordinated expiry policy.
 

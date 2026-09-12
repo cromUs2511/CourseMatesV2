@@ -303,6 +303,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           images: images.map(image => ({ id: crypto.randomUUID(), name: image.name, url: image.dataUrl, width: image.width, height: image.height })),
           timestamp: Date.now(), replyTo, isMe: true };
         receiveMessages([userMessage]);
+        if (inputRef.current?.value.trim() === text) {
+          inputRef.current.value = '';
+          setHasInputText(false);
+        }
+        if (selectedStarter && startersSent < CONVERSATION_STARTER_LIMIT) {
+          setStartersSent(count => Math.min(count + 1, CONVERSATION_STARTER_LIMIT));
+          setStarterPool(current => current.filter(prompt => prompt !== selectedStarter));
+          setSelectedStarter(null);
+        }
+        setPendingImages(current => current === images ? [] : current);
+        setReplyingTo(null);
+        sendTyping(false);
+        playChime('message');
         setIsPeerTyping(true);
         const data = await apiRequest<{ reply: string }>('/api/ai/chatbot', session.token, {
           message: text || 'I shared a photo. Ask me to describe what I would like help with.',
@@ -323,6 +336,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           text: data.reply,
           timestamp: Date.now(),
         }]);
+        return;
       } else {
         if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
           retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
