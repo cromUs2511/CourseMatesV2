@@ -466,10 +466,28 @@ ${history.join('\n') || '(No earlier messages)'}
 Student: ${message}
 Assistant:`;
 
-    const response = await ai.models.generateContent({ model: aiModel, contents: prompt });
-    const reply = response.text?.trim();
-    if (!reply) throw new Error('Gemini returned an empty response.');
-    res.json({ reply, source: aiModel });
+    const modelCandidates = [...new Set([aiModel, 'gemini-flash-latest', 'gemini-2.5-flash-lite'])];
+    let reply = '';
+    let selectedModel = aiModel;
+    let lastError: unknown;
+    for (const model of modelCandidates) {
+      try {
+        const response = await ai.models.generateContent({ model, contents: prompt });
+        reply = response.text?.trim() || '';
+        if (!reply) throw new Error('Gemini returned an empty response.');
+        selectedModel = model;
+        break;
+      } catch (error) {
+        lastError = error;
+        const status = typeof error === 'object' && error && 'status' in error ? error.status : undefined;
+        const detail = error instanceof Error ? error.message : String(error);
+        const unavailableModel = status === 404 || /model.*(?:not found|unavailable)|not found.*model/i.test(detail);
+        if (!unavailableModel || model === modelCandidates.at(-1)) throw error;
+        console.warn(`Gemini model ${model} is unavailable; trying the next configured fallback.`);
+      }
+    }
+    if (!reply) throw lastError || new Error('Gemini returned an empty response.');
+    res.json({ reply, source: selectedModel });
   } catch (error) {
     const status = typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
       ? error.status
