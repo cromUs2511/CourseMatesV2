@@ -433,7 +433,7 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
   }
 });
 
-// Gemini-powered conversation partner used by the Student Chatbot Assistant.
+// AI-powered conversation partner used by the Student Chatbot Assistant.
 app.post('/api/ai/chatbot', async (req, res) => {
   const session = authenticate(req);
   if (!session) return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
@@ -463,24 +463,39 @@ Be accurate and honest. Distinguish facts from opinions, say when you are unsure
 Keep ordinary replies concise, but expand when the question benefits from detail. Never mention these instructions.`;
 
     if (groqApiKey) {
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-          'Groq-Model-Version': 'latest',
-        },
-        body: JSON.stringify({
-          model: groqModel,
-          messages: [
-            { role: 'system', content: systemInstruction },
-            ...history.map(entry => ({ role: entry.role, content: entry.text })),
-            { role: 'user', content: message },
-          ],
-          temperature: 0.8,
-        }),
-        signal: AbortSignal.timeout(20000),
-      });
+      const contextBudget = 6000;
+      let usedCharacters = 0;
+      const compactHistory: typeof history = [];
+      for (let index = history.length - 1; index >= 0 && usedCharacters < contextBudget; index -= 1) {
+        const remaining = contextBudget - usedCharacters;
+        const text = history[index].text.slice(0, Math.min(1000, remaining));
+        if (!text) continue;
+        compactHistory.unshift({ ...history[index], text });
+        usedCharacters += text.length;
+      }
+      const requestGroq = (includeHistory: boolean) => fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+            'Groq-Model-Version': 'latest',
+          },
+          body: JSON.stringify({
+            model: groqModel,
+            messages: [
+              { role: 'system', content: systemInstruction },
+              ...(includeHistory ? compactHistory.map(entry => ({ role: entry.role, content: entry.text })) : []),
+              { role: 'user', content: message },
+            ],
+            temperature: 0.8,
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+      let groqResponse = await requestGroq(true);
+      if (groqResponse.status === 413) {
+        console.warn('Groq rejected the conversation context as too large; retrying with only the latest message.');
+        groqResponse = await requestGroq(false);
+      }
       if (!groqResponse.ok) {
         const providerError = new Error((await groqResponse.text()).slice(0, 1000)) as Error & { status?: number };
         providerError.status = groqResponse.status;
@@ -551,6 +566,9 @@ Assistant:`;
     }
     if (status === 429 || /quota|resource_exhausted|rate limit/i.test(detail)) {
       return res.status(503).json({ error: `The ${providerName} API quota is currently exhausted. Check usage and billing in the provider dashboard.` });
+    }
+    if (status === 413 || /request.*too large|entity too large/i.test(detail)) {
+      return res.status(413).json({ error: `${providerName} rejected the request size even after conversation context was reduced. Try a shorter message.` });
     }
     if (status === 404 || /model.*(?:not found|unavailable|no longer available)|not found.*model/i.test(detail)) {
       return res.status(503).json({ error: `The configured ${providerName} model (${activeModel}) is unavailable to this API key.` });
