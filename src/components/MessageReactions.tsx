@@ -100,7 +100,7 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           </div>
         )}
       </div>
-      <div className="hidden w-max flex-nowrap items-center gap-0.5 sm:flex">
+      <div className="hidden w-max max-h-0 flex-nowrap items-center gap-0.5 overflow-hidden opacity-0 transition-[max-height,opacity] duration-150 group-hover:max-h-8 group-hover:opacity-100 group-focus-within:max-h-8 group-focus-within:opacity-100 sm:flex">
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
         <Smile className="h-3.5 w-3.5" /> React

@@ -149,7 +149,7 @@
 
 .access-gateway::before, .ambient-grid::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
