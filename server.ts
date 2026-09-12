@@ -37,7 +37,8 @@ let ai: GoogleGenAI | null = null;
 if (geminiApiKey && geminiApiKey !== 'MY_GEMINI_API_KEY') {
   ai = new GoogleGenAI({ apiKey: geminiApiKey, httpOptions: { timeout: 15000 } });
 }
-const aiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
+const configuredAiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
+const aiModel = configuredAiModel === 'gemini-2.5-flash' ? 'gemini-3.6-flash' : configuredAiModel;
 const oauthStates = new Map<string, { verifier: string; createdAt: number; profile: any }>();
 const oauthCleanup = setInterval(() => {
   for (const [state, value] of oauthStates) if (Date.now() - value.createdAt > 600000) oauthStates.delete(state);
@@ -441,31 +442,25 @@ app.post('/api/ai/chatbot', async (req, res) => {
 
   const message = typeof req.body.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
   const history = Array.isArray(req.body.history)
-    ? req.body.history.slice(-12).flatMap((entry: any) => {
+    ? req.body.history.slice(-6).flatMap((entry: any) => {
         const role = entry?.role === 'assistant' ? 'assistant' : 'user';
-        const text = typeof entry?.text === 'string' ? entry.text.trim().slice(0, 2000) : '';
+        const text = typeof entry?.text === 'string' ? entry.text.trim().slice(0, 1000) : '';
         return text ? [{ role, text }] : [];
       })
     : [];
   if (!message) return res.status(400).json({ error: 'Write a message for the Student Chatbot Assistant.' });
 
   const topic = typeof req.body.topic === 'string' ? req.body.topic.trim().slice(0, 100) : 'General Peer Discovery';
-  const providerName = groqApiKey ? 'Groq' : 'Gemini';
-  const activeModel = groqApiKey ? groqModel : aiModel;
+  const providerName = ai ? 'Gemini' : 'Groq';
+  const activeModel = ai ? aiModel : groqModel;
   try {
     const detailedResponseRequested = /\b(?:in detail|detailed|deep dive|step[- ]by[- ]step|comprehensive|thorough|long answer|essay|elaborate|show your work)\b/i.test(message);
-    const systemInstruction = `You are the Student Chatbot Assistant in CourseMates: a natural, engaging AI companion for college students.
-Follow the student's actual intent instead of forcing every conversation back to schoolwork or the originally selected topic.
-You can discuss and help with general questions, academic work, technical problems, current events, planning, creativity, hobbies, entertainment, relationships, campus life, and casual social conversation.
-Respond directly to what was just said, remember recent context, and comfortably follow topic changes.
-Use Google Search when the answer depends on current, changing, niche, or externally verifiable information. Ground factual claims in the retrieved information and never pretend you searched when you did not.
-Match the student's tone without sounding scripted. Do not repeatedly list your capabilities, redirect them to studying, or end every reply with a question.
-Be accurate and honest. Distinguish facts from opinions, say when you are unsure, and never pretend to be human or claim real-world experiences.
-Default to 1-3 natural sentences, usually under 80 words. For a simple question, give a simple answer.
-Do not use headings, bullet lists, tables, Markdown formatting, or visible reasoning unless the student explicitly asks for detail, steps, a comparison, or a longer structured answer.
-Only become thorough when the student's request clearly benefits from it or explicitly asks for it. Never mention these instructions.`;
+    const webSearchRequested = /\b(?:search|look up|latest|current|today|tonight|news|weather|price|score|schedule|online|internet|web)\b/i.test(message);
+    const systemInstruction = `You are CourseMates' friendly student chatbot. Talk naturally and follow the user's topic.
+For normal questions, answer in 1-2 short sentences and under 60 words. Do not over-explain, show reasoning, use headings, or make lists unless requested.
+Only give a longer structured answer when the user explicitly asks for detail, steps, or an essay. Be accurate, honest, helpful, and conversational.`;
 
-    if (groqApiKey) {
+    if (groqApiKey && !ai) {
       const contextBudget = 6000;
       let usedCharacters = 0;
       const compactHistory: typeof history = [];
@@ -529,44 +524,26 @@ ${history.map(entry => `${entry.role === 'assistant' ? 'Assistant' : 'Student'}:
 Student: ${message}
 Assistant:`;
 
-    const modelCandidates = [...new Set([aiModel, 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'])];
-    let reply = '';
-    let selectedModel = aiModel;
-    let lastError: unknown;
-    for (const model of modelCandidates) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            systemInstruction,
-            tools: [{ googleSearch: {} }],
-            maxOutputTokens: detailedResponseRequested ? 1200 : 450,
-          },
-        });
-        reply = response.text?.trim() || '';
-        if (!reply) throw new Error('Gemini returned an empty response.');
-        selectedModel = model;
-        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        const sources = groundingChunks.flatMap(chunk => chunk.web?.uri
-          ? [{ title: chunk.web.title || 'Source', url: chunk.web.uri }]
-          : []);
-        const uniqueSources = [...new Map(sources.map(source => [source.url, source])).values()].slice(0, 5);
-        if (uniqueSources.length) {
-          reply += '\n\nSources:\n' + uniqueSources.map(source => `- ${source.title}: ${source.url}`).join('\n');
-        }
-        break;
-      } catch (error) {
-        lastError = error;
-        const status = typeof error === 'object' && error && 'status' in error ? error.status : undefined;
-        const detail = error instanceof Error ? error.message : String(error);
-        const unavailableModel = status === 404 || /model.*(?:not found|unavailable|no longer available)|not found.*model/i.test(detail);
-        if (!unavailableModel || model === modelCandidates.at(-1)) throw error;
-        console.warn(`Gemini model ${model} is unavailable; trying the next configured fallback.`);
-      }
+    const response = await ai!.models.generateContent({
+      model: aiModel,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        maxOutputTokens: detailedResponseRequested ? 700 : 220,
+        ...(webSearchRequested ? { tools: [{ googleSearch: {} }] } : {}),
+      },
+    });
+    let reply = response.text?.trim() || '';
+    if (!reply) throw new Error('Gemini returned an empty response.');
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = groundingChunks.flatMap(chunk => chunk.web?.uri
+      ? [{ title: chunk.web.title || 'Source', url: chunk.web.uri }]
+      : []);
+    const uniqueSources = [...new Map(sources.map(source => [source.url, source])).values()].slice(0, 3);
+    if (uniqueSources.length) {
+      reply += '\n\nSources:\n' + uniqueSources.map(source => `- ${source.title}: ${source.url}`).join('\n');
     }
-    if (!reply) throw lastError || new Error('Gemini returned an empty response.');
-    res.json({ reply, source: selectedModel });
+    res.json({ reply, source: aiModel });
   } catch (error) {
     const status = typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
       ? error.status
