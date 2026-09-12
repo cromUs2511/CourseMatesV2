@@ -18,20 +18,20 @@ interface AnimatedWeb {
 }
 
 function makeWeb(x: number, y: number, complete = false): AnimatedWeb {
-  const maxRadius = Math.random() * 400 + 150;
+  const maxRadius = Math.random() * 200 + 120;
   return {
     x,
     y,
     radialCount: Math.floor(Math.random() * 5) + 7,
     maxRadius,
     radius: complete ? maxRadius : 0,
-    radialSpeed: Math.random() * 12 + 8,
-    alpha: complete ? 0.72 : 1,
+    radialSpeed: Math.random() * 3 + 3,
+    alpha: complete ? 0.58 : 0.8,
     state: complete ? 'fading' : 'shooting',
-    driftX: (Math.random() - 0.5) * 0.4,
-    driftY: (Math.random() - 0.5) * 0.4,
+    driftX: (Math.random() - 0.5) * 0.12,
+    driftY: (Math.random() - 0.5) * 0.12,
     weaveProgress: complete ? 1 : 0,
-    weaveSpeed: Math.random() * 0.015 + 0.01,
+    weaveSpeed: Math.random() * 0.004 + 0.003,
   };
 }
 
@@ -114,7 +114,7 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
         web.weaveProgress = Math.min(1, web.weaveProgress + web.weaveSpeed);
         if (web.weaveProgress >= 1) web.state = 'fading';
       } else {
-        web.alpha -= 0.002;
+        web.alpha -= 0.0008;
       }
     };
 
@@ -122,7 +122,6 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
       webs = [
         makeWeb(width / 2, height / 2, complete),
         makeWeb(width * 0.2, height * 0.8, complete),
-        makeWeb(width * 0.8, height * 0.2, complete),
       ];
     };
 
@@ -134,7 +133,7 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
 
     const animate = () => {
       context.clearRect(0, 0, width, height);
-      if (Math.random() < 0.02 && webs.length < 12) {
+      if (Math.random() < 0.006 && webs.length < 5) {
         webs.push(makeWeb(Math.random() * width * 1.5 - width * 0.25, Math.random() * height * 1.5 - height * 0.25));
       }
       webs.forEach(web => { update(web); draw(web); });
