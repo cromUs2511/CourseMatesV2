@@ -51,13 +51,6 @@ function sessionCookie(req: express.Request, res: express.Response, token: strin
   res.cookie('cm_session', token, { httpOnly: true, sameSite: 'lax', secure: redirectUri(req).startsWith('https:'), path: '/', maxAge: 8 * 60 * 60 * 1000 });
 }
 app.get('/api/auth/config', (_req, res) => res.json({ microsoftEnabled, allowDemo }));
-app.post('/api/auth/community-access', (req, res) => {
-  if (!allowDemo) return res.status(403).json({ error: 'Community access is unavailable.' });
-  if (req.body?.acceptedTerms !== true) return res.status(400).json({ error: 'Confirm that you are 18 or older and accept the terms to continue.' });
-  const session = issueSession(`member-${crypto.randomUUID()}@anonymous.coursemates.ph`, { interests: [] });
-  sessionCookie(req, res, session.token);
-  res.json({ success: true, session });
-});
 app.post(['/api/auth/school-email', '/api/auth/verify-school', '/api/auth/microsoft/verify-test'], (req, res) => {
   if (!allowDemo) return res.status(403).json({ error: 'Demo access is disabled. Sign in with Microsoft.' });
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';

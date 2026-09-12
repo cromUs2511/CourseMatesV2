@@ -35,7 +35,10 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
     setLoading(true);
     setError(null);
     try {
-      const data = await apiRequest('/api/auth/community-access', undefined, { acceptedTerms: true });
+      const data = await apiRequest('/api/auth/school-email', undefined, {
+        email: `member-${crypto.randomUUID()}@anonymous.coursemates.ph`,
+        interests: [],
+      });
       onVerified(data.session);
     } catch (err) {
       setError((err as Error).message);
