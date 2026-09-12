@@ -3,7 +3,7 @@ import path from 'node:path';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { attachRuntime, authenticate, cookie, issueSession, isValidEmail } from './runtime';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
@@ -458,7 +458,7 @@ app.post('/api/ai/chatbot', async (req, res) => {
     const webSearchRequested = /\b(?:search|look up|latest|current|today|tonight|news|weather|price|score|schedule|online|internet|web)\b/i.test(message);
     const systemInstruction = `You are CourseMates' friendly student chatbot. Talk naturally and follow the user's topic.
 For normal questions, answer in 1-2 short sentences and under 60 words. Do not over-explain, show reasoning, use headings, or make lists unless requested.
-Only give a longer structured answer when the user explicitly asks for detail, steps, or an essay. Be accurate, honest, helpful, and conversational.`;
+Only give a longer structured answer when the user explicitly asks for detail, steps, or an essay. Always finish your sentence. Be accurate, honest, helpful, and conversational.`;
 
     if (groqApiKey && !ai) {
       const contextBudget = 6000;
@@ -529,7 +529,12 @@ Assistant:`;
       contents: prompt,
       config: {
         systemInstruction,
-        maxOutputTokens: detailedResponseRequested ? 700 : 220,
+        // Gemini's output budget includes hidden thinking tokens. Keep thinking low
+        // and leave enough headroom so a short visible answer is not cut in half.
+        thinkingConfig: {
+          thinkingLevel: detailedResponseRequested ? ThinkingLevel.LOW : ThinkingLevel.MINIMAL,
+        },
+        maxOutputTokens: detailedResponseRequested ? 2048 : 1024,
         ...(webSearchRequested ? { tools: [{ googleSearch: {} }] } : {}),
       },
     });
