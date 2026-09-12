@@ -471,8 +471,24 @@ Assistant:`;
     if (!reply) throw new Error('Gemini returned an empty response.');
     res.json({ reply, source: aiModel });
   } catch (error) {
-    console.error('Student chatbot request failed.');
-    res.status(503).json({ error: 'The Student Chatbot Assistant is temporarily unavailable. Please try again.' });
+    const status = typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
+      ? error.status
+      : undefined;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('Student chatbot request failed:', status || 'unknown', detail.slice(0, 500));
+    if (status === 400 || status === 401 || status === 403 || /api key|permission|leaked/i.test(detail)) {
+      return res.status(503).json({ error: 'Gemini rejected the API key or its permissions. Check the key in Google AI Studio.' });
+    }
+    if (status === 429 || /quota|resource_exhausted|rate limit/i.test(detail)) {
+      return res.status(503).json({ error: 'The Gemini API quota is currently exhausted. Check usage and billing in Google AI Studio.' });
+    }
+    if (status === 404 || /model.*not found/i.test(detail)) {
+      return res.status(503).json({ error: `The configured Gemini model (${aiModel}) is unavailable to this API key.` });
+    }
+    if (/fetch failed|network|timeout|timed out/i.test(detail)) {
+      return res.status(503).json({ error: 'Render could not reach the Gemini API. Please try again shortly.' });
+    }
+    return res.status(503).json({ error: 'The Student Chatbot Assistant is temporarily unavailable. Check the Render logs for the Gemini error.' });
   }
 });
 
