@@ -473,7 +473,7 @@ Keep ordinary replies concise, but expand when the question benefits from detail
         compactHistory.unshift({ ...history[index], text });
         usedCharacters += text.length;
       }
-      const requestGroq = (includeHistory: boolean) => fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const requestGroq = (model: string, includeHistory: boolean) => fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${groqApiKey}`,
@@ -481,7 +481,7 @@ Keep ordinary replies concise, but expand when the question benefits from detail
             'Groq-Model-Version': 'latest',
           },
           body: JSON.stringify({
-            model: groqModel,
+            model,
             messages: [
               { role: 'system', content: systemInstruction },
               ...(includeHistory ? compactHistory.map(entry => ({ role: entry.role, content: entry.text })) : []),
@@ -491,10 +491,16 @@ Keep ordinary replies concise, but expand when the question benefits from detail
           }),
           signal: AbortSignal.timeout(20000),
         });
-      let groqResponse = await requestGroq(true);
+      let selectedGroqModel = groqModel;
+      let groqResponse = await requestGroq(selectedGroqModel, true);
       if (groqResponse.status === 413) {
         console.warn('Groq rejected the conversation context as too large; retrying with only the latest message.');
-        groqResponse = await requestGroq(false);
+        groqResponse = await requestGroq(selectedGroqModel, false);
+      }
+      if (groqResponse.status === 413 && selectedGroqModel !== 'openai/gpt-oss-20b') {
+        selectedGroqModel = 'openai/gpt-oss-20b';
+        console.warn(`Groq model ${groqModel} still rejected the minimal request; falling back to ${selectedGroqModel}.`);
+        groqResponse = await requestGroq(selectedGroqModel, false);
       }
       if (!groqResponse.ok) {
         const providerError = new Error((await groqResponse.text()).slice(0, 1000)) as Error & { status?: number };
@@ -504,7 +510,7 @@ Keep ordinary replies concise, but expand when the question benefits from detail
       const data = await groqResponse.json() as any;
       const reply = data?.choices?.[0]?.message?.content?.trim();
       if (!reply) throw new Error('Groq returned an empty response.');
-      return res.json({ reply, source: groqModel });
+      return res.json({ reply, source: selectedGroqModel });
     }
 
     const prompt = `Conversation context (use only when relevant):
