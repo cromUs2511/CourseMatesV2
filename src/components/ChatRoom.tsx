@@ -446,11 +446,20 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     const box = messageBubbleRefs.current[messageId]?.getBoundingClientRect();
     if (!box) return;
     const message = messages.find(item => item.id === messageId);
-    const pickerWidth = 188;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const pickerWidth = Math.min(244, viewportWidth - 16);
+    const pickerHeight = window.matchMedia('(min-width: 640px)').matches ? 84 : 132;
+    const preferredTop = box.top - pickerHeight - 8;
+    const fallbackTop = box.bottom + 8;
+    const top = preferredTop >= viewportTop + 8 ? preferredTop : fallbackTop;
     setDeleteMenuMessageId(messageId);
     setMessageActionsPosition({
-      left: Math.max(8, Math.min(message?.isMe ? box.right - pickerWidth : box.left, window.innerWidth - pickerWidth - 8)),
-      top: Math.max(8, box.top - 82),
+      left: Math.max(viewportLeft + 8, Math.min(message?.isMe ? box.right - pickerWidth : box.left, viewportLeft + viewportWidth - pickerWidth - 8)),
+      top: Math.max(viewportTop + 8, Math.min(top, viewportTop + viewportHeight - pickerHeight - 8)),
     });
   };
   const closeMessageActions = () => {
@@ -857,13 +866,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   role="dialog"
                   aria-modal="true"
                   aria-label="Message actions"
-                  className="reaction-picker fixed w-[244px] max-w-[calc(100vw-16px)] rounded-2xl border bg-[#17191f] p-2 text-stone-100"
-                  data-theme-glow
-                  style={{
-                    ...messageActionsPosition,
-                    borderColor: `${chatTheme.accent}cc`,
-                    boxShadow: `0 0 0 1px ${chatTheme.accent}66, 0 0 24px ${chatTheme.accent}b3`,
-                  }}
+                  className="reaction-picker fixed w-[244px] max-w-[calc(100vw-16px)] rounded-2xl border border-stone-700 bg-[#17191f] p-2 text-stone-100 shadow-xl"
+                  style={messageActionsPosition}
                 >
                   <div className="mb-1 flex items-center justify-between px-1.5 text-[11px] font-medium italic">
                     Message actions
@@ -871,7 +875,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="mb-1.5 flex items-center justify-between rounded-xl bg-white/[0.06] px-1 py-0.5">
+                  <div className="mb-1.5 flex items-center justify-between rounded-xl bg-white/[0.06] px-1 py-0.5 sm:hidden">
                     {MESSAGE_REACTIONS.map(({ emoji, label }) => {
                       const selected = messages.find(item => item.id === deleteMenuMessageId)?.reactions?.[session.id] === emoji;
                       return (

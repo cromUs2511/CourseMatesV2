@@ -38,6 +38,14 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
   await b.getByRole('button', { name: 'Love reaction, 1' }).click();
   await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toHaveCount(0);
+  await a.getByRole('button', { name: 'More message actions' }).click();
+  const desktopActions = a.getByRole('dialog', { name: 'Message actions' });
+  await expect(desktopActions.getByRole('button', { name: 'Like', exact: true })).toHaveCount(0);
+  await expect(desktopActions.getByRole('button', { name: 'Copy', exact: true })).toBeVisible();
+  await expect(desktopActions.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(desktopActions.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+  await expect(desktopActions).not.toHaveAttribute('data-theme-glow');
+  await desktopActions.getByRole('button', { name: 'Close message actions' }).click();
   await b.getByRole('textbox', { name: 'Chat message' }).fill('Hello back');
   await b.locator('#send-message-btn').click();
   await expect(a.getByText('Hello back', { exact: true })).toHaveCount(1);
@@ -139,7 +147,12 @@ test('mobile long press opens reactions and scrolling cancels the gesture', asyn
   const bubble = page.locator('[data-message-bubble]').last();
   await expect(bubble).toBeVisible();
   await bubble.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: 100, clientY: 200 }] });
-  await expect(page.getByRole('dialog', { name: 'Message actions' })).toBeVisible();
+  const mobileActions = page.getByRole('dialog', { name: 'Message actions' });
+  await expect(mobileActions).toBeVisible();
+  const panelBox = await mobileActions.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(panelBox!.x).toBeGreaterThanOrEqual(7);
+  expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(368);
   await bubble.dispatchEvent('touchend', { touches: [] });
   await page.getByRole('button', { name: 'Like', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Like reaction, 1' })).toHaveAttribute('aria-pressed', 'true');
