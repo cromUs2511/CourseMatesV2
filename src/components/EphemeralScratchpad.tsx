@@ -31,7 +31,7 @@ int main() {
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    void navigator.clipboard?.writeText(content).catch(() => {});
     setCopied(true);
     playChime('message');
     setTimeout(() => setCopied(false), 2000);

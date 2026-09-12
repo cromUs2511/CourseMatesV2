@@ -2,7 +2,7 @@
 """
 CourseMates - Python Ephemeral In-Memory Backend Engine
 Zero-Log RAM-only Student Matchmaking & Verified Anonymous Peer Network
-Port: 8000
+Port: 5050
 """
 
 import sys
@@ -444,20 +444,16 @@ class EngineRequestHandler(BaseHTTPRequestHandler):
         elif path == "/api/chat/leave":
             room_id = body.get("roomId")
             session_id = body.get("sessionId")
-            if session_id:
+            room = ACTIVE_ROOMS.pop(room_id, None) if room_id else None
+            if room:
+                # Purge the room and BOTH peers' bindings so either student
+                # can rematch; a stale binding would trap the remaining peer
+                # in the ended room forever.
+                for peer in (room.get("peerA"), room.get("peerB")):
+                    if peer and peer.get("id"):
+                        SESSION_TO_ROOM.pop(peer["id"], None)
+            elif session_id:
                 SESSION_TO_ROOM.pop(session_id, None)
-            if room_id:
-                room = ACTIVE_ROOMS.get(room_id)
-                if room:
-                    room["peerDisconnected"] = True
-                    room["messages"].append({
-                        "id": f"sys_leave_{int(time.time()*1000)}",
-                        "senderHandle": "CourseMates System",
-                        "senderAvatar": "⚡",
-                        "text": "Peer has left the conversation. Ephemeral memory purged.",
-                        "timestamp": int(time.time() * 1000),
-                        "type": "system"
-                    })
             self._send_json(200, {"success": True})
 
         elif path == "/api/music/directory":

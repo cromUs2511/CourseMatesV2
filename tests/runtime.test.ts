@@ -93,6 +93,21 @@ test('reactions are member-only, replaceable, removable and shared through polli
   } finally { await request('/api/match/cancel', a, {}); }
 });
 
+test('message edits are member-only and shared with peers', async () => {
+  const { a, b, roomId } = await pair();
+  try {
+    const original = (await request('/api/chat/send', a, { roomId, text: 'Original' })).data.message;
+    assert.equal((await request('/api/chat/edit', identity(), { roomId, messageId: original.id, text: 'Hacked' })).status, 404);
+    assert.equal((await request('/api/chat/edit', b, { roomId, messageId: original.id, text: 'By other peer' })).status, 400);
+    const edited = (await request('/api/chat/edit', a, { roomId, messageId: original.id, text: 'Edited message' })).data.message;
+    assert.equal(edited.text, 'Edited message');
+    assert.equal(edited.edited, true);
+    assert.equal((await request('/api/chat/messages?roomId=' + roomId, b)).data.messages[0].text, 'Edited message');
+    assert.equal((await request('/api/chat/messages?roomId=' + roomId, b)).data.messages[0].edited, true);
+    assert.equal((await request('/api/chat/edit', a, { roomId, messageId: original.id, text: '   ' })).status, 400);
+  } finally { await request('/api/match/cancel', a, {}); }
+});
+
 test('verified sessions do not match demo sessions', async () => {
   const a = identity(), verified = identity(true), b = identity();
   await request('/api/match/join', a, {});
@@ -152,6 +167,11 @@ test('WebSocket and REST clients share the same room and recover after transport
   await request('/api/chat/send', b, { roomId, text: 'One delivery', clientMessageId: 'one' });
   await waitFor(() => events.some(e => e.type === 'new_message'));
   assert.equal(events.filter(e => e.type === 'new_message').length, 1);
+  const messageEvent = events.find(e => e.type === 'new_message');
+  assert.equal(Number.isInteger(messageEvent.revision), true);
+  const unchanged = await request('/api/chat/messages?roomId=' + roomId + '&sinceRevision=' + messageEvent.revision, a);
+  assert.deepEqual(unchanged.data.messages, []);
+  assert.equal(unchanged.data.revision, messageEvent.revision);
   ws.close();
   await new Promise<void>(resolve => ws.once('close', () => resolve()));
   assert.equal((await request('/api/chat/messages?roomId=' + roomId, a)).data.messages.length, 1);

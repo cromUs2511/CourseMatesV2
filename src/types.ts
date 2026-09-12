@@ -49,6 +49,7 @@ export interface ChatMessage {
   codeLanguage?: string;
   reactions?: Record<string, string>;
   replyTo?: { id: string; senderHandle: string; text: string };
+  edited?: boolean;
 }
 
 export interface ActivePeerInfo {

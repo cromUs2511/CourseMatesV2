@@ -32,6 +32,22 @@ export default function App() {
     try { localStorage.setItem('coursemates_darkmode', String(isDarkMode)); } catch {}
   }, [isDarkMode]);
   useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateAppHeight = () => {
+      document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? window.innerHeight}px`);
+    };
+    updateAppHeight();
+    viewport?.addEventListener('resize', updateAppHeight);
+    viewport?.addEventListener('scroll', updateAppHeight);
+    window.addEventListener('orientationchange', updateAppHeight);
+    return () => {
+      viewport?.removeEventListener('resize', updateAppHeight);
+      viewport?.removeEventListener('scroll', updateAppHeight);
+      window.removeEventListener('orientationchange', updateAppHeight);
+      document.documentElement.style.removeProperty('--app-height');
+    };
+  }, []);
+  useEffect(() => {
     let disposed = false;
     apiRequest('/api/auth/session').then(data => { if (!disposed) setSession(data.session); })
       .catch(() => {}).finally(() => { if (!disposed) setRestoring(false); });
@@ -72,7 +88,7 @@ export default function App() {
     onToggleSound: () => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; }),
   };
   return (
-    <div className={'fixed inset-0 min-h-[100dvh] w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
+    <div className={'app-shell fixed inset-x-0 top-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
       {session && !activePeer && <Header {...headerProps} />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">

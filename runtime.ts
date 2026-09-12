@@ -10,9 +10,9 @@ import type { ChatImage } from './src/data/chatImages';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string } };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string }; edited?: boolean };
 type RoomMusic = RoomMusicState;
-type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; imageBytes: number; typing: Map<string, number>; music?: RoomMusic };
+type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; imageBytes: number; typing: Map<string, number>; revision: number; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
 const rooms = new Map<string, Room>();
@@ -116,7 +116,7 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   const room: Room = {
     id: crypto.randomUUID(), peers: [peer, participant],
     topic: participant.interests.find(i => peer.interests.includes(i)) || participant.interests[0] || 'General Peer Discovery',
-    messages: [], images: new Map(), imageBytes: 0, typing: new Map(),
+    messages: [], images: new Map(), imageBytes: 0, typing: new Map(), revision: 0,
   };
   rooms.set(room.id, room);
   for (const p of room.peers) matches.set(p.id, room.id);
@@ -157,10 +157,11 @@ function send(session: Identity, room: Room, data: any) {
     replyTo,
   };
   room.messages.push(message);
+  room.revision += 1;
   if (images.length) { room.images.set(id, images); room.imageBytes += imageBytes; }
   if (room.messages.length > 500) clearMessageImages(room, room.messages.shift()!.id);
   room.typing.delete(session.id);
-  for (const peer of room.peers) notify(peer.ws, { type: 'new_message', roomId: room.id, message });
+  for (const peer of room.peers) notify(peer.ws, { type: 'new_message', roomId: room.id, revision: room.revision, message });
   return message;
 }
 function clearMessageImages(room: Room, messageId: string) {
@@ -182,7 +183,24 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   for (const reply of room.messages) {
     if (reply.replyTo?.id === messageId) reply.replyTo.text = 'Message unsent.';
   }
-  for (const peer of room.peers) notify(peer.ws, { type: 'message_unsent', roomId: room.id, messageId });
+  room.revision += 1;
+  for (const peer of room.peers) notify(peer.ws, { type: 'message_unsent', roomId: room.id, revision: room.revision, messageId });
+  return message;
+}
+function editMessage(session: Identity, room: Room, data: any) {
+  const messageId = typeof data.messageId === 'string' ? data.messageId : '';
+  if (!messageId) throw new Error('Invalid message.');
+  if (typeof data.text !== 'string' || data.text.length > 4000) throw new Error('Messages must contain at most 4000 characters.');
+  const message = room.messages.find(item => item.id === messageId);
+  if (!message) throw new Error('Message not found.');
+  if (message.senderId !== session.id) throw new Error('You can only edit your own messages.');
+  if (message.type !== 'text') throw new Error('Only text messages can be edited.');
+  const nextText = data.text.trim();
+  if (!nextText) throw new Error('Write a message before saving your edit.');
+  message.text = nextText;
+  message.edited = true;
+  room.revision += 1;
+  for (const peer of room.peers) notify(peer.ws, { type: 'message_edited', roomId: room.id, revision: room.revision, message });
   return message;
 }
 function updateMusic(session: Identity, room: Room, data: any) {
@@ -267,7 +285,8 @@ export function attachRuntime(app: Express, server: Server) {
     message.reactions ??= {};
     if (emoji === null) delete message.reactions[session.id];
     else message.reactions[session.id] = emoji;
-    for (const peer of room.peers) notify(peer.ws, { type: 'message_reactions', roomId: room.id, messageId: message.id, reactions: message.reactions });
+    room.revision += 1;
+    for (const peer of room.peers) notify(peer.ws, { type: 'message_reactions', roomId: room.id, revision: room.revision, messageId: message.id, reactions: message.reactions });
     res.json({ reactions: message.reactions });
   });
   app.post('/api/chat/delete', (req, res) => {
@@ -277,12 +296,21 @@ export function attachRuntime(app: Express, server: Server) {
     try { res.json({ success: true, message: removeMessage(session, room, req.body.messageId) }); }
     catch (error) { res.status(400).json({ error: (error as Error).message }); }
   });
+  app.post('/api/chat/edit', (req, res) => {
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    try { res.json({ success: true, message: editMessage(session, room, req.body) }); }
+    catch (error) { res.status(400).json({ error: (error as Error).message }); }
+  });
   app.get('/api/chat/messages', (req, res) => {
     const session = authenticate(req)!;
     const room = requireRoom(session, req.query.roomId);
     if (!room) return res.json({ active: false, messages: [], peerDisconnected: true, isPeerTyping: false });
-    // Return the bounded buffer. Clients deduplicate by ID, including messages with identical timestamps.
-    res.json({ active: true, messages: room.messages, music: room.music, peerDisconnected: false,
+    const sinceRevision = Number(req.query.sinceRevision);
+    const changed = !Number.isInteger(sinceRevision) || sinceRevision !== room.revision;
+    // Avoid retransmitting the bounded buffer when no chat state changed.
+    res.json({ active: true, messages: changed ? room.messages : [], revision: room.revision, music: room.music, peerDisconnected: false,
       isPeerTyping: [...room.typing].some(([id, timestamp]) => id !== session.id && Date.now() - timestamp < 3000) });
   });
   app.post('/api/chat/music', (req, res) => {
@@ -353,6 +381,7 @@ export function attachRuntime(app: Express, server: Server) {
         if (!room) return notify(ws, { type: 'error', error: 'Chat ended or is unavailable.' });
         if (data.type === 'send_message') send(session, room, data);
         else if (data.type === 'delete_message') removeMessage(session, room, data.messageId);
+        else if (data.type === 'edit_message') editMessage(session, room, data);
         else if (data.type === 'music_update') updateMusic(session, room, data);
         else if (data.type === 'leave_room') leave(session.id);
       } catch { notify(ws, { type: 'error', error: 'Invalid request.' }); }

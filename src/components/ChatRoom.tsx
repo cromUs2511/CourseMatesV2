@@ -17,6 +17,7 @@ import type { ChatImage, ImageUpload } from '../data/chatImages';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
 const CONVERSATION_STARTER_LIMIT = 3;
+const messageTimeFormatter = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
 
 const CONVERSATION_STARTER_POOL = [
   'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
@@ -67,7 +68,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 }) => {
   const [roomMusic, setRoomMusic] = useState<RoomMusicState>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [hasInputText, setHasInputText] = useState(false);
   const [pendingImages, setPendingImages] = useState<ImageUpload[]>([]);
   const [preparingImages, setPreparingImages] = useState(false);
   const [viewingImage, setViewingImage] = useState<ChatImage | null>(null);
@@ -82,6 +83,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [deleteMenuMessageId, setDeleteMenuMessageId] = useState<string | null>(null);
   const [messageActionsPosition, setMessageActionsPosition] = useState<{ left: number; top: number } | null>(null);
   const messageBubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -100,6 +102,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isAtLatest, setIsAtLatest] = useState(true);
   const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number; axis: 'x' | 'y' | null } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,6 +113,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const sendingRef = useRef(false);
   const receivedMessageIds = useRef(new Set<string>());
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapshotRevisionRef = useRef<number | null>(null);
 
   const fetchAiSuggestions = useCallback(() => {
     setIsSuggestionsLoading(true);
@@ -138,7 +142,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setPeerDisconnected(true);
     setIsPeerTyping(false);
     setMessages([]);
-    setInputText('');
+    if (inputRef.current) inputRef.current.value = '';
+    setHasInputText(false);
     setPendingImages([]);
     setViewingImage(null);
     setReplyingTo(null);
@@ -194,9 +199,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       container.scrollTop = container.scrollHeight;
     });
     return () => cancelAnimationFrame(frame);
-  }, [messages, isPeerTyping]);
+  }, [messages]);
+  useEffect(() => {
+    if (!isPeerTyping || !isAtLatestRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isPeerTyping]);
   useEffect(() => {
     endedRef.current = false;
+    snapshotRevisionRef.current = null;
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
       text: peer.isSimulated ? 'Conversation with the Student Chatbot Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
@@ -233,10 +247,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (polling || disposed || endedRef.current) return;
       polling = true;
       try {
-        const data = await apiRequest('/api/chat/messages?roomId=' + encodeURIComponent(roomId), session.token);
+        const revisionQuery = snapshotRevisionRef.current === null ? '' : '&sinceRevision=' + snapshotRevisionRef.current;
+        const data = await apiRequest('/api/chat/messages?roomId=' + encodeURIComponent(roomId) + revisionQuery, session.token);
         if (disposed || endedRef.current) return;
         failures = 0;
         if (!data.active || data.peerDisconnected) { markDisconnected(); return; }
+        if (Number.isInteger(data.revision)) {
+          // A poll may have started before a newer WebSocket event arrived. Never
+          // let that older snapshot temporarily remove and then re-add a message.
+          if (snapshotRevisionRef.current !== null && data.revision < snapshotRevisionRef.current) return;
+          snapshotRevisionRef.current = data.revision;
+        }
         setRoomMusic(current => current?.revision === data.music?.revision ? current : data.music);
         receiveMessages(data.messages, true);
         setIsPeerTyping(data.isPeerTyping);
@@ -249,8 +270,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       try {
         const data = JSON.parse(event.data);
         if (data.roomId !== roomId) return;
+        if (Number.isInteger(data.revision)) {
+          if (snapshotRevisionRef.current !== null && data.revision <= snapshotRevisionRef.current) return;
+          snapshotRevisionRef.current = data.revision;
+        }
         if (data.type === 'new_message') receiveMessages([data.message]);
         else if (data.type === 'message_reactions') setMessages(previous => previous.map(message => message.id === data.messageId ? { ...message, reactions: data.reactions } : message));
+        else if (data.type === 'message_edited') setMessages(previous => previous.map(message => message.id === data.message.id ? { ...message, ...data.message, isMe: message.isMe || data.message.senderId === session.id, edited: true } : message));
         else if (data.type === 'peer_typing') {
           setIsPeerTyping(data.isTyping);
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
@@ -279,14 +305,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     }
   };
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(event.target.value);
+    const hasText = Boolean(event.target.value.trim());
+    setHasInputText(current => current === hasText ? current : hasText);
     if (!event.target.value.trim()) setSelectedStarter(null);
     if (Date.now() - lastTypingAt.current > 1000) { sendTyping(true); lastTypingAt.current = Date.now(); }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => { sendTyping(false); typingTimeoutRef.current = null; }, 1200);
   };
   const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend ?? inputText).trim();
+    const text = (textToSend ?? inputRef.current?.value ?? '').trim();
     const images = pendingImages;
     const replyTo = replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text || 'Photo' } : undefined;
     if ((!text && !images.length) || text.length > 4000 || peerDisconnected || sendingRef.current || preparingImages) return;
@@ -327,7 +354,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         receiveMessages([data.message]);
         retryMessageRef.current = null;
       }
-      setInputText(current => current.trim() === text ? '' : current);
+      if (inputRef.current?.value.trim() === text) {
+        inputRef.current.value = '';
+        setHasInputText(false);
+      }
       if (selectedStarter && startersSent < CONVERSATION_STARTER_LIMIT) {
         setStartersSent(count => Math.min(count + 1, CONVERSATION_STARTER_LIMIT));
         setStarterPool(current => current.filter(prompt => prompt !== selectedStarter));
@@ -376,6 +406,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       setError('');
     } catch (err) { setError((err as Error).message); }
   };
+  const handleEditMessage = async () => {
+    const messageId = editingMessageId;
+    const text = (inputRef.current?.value ?? '').trim();
+    if (!messageId || !text || peerDisconnected || sendingRef.current || preparingImages) return;
+    try {
+      if (peer.isSimulated) {
+        setMessages(previous => previous.map(message => message.id === messageId ? { ...message, text, edited: true } : message));
+      } else {
+        const data = await apiRequest<{ message: ChatMessage }>('/api/chat/edit', session.token, { roomId, messageId, text });
+        setMessages(previous => previous.map(message => message.id === messageId ? { ...message, ...data.message, isMe: true } : message));
+      }
+      if (inputRef.current) {
+        inputRef.current.value = '';
+        setHasInputText(false);
+      }
+      setEditingMessageId(null);
+      setError('');
+      sendTyping(false);
+    } catch (err) { setError((err as Error).message); }
+    finally { setIsSending(false); }
+  };
   const openMessageActions = (messageId: string) => {
     const box = messageBubbleRefs.current[messageId]?.getBoundingClientRect();
     if (!box) return;
@@ -393,9 +444,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   };
   const handleSuggestionClick = (text: string) => {
     if (sendingRef.current || startersSent >= CONVERSATION_STARTER_LIMIT) return;
-    setInputText(text);
+    if (inputRef.current) inputRef.current.value = text;
+    setHasInputText(true);
     setSelectedStarter(text);
-    document.getElementById('chat-message-input')?.focus();
+    inputRef.current?.focus();
   };
   const leave = async (next: boolean) => {
     if (roomId && !peer.isSimulated) {
@@ -524,7 +576,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               return (
                 <div
                   key={msg.id}
-                  className={`group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
+                  className={`chat-message-row group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
                   onTouchStart={(event) => {
                     const touch = event.touches[0];
                     if (touch) {
@@ -563,11 +615,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     </span>
                     <span>•</span>
                     <span className="shrink-0">
-                      {new Date(msg.timestamp).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {messageTimeFormatter.format(msg.timestamp)}
                     </span>
+                    {msg.edited && (
+                      <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] text-stone-500/80 dark:text-stone-400/80">
+                        Edited
+                      </span>
+                    )}
                   </div>
 
                   {/* Keep the bubble, quote, and actions within the same message column. */}
@@ -785,6 +839,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       onClick={() => {
                         const message = messages.find(item => item.id === deleteMenuMessageId);
                         closeMessageActions();
+                        if (message) {
+                          setEditingMessageId(message.id);
+                          if (inputRef.current) {
+                            inputRef.current.value = message.text;
+                            setHasInputText(Boolean(message.text.trim()));
+                            inputRef.current.focus();
+                          }
+                        }
+                      }}
+                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] transition-transform hover:scale-105 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 dark:hover:bg-stone-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const message = messages.find(item => item.id === deleteMenuMessageId);
+                        closeMessageActions();
                         if (message) void handleDeleteMessage(message);
                       }}
                       className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full text-[10px] text-red-600 transition-transform hover:scale-105 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/40"
@@ -814,6 +886,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="h-4 w-4" /></button>
               </div>
             )}
+            {editingMessageId && (
+              <div className="mb-2 flex min-w-0 items-center gap-3 rounded-xl border-l-[3px] bg-stone-100 px-3 py-2 text-left text-xs dark:bg-stone-900" style={{ borderColor: chatTheme.accent }}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-stone-700 dark:text-stone-200">Editing your message</p>
+                  <p className="truncate text-stone-500 dark:text-stone-400">Your changes will be shared instantly.</p>
+                </div>
+                <button type="button" onClick={() => { setEditingMessageId(null); if (inputRef.current) { inputRef.current.value = ''; setHasInputText(false); } }} aria-label="Cancel edit" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="h-4 w-4" /></button>
+              </div>
+            )}
             {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
             {preparingImages && <p role="status" className="mb-2 text-xs text-stone-500">Preparing photos…</p>}
             {pendingImages.length > 0 && <div aria-label="Photo attachments" className="mb-2 flex gap-2 overflow-x-auto py-1">
@@ -826,40 +907,59 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSendMessage();
+                if (editingMessageId) void handleEditMessage();
+                else handleSendMessage();
               }}
               className="flex items-center space-x-2"
             >
               <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
               <input
+                ref={inputRef}
                 id="chat-message-input"
                 type="text"
-                autoFocus
                 disabled={peerDisconnected}
                 maxLength={4000}
-                aria-label="Chat message"
-                value={inputText}
+                aria-label={editingMessageId ? 'Edit chat message' : 'Chat message'}
                 onChange={handleInputChange}
                 placeholder={
-                  peerDisconnected
-                    ? "Session ended. Click 'Next Peer' above."
-                    : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}... (Press Enter to send)`
+                  editingMessageId
+                    ? 'Edit your message…'
+                    : peerDisconnected
+                        ? "Session ended. Click 'Next Peer' above."
+                        : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}... (Press Enter to send)`
                 }
-                className={`chat-theme-input min-w-0 flex-1 px-4 py-2.5 border text-xs sm:text-sm font-mono focus:outline-none disabled:opacity-50 transition-colors ${
+                className={`chat-theme-input min-w-0 flex-1 px-4 py-2.5 border text-base sm:text-sm font-mono focus:outline-none disabled:opacity-50 transition-colors ${
                   isDarkMode
                     ? 'bg-stone-900 border-stone-700 text-white placeholder:text-stone-500'
                     : 'bg-stone-50 border-stone-300 text-stone-900 placeholder:text-stone-400'
                 }`}
               />
+              {editingMessageId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingMessageId(null);
+                    if (inputRef.current) {
+                      inputRef.current.value = '';
+                      setHasInputText(false);
+                    }
+                  }}
+                  className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+                  aria-label="Cancel edit"
+                  title="Cancel editing"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
               <button
                 id="send-message-btn"
                 type="submit"
-                aria-label={isSending ? 'Sending message' : 'Send message'}
-                disabled={peerDisconnected || isSending || preparingImages || (!inputText.trim() && !pendingImages.length)}
+                aria-label={editingMessageId ? 'Save edited message' : isSending ? 'Sending message' : 'Send message'}
+                disabled={peerDisconnected || isSending || preparingImages || (!hasInputText && !pendingImages.length) || (editingMessageId && !inputRef.current?.value.trim())}
                 className="chat-theme-accent-button py-2.5 px-3 sm:px-5 text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
               >
-                <span>{isSending ? 'Sending…' : 'Send'}</span>
-                <Send className="w-3.5 h-3.5" />
+                <span>{editingMessageId ? 'Save' : isSending ? 'Sending…' : 'Send'}</span>
+                {editingMessageId ? null : <Send className="w-3.5 h-3.5" />}
               </button>
               {!peerDisconnected && (
                 <button
