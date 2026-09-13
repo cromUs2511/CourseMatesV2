@@ -14,6 +14,7 @@ import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
 import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
 import { VoiceRecorder } from './VoiceRecorder';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
 import { MESSAGE_REACTIONS } from '../data/reactions';
@@ -773,10 +774,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                             className="max-h-64 w-full max-w-80 object-contain" loading="lazy" draggable={false} />
                         </button>)}
                       </div>}
-                      {msg.voice && <div className={`min-w-[220px] rounded-xl p-2 ${msg.isMe ? 'bg-black/15' : 'bg-stone-100 dark:bg-stone-800'}`}>
-                        <audio controls preload="metadata" src={msg.voice.url} aria-label={`Voice message, ${formatVoiceDuration(msg.voice.duration)}`} className="h-10 w-full max-w-[300px]" />
-                        <span className={`mt-1 block text-[10px] ${msg.isMe ? 'text-white/75' : 'text-stone-500 dark:text-stone-400'}`}>{formatVoiceDuration(msg.voice.duration)} voice message</span>
-                      </div>}
+                      {msg.voice && <VoiceMessagePlayer voice={msg.voice} isMe={msg.isMe} />}
                       {msg.text && <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.text}</p>}
                       {msg.edited && isGroupedWithPrevious && (
                         <span className={`text-[9px] uppercase tracking-[0.12em] ${msg.isMe ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}`}>

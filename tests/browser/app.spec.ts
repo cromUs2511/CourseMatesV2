@@ -196,7 +196,8 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
   await page.getByRole('button', { name: 'Stop voice recording' }).click();
   await expect(page.getByLabel('Voice message ready to send')).toBeVisible();
   await page.locator('#send-message-btn').click();
-  await expect(page.getByLabel(/Voice message, 0:01/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play voice message' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Voice message position' })).toHaveAttribute('aria-valuemax', '1');
   await context.close();
 });
 
