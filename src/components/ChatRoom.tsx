@@ -468,7 +468,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     const viewportWidth = viewport?.width ?? window.innerWidth;
     const viewportHeight = viewport?.height ?? window.innerHeight;
     const pickerWidth = Math.min(244, viewportWidth - 16);
-    const pickerHeight = window.matchMedia('(min-width: 640px)').matches ? 84 : 132;
+    const pickerHeight = 132;
     const preferredTop = box.top - pickerHeight - 8;
     const fallbackTop = box.bottom + 8;
     const top = preferredTop >= viewportTop + 8 ? preferredTop : fallbackTop;
@@ -511,7 +511,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     <div
       className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
-      } chat-theme-scope ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
+      } chat-theme-scope ${ambientActive ? 'ambient-playing' : ''} ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
       style={{
         backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
         '--chat-accent': chatTheme.accent,
@@ -704,11 +704,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       sessionId={session.id}
                       onReact={emoji => handleReact(msg.id, emoji)}
                       align={msg.isMe ? 'end' : 'start'}
-                      showMobileReaction={!isGroupedWithNext}
                       actions={(
                         <>
-                          <button type="button" onClick={() => setReplyingTo(msg)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
-                            <Reply className="h-3.5 w-3.5" /> Reply
+                          <button type="button" aria-label="Reply" title="Reply" onClick={() => setReplyingTo(msg)} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
+                            <Reply className="h-4 w-4" />
                           </button>
                           {msg.isMe && (
                             <button
@@ -719,7 +718,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                                 if (deleteMenuMessageId === msg.id) closeMessageActions();
                                 else openMessageActions(msg.id);
                               }}
-                              className="hidden min-h-8 items-center justify-center rounded-full px-1.5 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800 sm:inline-flex"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
                             >
                               <MoreVertical className="h-3.5 w-3.5" />
                             </button>
@@ -894,27 +893,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="mb-1.5 flex items-center justify-between rounded-xl bg-white/[0.06] px-1 py-0.5 sm:hidden">
-                    {MESSAGE_REACTIONS.map(({ emoji, label }) => {
-                      const selected = messages.find(item => item.id === deleteMenuMessageId)?.reactions?.[session.id] === emoji;
-                      return (
-                        <button
-                          key={emoji}
-                          type="button"
-                          aria-label={label}
-                          aria-pressed={selected}
-                          onClick={() => {
-                            if (deleteMenuMessageId) void handleReact(deleteMenuMessageId, emoji);
-                            closeMessageActions();
-                          }}
-                          className={`flex h-8 w-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-white/10 ${selected ? 'bg-red-500/25' : ''}`}
-                        >
-                          {emoji}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex gap-1">
+                  <div className="grid grid-cols-4 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const message = messages.find(item => item.id === deleteMenuMessageId);
+                        closeMessageActions();
+                        if (message) setReplyingTo(message);
+                      }}
+                      className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
+                    >
+                      <Reply className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Reply</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -922,9 +912,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         if (message) void navigator.clipboard?.writeText(message.text).catch(() => {});
                         closeMessageActions();
                       }}
-                      className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
+                      className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
                     >
-                      <Copy className="h-3.5 w-3.5" /> Copy
+                      <Copy className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Copy</span>
                     </button>
                     {messages.find(item => item.id === deleteMenuMessageId)?.isMe && (
                       <>
@@ -942,9 +932,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                               }
                             }
                           }}
-                          className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
+                          className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
                         >
-                          <Pencil className="h-3.5 w-3.5" /> Edit
+                          <Pencil className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Edit</span>
                         </button>
                         <button
                           type="button"
@@ -953,12 +943,32 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                             closeMessageActions();
                             if (message) void handleDeleteMessage(message);
                           }}
-                          className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg text-[10px] text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-red-400"
+                          className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-red-400"
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                          <Trash2 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Delete</span>
                         </button>
                       </>
                     )}
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-6 items-center gap-1 rounded-xl bg-white/[0.06] px-1 py-0.5 sm:hidden">
+                    {MESSAGE_REACTIONS.map(({ emoji, label }) => {
+                      const selected = messages.find(item => item.id === deleteMenuMessageId)?.reactions?.[session.id] === emoji;
+                      return (
+                        <button
+                          key={emoji}
+                          type="button"
+                          aria-label={label}
+                          aria-pressed={selected}
+                          onClick={() => {
+                            if (deleteMenuMessageId) void handleReact(deleteMenuMessageId, emoji);
+                            closeMessageActions();
+                          }}
+                          className={`flex h-8 w-full items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-white/10 ${selected ? 'bg-red-500/25' : ''}`}
+                        >
+                          {emoji}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>,

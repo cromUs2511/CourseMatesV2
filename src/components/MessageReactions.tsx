@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Smile, X } from 'lucide-react';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
-export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start', showMobileReaction = false }: {
+export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start' }: {
   children: React.ReactNode;
   reactions?: Record<string, string>;
   sessionId: string;
@@ -11,7 +11,6 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
   actions?: React.ReactNode;
   onLongPress?: () => void;
   align?: 'start' | 'end';
-  showMobileReaction?: boolean;
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [pending, setPending] = useState(false);
@@ -100,26 +99,14 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           </div>
         )}
       </div>
-      <div className={`hidden min-h-8 w-max flex-nowrap items-center gap-0.5 overflow-hidden transition-opacity duration-150 sm:flex ${position ? 'opacity-100' : 'opacity-55 group-hover:opacity-100 group-focus-within:opacity-100'}`}>
+      <div className={`message-action-rail absolute top-1/2 z-20 -translate-y-1/2 items-center gap-0.5 rounded-full border border-stone-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur-md transition-[opacity,transform] duration-150 dark:border-stone-700/80 dark:bg-stone-900/90 ${align === 'end' ? 'right-full mr-1.5' : 'left-full ml-1.5'} ${position ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'}`}>
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
-        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[10px] text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
-        <Smile className="h-3.5 w-3.5" /> React
+        title="React"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
+        <Smile className="h-4 w-4" />
       </button>
       {actions}
       </div>
-      {showMobileReaction && (
-        <button
-          type="button"
-          aria-label="React to message"
-          aria-haspopup="dialog"
-          aria-expanded={Boolean(position)}
-          disabled={pending}
-          onClick={() => open()}
-          className="mt-0.5 flex min-h-6 items-center gap-1 rounded-full px-1.5 text-[10px] text-stone-500 sm:hidden dark:text-stone-400"
-        >
-          <Smile className="h-3 w-3" /> React
-        </button>
-      )}
     </div>
     {position && createPortal(<div className="reaction-picker-layer fixed inset-0 z-[100]" onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()}>
       <div className="reaction-picker-backdrop absolute inset-0 bg-black/10" onClick={() => setPosition(null)} />

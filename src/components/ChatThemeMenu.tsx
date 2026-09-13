@@ -57,7 +57,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
   }, [open]);
 
   return (
-    <div ref={menuRef} className={standalone ? 'relative block' : 'contents min-[768px]:relative min-[768px]:block'}>
+    <div ref={menuRef} className={standalone ? 'relative block' : 'contents min-[900px]:relative min-[900px]:block'}>
       <button
         type="button"
         aria-label="Choose chat color theme"
@@ -74,7 +74,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
           aria-label="Chat color themes"
           className={`${standalone
             ? 'fixed left-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-[calc(100vw-24px)] max-w-64 overflow-y-auto shadow-xl sm:absolute sm:left-0 sm:top-11 sm:w-64'
-            : 'order-last w-full min-[768px]:absolute min-[768px]:right-0 min-[768px]:top-11 min-[768px]:z-30 min-[768px]:max-h-[calc(100dvh-80px)] min-[768px]:w-64 min-[768px]:overflow-y-auto min-[768px]:shadow-xl'
+            : 'order-last w-full min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-11 min-[900px]:z-30 min-[900px]:max-h-[calc(100dvh-80px)] min-[900px]:w-64 min-[900px]:overflow-y-auto min-[900px]:shadow-xl'
           } rounded-xl border p-3 ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
           }`}

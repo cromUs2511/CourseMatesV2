@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
       }`}
     >
       <div className="w-full px-3 sm:px-5 lg:px-8">
-        <div id={conversation ? 'chat-header' : undefined} className="flex min-h-16 items-center gap-2.5 py-2">
+        <div id={conversation ? 'chat-header' : undefined} className={`flex min-h-16 items-center gap-2.5 py-2 ${conversation ? 'min-[768px]:grid min-[768px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]' : ''}`}>
           <div className={`${conversation ? 'hidden min-[768px]:block' : 'block'} min-w-0 flex-1`}>
             {conversation ? (
               <div className="flex items-center gap-2">
@@ -99,8 +99,9 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
           </div>
-          {conversation && <div className="min-w-0 flex-1 sm:flex sm:justify-center">{conversation}</div>}
-          <div ref={settingsRef} className="shrink-0 min-[768px]:relative">
+          {conversation && <div className="min-w-0 flex-1 text-center min-[768px]:flex-none min-[768px]:justify-self-center">{conversation}</div>}
+          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 min-[768px]:justify-self-end">
+            <div ref={settingsRef} className="shrink-0 min-[900px]:relative">
             {conversation && <button
               ref={settingsButtonRef}
               type="button"
@@ -108,12 +109,12 @@ export const Header: React.FC<HeaderProps> = ({
               aria-expanded={settingsOpen}
               aria-controls="header-settings"
               onClick={() => setSettingsOpen(value => !value)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[768px]:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[900px]:hidden"
             ><Settings2 className="h-4 w-4" /></button>}
           <div ref={settingsPanelRef} id="header-settings" className={conversation
-            ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-84px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[768px]:static min-[768px]:mt-0 min-[768px]:flex min-[768px]:w-auto min-[768px]:max-h-none min-[768px]:max-w-none min-[768px]:overflow-visible min-[768px]:flex-nowrap min-[768px]:rounded-none min-[768px]:border-0 min-[768px]:bg-transparent min-[768px]:p-0 min-[768px]:shadow-none min-[768px]:dark:bg-transparent`
+            ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-84px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[900px]:static min-[900px]:mt-0 min-[900px]:flex min-[900px]:w-auto min-[900px]:max-h-none min-[900px]:max-w-none min-[900px]:overflow-visible min-[900px]:flex-nowrap min-[900px]:rounded-none min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0 min-[900px]:shadow-none min-[900px]:dark:bg-transparent`
             : 'flex items-center gap-2 text-xs'}>
-            {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[768px]:hidden">Appearance &amp; account</p>}
+            {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[900px]:hidden">Appearance &amp; account</p>}
             {/* Dark / Light Theme Toggle */}
             {conversation && <ThemeToggle
               id="dark-mode-toggle-btn"
@@ -161,10 +162,11 @@ export const Header: React.FC<HeaderProps> = ({
 
               </div>
             )}
-            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[768px]:w-auto min-[768px]:flex-nowrap min-[768px]:border-t-0 min-[768px]:pt-0">{displayActions}</div>}
+            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[900px]:w-auto min-[900px]:flex-nowrap min-[900px]:border-t-0 min-[900px]:pt-0">{displayActions}</div>}
+            </div>
+            </div>
+            {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
           </div>
-          </div>
-          {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
         </div>
       </div>
       {isLogoutConfirmationOpen && createPortal(
