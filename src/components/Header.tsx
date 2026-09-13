@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LogOut, RefreshCw, Settings2, X } from 'lucide-react';
 import { StudentSession } from '../types';
 import { ThemeToggle } from './ThemeToggle';
@@ -67,9 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       id="main-header"
       className={`relative shrink-0 w-full z-40 transition-colors duration-150 border-b backdrop-blur-xl ${
-        conversation ? (isDarkMode ? 'bg-[#141312]/92 border-stone-800 text-stone-100' : 'bg-[#fffdfa]/92 border-stone-200 text-stone-900') : isDarkMode
-          ? 'bg-[#181716]/95 border-stone-800 text-stone-100 shadow-sm'
-          : 'bg-[#fffdfa]/95 border-stone-200 text-stone-900 shadow-sm'
+        conversation ? (isDarkMode ? 'bg-[#141312]/82 border-stone-800 text-stone-100' : 'bg-[#fffdfa]/82 border-stone-200 text-stone-900') : isDarkMode
+          ? 'bg-[#181716]/82 border-stone-800 text-stone-100 shadow-sm'
+          : 'bg-[#fffdfa]/82 border-stone-200 text-stone-900 shadow-sm'
       }`}
     >
       <div className="w-full px-3 sm:px-5 lg:px-8">
@@ -166,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
           {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
         </div>
       </div>
-      {isLogoutConfirmationOpen && (
+      {isLogoutConfirmationOpen && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4" role="presentation">
           <div role="dialog" aria-modal="true" aria-labelledby="logout-confirmation-title" className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-100' : 'border-stone-300 bg-white text-stone-900'
@@ -183,7 +184,8 @@ export const Header: React.FC<HeaderProps> = ({
               <button type="button" onClick={onLogout} className="rounded-lg bg-red-700 px-3 py-2 text-xs font-semibold text-white hover:bg-red-800">Log out</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.fullscreenElement || document.body,
       )}
     </header>
   );

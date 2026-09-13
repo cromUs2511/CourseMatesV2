@@ -1,5 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+test('main menu logout confirmation is centered in the viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 320 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.getByRole('button', { name: 'Disconnect and log out' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Log out?' });
+  await expect(dialog).toBeVisible();
+  const box = (await dialog.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(320);
+});
+
 test('main menu exposes light-dark and chat color controls together', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -13,6 +26,10 @@ test('main menu exposes light-dark and chat color controls together', async ({ p
   await page.getByRole('dialog', { name: 'Chat color themes' }).getByRole('button', { name: 'Ocean blue' }).click();
   await expect(colorsButton).toHaveAttribute('title', 'Chat theme: Ocean blue');
   await expect(page.locator('.ambient-grid')).toHaveCSS('background-color', 'rgb(242, 248, 252)');
+  await expect(page.getByRole('button', { name: 'Use a custom name' })).toHaveCSS('color', 'rgb(18, 103, 130)');
+  await expect(page.getByText('Community access')).toHaveCSS('color', 'rgb(18, 103, 130)');
+  await expect(page.locator('#main-header')).toHaveCSS('background-color', 'rgba(255, 253, 250, 0.82)');
+  await expect(page.locator('.ui-surface').first()).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.82)');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('coursemates_chat_theme'))).toBe('ocean');
 });
 

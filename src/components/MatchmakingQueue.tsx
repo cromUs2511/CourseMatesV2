@@ -229,7 +229,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     onClick={onRerollHandle}
                     disabled={isSearching}
                     title="Shuffle default name"
-                    className="rounded-lg p-1.5 border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-300 hover:border-[#991B1B] hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
+                    className="chat-theme-outline rounded-lg p-1.5 border border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/80 text-stone-500 dark:text-stone-300 transition-colors cursor-pointer shrink-0"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>}
@@ -237,7 +237,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     type="button"
                     onClick={() => { setNameInput(session.customHandle ? session.sessionHandle : ''); setIsEditingName(true); }}
                     disabled={isSearching}
-                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-[#991B1B] transition-colors hover:border-[#991B1B] hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                    className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
                   >
                     {session.customHandle ? 'Edit name' : 'Use a custom name'}
                   </button>
@@ -253,13 +253,13 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     placeholder="Enter a name"
                     className="w-44 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
                   />
-                  <button type="submit" className="rounded-md border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white hover:bg-[#7F1D1D]">Save</button>
+                  <button type="submit" className="chat-theme-accent-button rounded-md px-2.5 py-1 text-[10px] font-mono font-semibold text-white">Save</button>
                   <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] font-mono text-stone-500 dark:border-stone-700">Cancel</button>
                 </form>
               )}
 
               <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
-                <span className="text-[#991B1B] dark:text-[#F87171] font-semibold">
+                <span className="chat-theme-accent-text font-semibold">
                   {session.isVerified ? 'Verified account' : 'Community access'}
                 </span>
               </div>
@@ -316,7 +316,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
            {selectedInterests.length > 0 && (
              <div className="flex flex-wrap gap-2" aria-label="Selected interests">
                {selectedInterests.map(interest => (
-                 <span key={interest} className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-[#7F1D1D] dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                 <span key={interest} className="chat-theme-accent-soft inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold">
                    {interest}
                    <button
                      type="button"
@@ -348,7 +348,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <div className="text-[11px] text-stone-400 flex items-center justify-center space-x-1.5">
-                  <Shield className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#F87171]" />
+                  <Shield className="chat-theme-accent-text w-3.5 h-3.5" />
                   <span>Private rooms • Messages cleared when the chat ends</span>
                 </div>
               </div>

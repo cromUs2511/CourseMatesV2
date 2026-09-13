@@ -103,14 +103,30 @@
 
 .ui-surface {
   border: 1px solid rgb(214 211 209 / 0.9);
-  background: rgb(255 255 255 / 0.92);
+  background: rgb(255 255 255 / 0.82);
+  backdrop-filter: blur(16px) saturate(1.08);
   box-shadow: 0 18px 50px rgb(68 52 39 / 0.08), 0 2px 8px rgb(68 52 39 / 0.04);
 }
 
 .dark .ui-surface {
   border-color: rgb(68 64 60 / 0.9);
-  background: rgb(28 27 26 / 0.94);
+  background: rgb(28 27 26 / 0.82);
   box-shadow: 0 18px 50px rgb(0 0 0 / 0.24), 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.chat-theme-accent-text {
+  color: var(--chat-accent);
+}
+
+.chat-theme-accent-soft {
+  color: var(--chat-accent);
+  border-color: color-mix(in srgb, var(--chat-accent) 34%, transparent);
+  background-color: color-mix(in srgb, var(--chat-accent) 9%, transparent);
+}
+
+.chat-theme-accent-soft:hover:not(:disabled) {
+  border-color: var(--chat-accent);
+  background-color: color-mix(in srgb, var(--chat-accent) 15%, transparent);
 }
 
 /* Subtle clean scrollbars with sharp edges */
