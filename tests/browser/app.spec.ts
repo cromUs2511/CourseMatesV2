@@ -188,7 +188,8 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
   await signIn(page, 'voice-message');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await page.getByRole('button', { name: 'Record voice message' }).click();
+  await expect(page.getByRole('button', { name: 'Choose audio or use phone recorder' })).toBeVisible();
+  await page.getByRole('button', { name: 'Record with microphone' }).click();
   await expect(page.getByRole('button', { name: 'Stop voice recording' })).toBeVisible();
   await page.getByRole('button', { name: 'Stop voice recording' }).click();
   await expect(page.getByLabel('Voice message ready to send')).toBeVisible();

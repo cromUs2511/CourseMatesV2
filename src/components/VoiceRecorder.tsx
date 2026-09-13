@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, Mic, Square } from 'lucide-react';
-import { MAX_VOICE_BYTES, MAX_VOICE_DURATION_SECONDS, type VoiceUpload } from '../data/chatVoice';
+import { FileAudio, LoaderCircle, Mic, Square } from 'lucide-react';
+import { CHAT_VOICE_TYPES, MAX_VOICE_BYTES, MAX_VOICE_DURATION_SECONDS, type VoiceUpload } from '../data/chatVoice';
 
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const readDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
@@ -21,6 +21,7 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
   const [processing, setProcessing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef(0);
@@ -45,7 +46,7 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
   const start = async () => {
     if (disabled || hasVoice || recording || processing) return;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      onError('Voice messages require HTTPS or localhost and a browser with recording support.');
+      onError('Browser recording needs HTTPS and microphone permission. Use the audio-file button instead.');
       return;
     }
     try {
@@ -87,17 +88,59 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
       release();
       const name = (error as DOMException).name;
       onError(name === 'NotAllowedError' || name === 'SecurityError'
-        ? 'Microphone permission was not granted. Allow it in your browser’s site settings.'
-        : 'The microphone could not be opened. Close other apps using it and try again.');
+        ? 'Microphone access is blocked. Allow it in site settings, or use the audio-file button.'
+        : name === 'NotFoundError'
+          ? 'No microphone was found. Use the audio-file button to send a saved recording.'
+          : name === 'NotReadableError' || name === 'AbortError'
+            ? 'Your microphone is busy in another app. Close it there, or use the audio-file button.'
+            : 'This browser could not start recording. Use the audio-file button instead.');
     }
+  };
+
+  const chooseAudio = async (file?: File) => {
+    if (!file || disabled || hasVoice || recording || processing) return;
+    const extension = file.name.split('.').pop()?.toLocaleLowerCase();
+    const extensionType: Record<string, string> = { m4a: 'audio/mp4', mp4: 'audio/mp4', mp3: 'audio/mpeg', ogg: 'audio/ogg', oga: 'audio/ogg', webm: 'audio/webm' };
+    const mimeType = file.type === 'audio/x-m4a' ? 'audio/mp4'
+      : file.type === 'audio/mp3' ? 'audio/mpeg'
+      : file.type.split(';')[0] || extensionType[extension || ''];
+    if (!CHAT_VOICE_TYPES.includes(mimeType)) { onError('Choose a WebM, M4A, MP4, OGG, or MP3 audio file.'); return; }
+    if (!file.size || file.size > MAX_VOICE_BYTES) { onError('Choose an audio file smaller than 2 MB.'); return; }
+    setProcessing(true);
+    onError('');
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const duration = await new Promise<number>((resolve, reject) => {
+        const audio = document.createElement('audio');
+        const timeout = window.setTimeout(() => reject(new Error('The audio duration could not be read. Choose another file.')), 10000);
+        audio.preload = 'metadata';
+        audio.onloadedmetadata = () => { clearTimeout(timeout); resolve(audio.duration); };
+        audio.onerror = () => { clearTimeout(timeout); reject(new Error('This audio file could not be opened.')); };
+        audio.src = objectUrl;
+      });
+      if (!Number.isFinite(duration) || duration <= 0) throw new Error('The audio duration could not be read. Choose another file.');
+      if (duration > MAX_VOICE_DURATION_SECONDS + .25) throw new Error('Voice messages can be up to 3 minutes long.');
+      const normalized = file.type === mimeType ? file : new File([file], file.name, { type: mimeType });
+      onChange({ dataUrl: await readDataUrl(normalized), duration: Math.max(1, Math.ceil(duration)) });
+    } catch (error) { onError((error as Error).message); }
+    finally { URL.revokeObjectURL(objectUrl); if (mountedRef.current) setProcessing(false); }
   };
 
   if (recording) return <button type="button" onClick={stop} className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-red-600 px-3 text-xs font-semibold text-white" aria-label="Stop voice recording">
     <Square className="h-3.5 w-3.5 fill-current" /> {formatDuration(elapsed)} / 3:00
   </button>;
-  return <button type="button" onClick={() => void start()} disabled={disabled || hasVoice || processing}
-    className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
-    aria-label={processing ? 'Preparing voice message' : 'Record voice message'} title="Record voice message">
-    {processing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-  </button>;
+  return <div className="flex shrink-0 items-center gap-1">
+    <input ref={fileInputRef} type="file" accept="audio/webm,audio/mp4,audio/ogg,audio/mpeg,.m4a,.mp3" className="hidden" aria-label="Choose an audio recording"
+      onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void chooseAudio(file); }} />
+    <button type="button" onClick={() => void start()} disabled={disabled || hasVoice || processing}
+      className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+      aria-label="Record with microphone" title="Record with microphone">
+      <Mic className="h-4 w-4" />
+    </button>
+    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled || hasVoice || processing}
+      className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+      aria-label={processing ? 'Preparing audio file' : 'Choose audio or use phone recorder'} title="Choose audio or use phone recorder">
+      {processing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileAudio className="h-4 w-4" />}
+    </button>
+  </div>;
 }
