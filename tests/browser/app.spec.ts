@@ -173,7 +173,9 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
       ondataavailable: ((event: { data: Blob }) => void) | null = null;
       onstop: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      constructor(_stream: unknown, _options: unknown) {}
+      constructor(_stream: unknown, options: any) {
+        if (options?.audioBitsPerSecond) throw new DOMException('Unsupported mobile bitrate', 'NotSupportedError');
+      }
       start() { this.state = 'recording'; }
       stop() {
         this.state = 'inactive';

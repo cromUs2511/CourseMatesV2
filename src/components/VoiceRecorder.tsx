@@ -51,11 +51,27 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
     }
     try {
       onError('');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-      const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32000 });
-      const chunks: Blob[] = [];
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      } catch (error) {
+        const name = (error as DOMException).name;
+        if (name !== 'OverconstrainedError' && name !== 'TypeError') throw error;
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
+      const canCheckType = typeof MediaRecorder.isTypeSupported === 'function';
+      const mimeType = canCheckType
+        ? ['audio/webm;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type))
+        : undefined;
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32000 });
+      } catch {
+        try { recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined); }
+        catch { recorder = new MediaRecorder(stream); }
+      }
+      const chunks: Blob[] = [];
       recorderRef.current = recorder;
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
       recorder.onerror = () => { onError('Recording failed. Please try again.'); release(); setRecording(false); onRecordingChange(false); };
@@ -75,10 +91,10 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
         finally { if (mountedRef.current) setProcessing(false); }
       };
       startedAtRef.current = Date.now();
+      recorder.start(1000);
       setElapsed(0);
       setRecording(true);
       onRecordingChange(true);
-      recorder.start(1000);
       timerRef.current = setInterval(() => {
         const seconds = Math.floor((Date.now() - startedAtRef.current) / 1000);
         setElapsed(Math.min(seconds, MAX_VOICE_DURATION_SECONDS));
@@ -86,6 +102,10 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
       }, 250);
     } catch (error) {
       release();
+      recorderRef.current = null;
+      setRecording(false);
+      setProcessing(false);
+      onRecordingChange(false);
       const name = (error as DOMException).name;
       onError(name === 'NotAllowedError' || name === 'SecurityError'
         ? 'Microphone access is blocked. Allow it in site settings, or use the audio-file button.'
@@ -105,7 +125,7 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
       : file.type === 'audio/mp3' ? 'audio/mpeg'
       : file.type.split(';')[0] || extensionType[extension || ''];
     if (!CHAT_VOICE_TYPES.includes(mimeType)) { onError('Choose a WebM, M4A, MP4, OGG, or MP3 audio file.'); return; }
-    if (!file.size || file.size > MAX_VOICE_BYTES) { onError('Choose an audio file smaller than 2 MB.'); return; }
+    if (!file.size || file.size > MAX_VOICE_BYTES) { onError('Choose an audio file smaller than 4 MB.'); return; }
     setProcessing(true);
     onError('');
     const objectUrl = URL.createObjectURL(file);

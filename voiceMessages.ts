@@ -7,7 +7,7 @@ export function parseVoice(value: unknown): StoredVoice | undefined {
   if (value === undefined || value === null) return undefined;
   const voice = value as Record<string, unknown>;
   if (!voice || typeof voice.dataUrl !== 'string' || voice.dataUrl.length > Math.ceil(MAX_VOICE_BYTES / 3) * 4 + 80) {
-    throw new Error('Voice messages must be 2 MB or smaller.');
+    throw new Error('Voice messages must be 4 MB or smaller.');
   }
   const match = /^data:(audio\/(?:webm|mp4|ogg|mpeg))(?:;codecs=[^;,]+)?;base64,([A-Za-z0-9+/]+={0,2})$/.exec(voice.dataUrl);
   if (!match || !CHAT_VOICE_TYPES.includes(match[1])) throw new Error('This voice recording format is not supported.');

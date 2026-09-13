@@ -1034,8 +1034,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               }}
               className={`flex items-center space-x-2 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
-              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
-              {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
+              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId || !!pendingVoice} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
+              {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages || pendingImages.length > 0} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
               <input
                 ref={inputRef}
                 id="chat-message-input"
