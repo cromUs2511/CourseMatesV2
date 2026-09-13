@@ -4,7 +4,7 @@ async function signIn(page: Page, _name: string) {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 }
 
 async function send(page: Page, text: string) {

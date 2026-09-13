@@ -2,6 +2,26 @@
 
 Anonymous study matching, built with React, Vite, Express and WebSockets.
 
+## Current experience
+
+- Responsive desktop and mobile layouts with a compact chat header. Long peer
+  names remain readable, and the active topic is shown directly below the
+  name.
+- Light and dark appearance modes with reduced-motion support.
+- Fifteen selectable chat color themes, including Crimson, Ocean, Forest,
+  Violet, Sunset, Rose, Amber, Slate, Neon Cyan, Electric Blue, Neon
+  Magenta, Deep Teal, Cyber Gold, Indigo, and Graphite.
+- The selected theme is applied consistently to chat controls, status badges,
+  search progress, matchmaking actions, interest controls, music controls,
+  and the mobile/desktop chat UI.
+- Anonymous peer matching with optional interests, private rooms, rerollable
+  handles, and a clearly labelled Student Chatbot Assistant simulation while
+  waiting for a match.
+- Chat controls for sound, ambient effects, music search/playback, fullscreen,
+  photo attachments, replies, reactions, and conversation starters.
+- The normal peer state does not display a redundant `CONNECTED` badge; the
+  header only shows meaningful states such as `AI` or `LEFT`.
+
 ## Run locally
 
 Requires Node.js 22.14 or newer.
@@ -11,6 +31,11 @@ Requires Node.js 22.14 or newer.
 3. Run `npm run dev`, then open http://localhost:3000.
 
 Local development enables clearly labelled demo access by default. Enter a valid email or use the Gmail quick-fill button; this does **not** verify email ownership. Open two independent browser profiles/private sessions to test real matching, or choose the simulated partner while waiting.
+
+After signing in, choose an optional interest and select **Find my peers**.
+While searching, the progress indicator and chatbot fallback use the selected
+chat theme. In a chat, use the palette button to change the theme; the change
+is persisted locally and updates both the conversation and its controls.
 
 ## Production
 

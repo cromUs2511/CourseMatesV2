@@ -132,6 +132,10 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
     };
 
     const animate = () => {
+      if (document.documentElement.classList.contains('media-dialog-open')) {
+        frame = window.requestAnimationFrame(animate);
+        return;
+      }
       context.clearRect(0, 0, width, height);
       if (Math.random() < 0.006 && webs.length < 5) {
         webs.push(makeWeb(Math.random() * width * 1.5 - width * 0.25, Math.random() * height * 1.5 - height * 0.25));

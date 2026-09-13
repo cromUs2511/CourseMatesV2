@@ -7,12 +7,14 @@ import type { RoomMusicState, StudentSession } from './src/types';
 import { MESSAGE_REACTIONS } from './src/data/reactions';
 import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImages';
 import type { ChatImage } from './src/data/chatImages';
+import { parseVoice, type StoredVoice } from './voiceMessages';
+import type { ChatVoice } from './src/data/chatVoice';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
-type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string }; edited?: boolean };
+type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; allowNormal: boolean; ws?: WebSocket; lastSeen: number };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; voice?: ChatVoice; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string }; edited?: boolean };
 type RoomMusic = RoomMusicState;
-type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; imageBytes: number; typing: Map<string, number>; revision: number; music?: RoomMusic };
+type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; voices: Map<string, StoredVoice>; mediaBytes: number; typing: Map<string, number>; revision: number; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
 const rooms = new Map<string, Room>();
@@ -43,6 +45,25 @@ export function issueSession(email: string, profile: any = {}, verified = false)
 }
 function cleanInterests(value: unknown): string[] {
   return Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === 'string').map(v => v.trim().slice(0, 100)).filter(Boolean))].slice(0, 16) : ['General Peer Discovery'];
+}
+const GENERIC_INTEREST = 'general peer discovery';
+const INTEREST_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'i', 'in', 'into', 'like', 'love', 'my', 'of', 'on', 'or', 'the', 'to', 'with']);
+function interestWords(interests: string[]): Set<string> {
+  return new Set(interests
+    .filter(interest => interest.toLocaleLowerCase() !== GENERIC_INTEREST)
+    .flatMap(interest => interest.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+    .filter(word => word.length > 1 && !INTEREST_STOP_WORDS.has(word)));
+}
+function sharedInterest(a: Participant, b: Participant): { score: number; topic?: string } {
+  const aWords = interestWords(a.interests);
+  const bWords = interestWords(b.interests);
+  const sharedWords = [...aWords].filter(word => bWords.has(word));
+  if (!sharedWords.length) return { score: 0 };
+
+  const normalizedB = new Set(b.interests.map(interest => interest.trim().toLocaleLowerCase()));
+  const exact = a.interests.find(interest => interest.toLocaleLowerCase() !== GENERIC_INTEREST && normalizedB.has(interest.trim().toLocaleLowerCase()));
+  const topic = exact || sharedWords[0].replace(/(^|\s)\S/g, letter => letter.toLocaleUpperCase());
+  return { score: sharedWords.length + (exact ? 100 : 0), topic };
 }
 function validSession(token: unknown) {
   const session = typeof token === 'string' ? sessions.get(token) : undefined;
@@ -80,7 +101,8 @@ function leave(id: string) {
   }
   room.messages.length = 0;
   room.images.clear();
-  room.imageBytes = 0;
+  room.voices.clear();
+  room.mediaBytes = 0;
   rooms.delete(room.id);
 }
 function join(session: Identity, data: any, ws?: WebSocket) {
@@ -89,7 +111,9 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   const participant: Participant = {
     id: session.id, handle: session.sessionHandle, avatar: session.sessionAvatar,
     campus: session.campus, discipline: session.discipline,
-    interests: cleanInterests(data.interests), ws, lastSeen: Date.now(),
+    interests: cleanInterests(data.interests),
+    allowNormal: data.allowNormal === true || cleanInterests(data.interests).every(interest => interest.toLocaleLowerCase() === GENERIC_INTEREST),
+    ws, lastSeen: Date.now(),
   };
   // A repeated join updates one queue entry; it cannot match with itself.
   queue.delete(session.id);
@@ -107,16 +131,21 @@ function join(session: Identity, data: any, ws?: WebSocket) {
     const queuedSession = [...sessions.values()].find(candidate => candidate.id === p.id);
     return queuedSession?.isVerified === session.isVerified;
   });
-  const peer = sameVerification.find(p => p.interests.some(i => participant.interests.includes(i))) || sameVerification[0];
+  const rankedInterestMatches = sameVerification
+    .map(peer => ({ peer, match: sharedInterest(participant, peer) }))
+    .filter(candidate => candidate.match.score > 0)
+    .sort((a, b) => b.match.score - a.match.score);
+  const interestMatch = rankedInterestMatches[0];
+  const peer = interestMatch?.peer || (participant.allowNormal ? sameVerification.find(candidate => candidate.allowNormal) : undefined);
   if (!peer) {
     queue.set(session.id, participant);
-    return { status: 'queued', position: queue.size };
+    return { status: 'queued', position: queue.size, interestMatchUnavailable: interestWords(participant.interests).size > 0 && !participant.allowNormal };
   }
   queue.delete(peer.id);
   const room: Room = {
     id: crypto.randomUUID(), peers: [peer, participant],
-    topic: participant.interests.find(i => peer.interests.includes(i)) || participant.interests[0] || 'General Peer Discovery',
-    messages: [], images: new Map(), imageBytes: 0, typing: new Map(), revision: 0,
+    topic: interestMatch?.match.topic || 'General Peer Discovery',
+    messages: [], images: new Map(), voices: new Map(), mediaBytes: 0, typing: new Map(), revision: 0,
   };
   rooms.set(room.id, room);
   for (const p of room.peers) matches.set(p.id, room.id);
@@ -135,9 +164,11 @@ function send(session: Identity, room: Room, data: any) {
   const duplicate = room.messages.find(m => m.id === id && m.senderId === session.id);
   if (duplicate) return duplicate;
   const images = parseImages(data.images);
-  if (!data.text.trim() && !images.length) throw new Error('Write a message or attach a photo.');
+  const voice = parseVoice(data.voice);
+  if (!data.text.trim() && !images.length && !voice) throw new Error('Write a message or attach media.');
   const imageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
-  if (room.imageBytes + imageBytes > MAX_ROOM_IMAGE_BYTES) throw new Error('This chat has reached its photo limit. Delete some of your earlier photos before sending more.');
+  const addedMediaBytes = imageBytes + (voice?.bytes.length || 0);
+  if (room.mediaBytes + addedMediaBytes > MAX_ROOM_IMAGE_BYTES) throw new Error('This chat has reached its media limit. Delete earlier attachments before sending more.');
   let replyTo: Message['replyTo'];
   if (data.replyTo !== undefined) {
     if (!data.replyTo || typeof data.replyTo.id !== 'string') throw new Error('Reply source not found.');
@@ -154,19 +185,26 @@ function send(session: Identity, room: Room, data: any) {
     text: data.text.trim(), timestamp: Date.now(), type: 'text',
     ...(images.length ? { images: images.map(({ id: imageId, name, width, height }) => ({ id: imageId, name, width, height,
       url: '/api/chat/images/' + [room.id, id, imageId].map(encodeURIComponent).join('/') })) } : {}),
+    ...(voice ? { voice: { id: voice.id, duration: voice.duration, mimeType: voice.mimeType,
+      url: '/api/chat/voice/' + [room.id, id, voice.id].map(encodeURIComponent).join('/') } } : {}),
     replyTo,
   };
   room.messages.push(message);
   room.revision += 1;
-  if (images.length) { room.images.set(id, images); room.imageBytes += imageBytes; }
-  if (room.messages.length > 500) clearMessageImages(room, room.messages.shift()!.id);
+  if (images.length) room.images.set(id, images);
+  if (voice) room.voices.set(id, voice);
+  room.mediaBytes += addedMediaBytes;
+  if (room.messages.length > 500) clearMessageMedia(room, room.messages.shift()!.id);
   room.typing.delete(session.id);
   for (const peer of room.peers) notify(peer.ws, { type: 'new_message', roomId: room.id, revision: room.revision, message });
   return message;
 }
-function clearMessageImages(room: Room, messageId: string) {
-  for (const image of room.images.get(messageId) || []) room.imageBytes -= image.bytes.length;
+function clearMessageMedia(room: Room, messageId: string) {
+  for (const image of room.images.get(messageId) || []) room.mediaBytes -= image.bytes.length;
+  const voice = room.voices.get(messageId);
+  if (voice) room.mediaBytes -= voice.bytes.length;
   room.images.delete(messageId);
+  room.voices.delete(messageId);
 }
 function removeMessage(session: Identity, room: Room, messageId: unknown) {
   if (typeof messageId !== 'string') throw new Error('Invalid message.');
@@ -174,8 +212,9 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   if (index < 0) throw new Error('Message not found.');
   if (room.messages[index].senderId !== session.id) throw new Error('You can only delete your own messages.');
   const message = room.messages[index];
-  clearMessageImages(room, messageId);
+  clearMessageMedia(room, messageId);
   message.images = undefined;
+  message.voice = undefined;
   message.reactions = undefined;
   message.replyTo = undefined;
   message.type = 'system';
@@ -254,7 +293,11 @@ export function attachRuntime(app: Express, server: Server) {
     const session = authenticate(req)!;
     const queued = queue.get(session.id);
     if (queued) queued.lastSeen = Date.now();
-    res.json(matchResult(session.id) || { status: queued ? 'queued' : 'idle', position: queued ? [...queue.keys()].indexOf(session.id) + 1 : 0 });
+    res.json(matchResult(session.id) || {
+      status: queued ? 'queued' : 'idle',
+      position: queued ? [...queue.keys()].indexOf(session.id) + 1 : 0,
+      interestMatchUnavailable: !!queued && interestWords(queued.interests).size > 0 && !queued.allowNormal,
+    });
   });
   app.post('/api/match/cancel', (req, res) => {
     leave(authenticate(req)!.id);
@@ -274,6 +317,14 @@ export function attachRuntime(app: Express, server: Server) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if (!image) return res.status(404).json({ error: 'This photo is no longer available.' });
     res.type(image.mimeType).send(image.bytes);
+  });
+  app.get('/api/chat/voice/:roomId/:messageId/:voiceId', (req, res) => {
+    const room = requireRoom(authenticate(req)!, req.params.roomId);
+    const voice = room?.voices.get(req.params.messageId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (!voice || voice.id !== req.params.voiceId) return res.status(404).json({ error: 'This voice message is no longer available.' });
+    res.type(voice.mimeType).send(voice.bytes);
   });
   app.post('/api/chat/react', (req, res) => {
     const session = authenticate(req); if (!session) return res.status(401).json({ error: 'Sign in again.' });

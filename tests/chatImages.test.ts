@@ -4,10 +4,15 @@ import express from 'express';
 import http from 'node:http';
 import { attachRuntime, issueSession } from '../runtime';
 import { parseImages } from '../chatImages';
+import { parseVoice } from '../voiceMessages';
 import { CHAT_SEND_BODY_LIMIT } from '../src/data/chatImages';
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const photo = { name: 'Notes.png', dataUrl: 'data:image/png;base64,' + png, width: 1, height: 1 };
+const gifBytes = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+const gif = { name: 'Reaction.gif', dataUrl: 'data:image/gif;base64,' + gifBytes.toString('base64'), width: 1, height: 1 };
+const voiceBytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02, 0x03]);
+const voice = { dataUrl: 'data:audio/webm;base64,' + voiceBytes.toString('base64'), duration: 12 };
 const app = express();
 app.use(express.json({ limit: CHAT_SEND_BODY_LIMIT }));
 const server = http.createServer(app);
@@ -27,11 +32,41 @@ async function request(path: string, session?: ReturnType<typeof identity>, body
 
 test('photo validation rejects unsupported, spoofed, oversized, and malformed uploads', () => {
   assert.equal(parseImages([photo])[0].bytes.toString('base64'), png);
+  assert.equal(parseImages([gif])[0].mimeType, 'image/gif');
   for (const images of [null, {}, Array(5).fill(photo), [{ ...photo, dataUrl: 'data:image/svg+xml;base64,PHN2Zz4=' }],
     [{ ...photo, dataUrl: 'data:image/jpeg;base64,' + png }], [{ ...photo, dataUrl: 'data:image/png;base64,SGVsbG8=' }],
     [{ ...photo, dataUrl: 'data:image/png;base64,' + 'a'.repeat(1500000) }], [{ ...photo, width: 1601 }], [{ ...photo, height: -1 }]]) {
     assert.throws(() => parseImages(images));
   }
+});
+
+test('voice validation enforces supported audio and the three-minute limit', () => {
+  assert.equal(parseVoice(voice)?.duration, 12);
+  for (const invalid of [{ ...voice, duration: 181 }, { ...voice, duration: .5 }, { ...voice, dataUrl: 'data:audio/webm;base64,SGVsbG8=' },
+    { ...voice, dataUrl: 'data:audio/mpeg;base64,' + voiceBytes.toString('base64') }]) assert.throws(() => parseVoice(invalid));
+});
+
+test('voice messages are private, playable by both peers, and purged with the message', async () => {
+  const a = identity(), b = identity(), outsider = identity();
+  await request('/api/match/join', a, {});
+  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  try {
+    const response = await request('/api/chat/send', a, { roomId, text: '', voice, clientMessageId: 'voice-message' });
+    assert.equal(response.status, 200);
+    const { message } = await response.json();
+    assert.equal(message.voice.duration, 12);
+    assert.equal(JSON.stringify(message).includes(voiceBytes.toString('base64')), false);
+    assert.equal((await request(message.voice.url)).status, 401);
+    assert.equal((await request(message.voice.url, outsider)).status, 404);
+    for (const peer of [a, b]) {
+      const audio = await request(message.voice.url, peer);
+      assert.equal(audio.status, 200);
+      assert.equal(audio.headers.get('content-type'), 'audio/webm');
+      assert.deepEqual(Buffer.from(await audio.arrayBuffer()), voiceBytes);
+    }
+    await request('/api/chat/delete', a, { roomId, messageId: message.id });
+    assert.equal((await request(message.voice.url, b)).status, 404);
+  } finally { await request('/api/match/cancel', a, {}); }
 });
 
 test('photo-only messages are private, retry-safe, available to both peers and purged on delete or leave', async () => {

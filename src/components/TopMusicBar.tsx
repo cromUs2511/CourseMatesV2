@@ -416,10 +416,12 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         role="group"
         aria-label="Study music controls"
         data-playing={playbackActive}
-        style={playbackActive ? {
+        style={{
           borderColor: `${accent}99`,
-          boxShadow: `0 0 0 1px ${accent}55, 0 0 18px 2px ${accent}99`,
-        } : undefined}
+          ...(playbackActive ? {
+            boxShadow: `0 0 0 1px ${accent}55, 0 0 18px 2px ${accent}99`,
+          } : {}),
+        }}
         className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none ${
           playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
         } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}

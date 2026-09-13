@@ -138,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
             {session && (
               <div className={conversation ? 'order-first w-full border-b border-stone-200 pb-3 dark:border-stone-700 min-[768px]:hidden' : 'flex items-center space-x-2 pl-1 sm:pl-2 border-l border-stone-200 dark:border-stone-800'}>
                 <div
-                  className={`flex items-center space-x-2 px-2.5 py-1.5 border rounded-lg text-xs font-mono shadow-sm ${
+                  className={`flex items-center space-x-2 px-2.5 py-1.5 border rounded-lg text-xs shadow-sm ${
                     isDarkMode
                       ? 'bg-stone-900 border-stone-700 text-stone-200'
                       : 'bg-white border-stone-200 text-stone-800'
@@ -165,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
             {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[900px]:w-auto min-[900px]:flex-nowrap min-[900px]:border-t-0 min-[900px]:pt-0">{displayActions}</div>}
             </div>
             </div>
-            {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
+            {chatActions && <div className="chat-actions flex shrink-0 items-center gap-1.5">{chatActions}</div>}
           </div>
         </div>
       </div>

@@ -5,7 +5,7 @@ async function signIn(page: Page, _name: string) {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 }
 async function demo(page: Page, name: string) {
   await signIn(page, name);
@@ -62,6 +62,9 @@ for (const fallback of [false, true]) test(`photos preview, retry, arrive once a
     await expect(a.getByRole('img', { name: 'Preview of Study notes.png' })).toHaveCount(0);
     await b.getByRole('button', { name: 'View photo Study notes.png' }).click();
     await expect(b.getByRole('dialog', { name: 'Photo', exact: true })).toBeVisible();
+    await b.getByRole('button', { name: 'Zoom in' }).click();
+    await expect(b.getByText('150%', { exact: true })).toBeVisible();
+    await a.getByRole('img', { name: 'Study notes.png', exact: true }).hover();
     await a.getByRole('button', { name: 'More message actions' }).click();
     await a.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(b.getByRole('dialog', { name: 'Photo', exact: true })).toHaveCount(0);
@@ -91,7 +94,7 @@ test('mobile attachments validate, remove, and request camera permission only on
   await page.getByRole('button', { name: 'Remove photo Study notes.png' }).click();
   await expect(page.locator('#send-message-btn')).toBeDisabled();
   await page.getByLabel('Choose photos to attach').setInputFiles({ name: 'bad.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') });
-  await expect(page.getByRole('alert')).toHaveText('Choose a JPEG, PNG, or WebP photo.');
+  await expect(page.getByRole('alert')).toHaveText('Choose a JPEG, PNG, WebP, or GIF image.');
   await page.getByRole('button', { name: 'Attach photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Camera permission was not granted');

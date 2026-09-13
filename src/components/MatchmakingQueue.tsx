@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Bot, ArrowRight, Shield, X } from 'lucide-react';
+import { RefreshCw, Loader2, Bot, ArrowRight, Shield } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -8,6 +8,13 @@ import type { ChatTheme } from './ChatThemeMenu';
 
 const MATCH_POLL_INTERVAL_MS = 400;
 const MATCH_SOCKET_TIMEOUT_MS = 1500;
+const CHAT_INTENTS = [
+  { label: 'Study together', description: 'Focus and work alongside a peer' },
+  { label: 'Ask for help', description: 'Get support with a question or topic' },
+  { label: 'Casual conversation', description: 'Have a relaxed, friendly chat' },
+  { label: 'Vent anonymously', description: 'Talk freely in a private space' },
+  { label: 'Surprise me', description: 'Match with any available peer' },
+] as const;
 
 interface MatchmakingQueueProps {
   session: StudentSession;
@@ -33,12 +40,14 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const [error, setError] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(session.customHandle ? session.sessionHandle : '');
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [customInterestInput, setCustomInterestInput] = useState('');
+  const [selectedIntent, setSelectedIntent] = useState<string>('Surprise me');
+  const [canProceedNormally, setCanProceedNormally] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
   const searchingRef = useRef(false);
   const isMatchedRef = useRef(false);
+  const allowNormalRef = useRef(false);
+  const matchingInterestsRef = useRef<string[]>([]);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const showSimulateOption = isSearching && queueTime >= 3;
 
@@ -82,7 +91,11 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
   const startMatchmaking = () => {
     if (searchingRef.current) return;
+    const interestsToMatch = selectedIntent === 'Surprise me' ? [] : [selectedIntent];
     setError('');
+    setCanProceedNormally(false);
+    matchingInterestsRef.current = interestsToMatch;
+    allowNormalRef.current = selectedIntent === 'Surprise me';
     setIsSearching(true);
     searchingRef.current = true;
     isMatchedRef.current = false;
@@ -106,6 +119,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         const data = await apiRequest('/api/match/poll', session.token);
         if (!current()) return;
         if (data.status === 'matched') handleMatchSuccess(data);
+        else if (data.status === 'queued') setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
         else if (data.status === 'idle') fail(new Error('Your queue entry expired. Please try again.'));
       } catch (err) { fail(err); }
       finally { busy = false; }
@@ -115,7 +129,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       polling = true;
       closeSocket();
       try {
-        const data = await apiRequest('/api/match/join', session.token, { interests: selectedInterests });
+        const data = await apiRequest('/api/match/join', session.token, { interests: interestsToMatch, allowNormal: allowNormalRef.current });
         if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
         if (data.status === 'matched') handleMatchSuccess(data);
         else {
@@ -131,7 +145,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
         if (!current()) { closeSocket(); return; }
-        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: selectedInterests }));
+        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: interestsToMatch, allowNormal: allowNormalRef.current }));
         // Poll the same state as the socket; this also keeps the queue lease alive.
         void poll();
         pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
@@ -141,6 +155,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'matched') handleMatchSuccess(data);
+          else if (data.type === 'queued') setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
           else if (data.type === 'error') fail(new Error(data.error));
         } catch { fail(new Error('Invalid matchmaking response.')); }
       };
@@ -151,6 +166,25 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         else void fallback();
       };
     } catch { void fallback(); }
+  };
+  const proceedWithNormalMatching = async () => {
+    if (!searchingRef.current || allowNormalRef.current) return;
+    allowNormalRef.current = true;
+    setCanProceedNormally(false);
+    setError('');
+    try {
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: matchingInterestsRef.current, allowNormal: true }));
+        return;
+      }
+      const data = await apiRequest('/api/match/join', session.token, { interests: matchingInterestsRef.current, allowNormal: true });
+      if (data.status === 'matched') handleMatchSuccess(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to continue matching. Please try again.');
+      allowNormalRef.current = false;
+      setCanProceedNormally(true);
+    }
   };
   const cancelMatchmaking = async () => {
     ++attemptRef.current;
@@ -165,7 +199,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     await cancelMatchmaking();
     isMatchedRef.current = true;
     const randomPeer = SIMULATED_PEERS[Math.floor(Math.random() * SIMULATED_PEERS.length)];
-    const primaryTopic = selectedInterests[0] || 'Engineering Review';
+    const primaryTopic = matchingInterestsRef.current[0] || 'General Peer Discovery';
     onMatched({
       ...randomPeer, sessionId: 'sim_' + Date.now(), topic: primaryTopic,
       matchedAt: Date.now(), isSimulated: true,
@@ -177,16 +211,6 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     return () => clearTimeout(timer);
   }, [autoSearch]);
 
-  const handleAddInterest = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = customInterestInput.trim();
-    if (!val || isSearching || val.length > 100 || selectedInterests.length >= 16) return;
-
-    if (!selectedInterests.includes(val)) {
-      setSelectedInterests((prev) => [...prev, val]);
-    }
-    setCustomInterestInput('');
-  };
   const saveName = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!nameInput.trim() || isSearching) return;
@@ -229,9 +253,9 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     onClick={onRerollHandle}
                     disabled={isSearching}
                     title="Shuffle default name"
-                    className="chat-theme-outline rounded-lg p-1.5 border border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/80 text-stone-500 dark:text-stone-300 transition-colors cursor-pointer shrink-0"
+                    className="chat-theme-accent-soft rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
                   </button>}
                   <button
                     type="button"
@@ -253,8 +277,8 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     placeholder="Enter a name"
                     className="w-44 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
                   />
-                  <button type="submit" className="chat-theme-accent-button rounded-md px-2.5 py-1 text-[10px] font-mono font-semibold text-white">Save</button>
-                  <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] font-mono text-stone-500 dark:border-stone-700">Cancel</button>
+                  <button type="submit" className="chat-theme-accent-button rounded-md px-2.5 py-1 text-[10px] font-semibold text-white">Save</button>
+                  <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] text-stone-500 dark:border-stone-700">Cancel</button>
                 </form>
               )}
 
@@ -276,7 +300,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
         </div>
 
-        {/* Main Interest / Topic Selection Card */}
+        {/* Main chat intent selection card */}
         <div
           className={`ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
             isDarkMode
@@ -285,52 +309,34 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           }`}
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
-           <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">Add an interest</h2>
+           <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">What kind of chat do you want?</h2>
            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-             Optional: add something you'd like to discuss
+             We’ll prioritize someone looking for the same kind of conversation.
            </p>
           </div>
 
-          <div className="space-y-3">
-           <form onSubmit={handleAddInterest} className="flex gap-2">
-             <input
-               type="text"
-               maxLength={100}
-               aria-label="Add an interest"
-               value={customInterestInput}
-               onChange={(e) => setCustomInterestInput(e.target.value)}
-               placeholder="Type an interest (optional)"
-               disabled={isSearching}
-               className={`min-w-0 flex-1 rounded-xl px-4 py-3 border text-sm focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-red-900/10 ${
-                 isDarkMode ? 'bg-stone-900 border-stone-700 text-white placeholder:text-stone-500' : 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400'
-               }`}
-             />
-             <button
-               type="submit"
-               disabled={isSearching || !customInterestInput.trim()}
-               className="chat-theme-accent-button rounded-xl px-5 py-3 text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-             >
-               Add
-             </button>
-           </form>
-           {selectedInterests.length > 0 && (
-             <div className="flex flex-wrap gap-2" aria-label="Selected interests">
-               {selectedInterests.map(interest => (
-                 <span key={interest} className="chat-theme-accent-soft inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold">
-                   {interest}
-                   <button
-                     type="button"
-                     disabled={isSearching}
-                     onClick={() => setSelectedInterests(current => current.filter(value => value !== interest))}
-                     aria-label={`Remove interest ${interest}`}
-                     className="rounded-full p-0.5 hover:bg-red-200/70 disabled:opacity-40 dark:hover:bg-red-900/60"
-                   >
-                     <X className="h-3 w-3" />
-                   </button>
-                 </span>
-               ))}
-             </div>
-           )}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Chat preference">
+            {CHAT_INTENTS.map(intent => {
+              const selected = selectedIntent === intent.label;
+              return (
+                <button
+                  key={intent.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={isSearching}
+                  onClick={() => setSelectedIntent(intent.label)}
+                  className={`rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    selected
+                      ? 'chat-theme-accent-soft border-current'
+                      : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
+                  } ${intent.label === 'Surprise me' ? 'sm:col-span-2' : ''}`}
+                >
+                  <span className="block text-sm font-bold">{intent.label}</span>
+                  <span className="mt-0.5 block text-xs font-normal opacity-70">{intent.description}</span>
+                </button>
+              );
+            })}
           </div>
 
           {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -342,7 +348,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   id="start-chat-btn"
                   type="button"
                   onClick={startMatchmaking}
-                  className="chat-theme-accent-button w-full rounded-xl py-3.5 px-6 text-white font-bold text-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-[0_8px_20px_rgba(153,27,27,0.18)]"
+                  className="chat-theme-accent-button w-full rounded-xl py-3.5 px-6 text-white font-bold text-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />
@@ -355,15 +361,15 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             ) : (
               <div className="rounded-xl p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
                 <div className="flex items-center justify-center space-x-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#991B1B]" />
-                  <span className="font-semibold text-xs font-mono text-stone-800 dark:text-stone-200">
+                  <Loader2 className="chat-theme-accent-text w-4 h-4 animate-spin" />
+                  <span className="font-semibold text-xs text-stone-800 dark:text-stone-200">
                     Finding active study peers... ({queueTime}s)
                   </span>
                 </div>
 
                 <div className="w-full bg-stone-200 dark:bg-stone-800 h-1.5 overflow-hidden">
                   <div
-                    className="h-full bg-[#991B1B] transition-all duration-300"
+                    className="chat-theme-accent-button h-full transition-all duration-300"
                     style={{ width: `${Math.min(100, (queueTime % 6) * 20 + 20)}%` }}
                   />
                 </div>
@@ -373,17 +379,28 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     id="cancel-queue-btn"
                     type="button"
                     onClick={cancelMatchmaking}
-                    className="w-full sm:w-auto px-4 py-2 border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs font-mono text-stone-700 dark:text-stone-300 hover:bg-stone-50 cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 cursor-pointer"
                   >
                     Cancel Search
                   </button>
+
+                  {canProceedNormally && (
+                    <button
+                      id="normal-match-btn"
+                      type="button"
+                      onClick={proceedWithNormalMatching}
+                      className="chat-theme-accent-button w-full sm:w-auto rounded-lg px-4 py-2 text-white text-xs font-bold cursor-pointer"
+                    >
+                      Proceed with normal matching
+                    </button>
+                  )}
 
                   {showSimulateOption && (
                     <button
                       id="simulate-peer-btn"
                       type="button"
                       onClick={pairWithSimulatedPeer}
-                      className="w-full sm:w-auto px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer"
+                      className="chat-theme-accent-button w-full sm:w-auto px-4 py-2 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Bot className="w-4 h-4" />
                       <span>Try Student Chatbot Assistant</span>

@@ -12,13 +12,16 @@ import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
 import { ChatAttachments } from './ChatAttachments';
-import { PhotoDialog } from './PhotoDialog';
+import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
+import { VoiceRecorder } from './VoiceRecorder';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
+import type { VoiceUpload } from '../data/chatVoice';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
 const CONVERSATION_STARTER_LIMIT = 3;
 const messageTimeFormatter = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
+const formatVoiceDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 const CONVERSATION_STARTER_POOL = [
   'Saan okay tumambay na may saksakan dito? My laptop\'s literally dying.',
@@ -75,7 +78,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasInputText, setHasInputText] = useState(false);
   const [pendingImages, setPendingImages] = useState<ImageUpload[]>([]);
+  const [pendingVoice, setPendingVoice] = useState<VoiceUpload | null>(null);
   const [preparingImages, setPreparingImages] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [viewingImage, setViewingImage] = useState<ChatImage | null>(null);
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
@@ -106,7 +111,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const replyHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingAt = useRef(0);
-  const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; replyId?: string; id: string } | null>(null);
+  const retryMessageRef = useRef<{ text: string; images: ImageUpload[]; voice: VoiceUpload | null; replyId?: string; id: string } | null>(null);
   const endedRef = useRef(false);
   const sendingRef = useRef(false);
   const receivedMessageIds = useRef(new Set<string>());
@@ -143,6 +148,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     if (inputRef.current) inputRef.current.value = '';
     setHasInputText(false);
     setPendingImages([]);
+    setPendingVoice(null);
     setViewingImage(null);
     setReplyingTo(null);
     retryMessageRef.current = null;
@@ -294,7 +300,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
           peerTypingTimer.current = setTimeout(() => setIsPeerTyping(false), 3000);
         }         else if (data.type === 'message_unsent') setMessages(previous => previous.map(message => message.id === data.messageId
-          ? { ...message, type: 'system', text: 'Message unsent.', images: undefined, reactions: undefined, replyTo: undefined }
+          ? { ...message, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, reactions: undefined, replyTo: undefined }
           : message));
         else if (data.type === 'peer_disconnected') markDisconnected();
       } catch { /* REST polling repairs missed events. */ }
@@ -327,8 +333,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend ?? inputRef.current?.value ?? '').trim();
     const images = pendingImages;
-    const replyTo = replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text || 'Photo' } : undefined;
-    if ((!text && !images.length) || text.length > 4000 || peerDisconnected || sendingRef.current || preparingImages) return;
+    const voice = pendingVoice;
+    const replyTo = replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text || (replyingTo.voice ? 'Voice message' : 'Image') } : undefined;
+    if ((!text && !images.length && !voice) || text.length > 4000 || peerDisconnected || sendingRef.current || preparingImages || isRecordingVoice) return;
     sendingRef.current = true;
     setIsSending(true);
     setError('');
@@ -337,6 +344,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         scrollAfterOwnMessageRef.current = true;
         const userMessage = { id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text,
           images: images.map(image => ({ id: crypto.randomUUID(), name: image.name, url: image.dataUrl, width: image.width, height: image.height })),
+          ...(voice ? { voice: { id: crypto.randomUUID(), url: voice.dataUrl, duration: voice.duration, mimeType: voice.dataUrl.slice(5, voice.dataUrl.indexOf(';')) } } : {}),
           timestamp: Date.now(), replyTo, isMe: true };
         receiveMessages([userMessage]);
         if (inputRef.current?.value.trim() === text) {
@@ -349,12 +357,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           setSelectedStarter(null);
         }
         setPendingImages(current => current === images ? [] : current);
+        setPendingVoice(current => current === voice ? null : current);
         setReplyingTo(null);
         sendTyping(false);
         playChime('message');
         setIsPeerTyping(true);
         const data = await apiRequest<{ reply: string }>('/api/ai/chatbot', session.token, {
-          message: text || 'I shared a photo. Ask me to describe what I would like help with.',
+          message: text || (voice ? 'I shared a voice message.' : 'I shared an image. Ask me to describe what I would like help with.'),
           topic,
           history: messages
             .filter(message => message.type !== 'system' && message.text.trim())
@@ -374,11 +383,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         }]);
         return;
       } else {
-        if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.replyId !== replyTo?.id) {
-          retryMessageRef.current = { text, images, replyId: replyTo?.id, id: crypto.randomUUID() };
+        if (retryMessageRef.current?.text !== text || retryMessageRef.current?.images !== images || retryMessageRef.current?.voice !== voice || retryMessageRef.current?.replyId !== replyTo?.id) {
+          retryMessageRef.current = { text, images, voice, replyId: replyTo?.id, id: crypto.randomUUID() };
         }
         const data = await apiRequest('/api/chat/send', session.token, {
-          roomId, text, images, clientMessageId: retryMessageRef.current.id, replyTo,
+          roomId, text, images, voice, clientMessageId: retryMessageRef.current.id, replyTo,
         });
         if (endedRef.current) return;
         scrollAfterOwnMessageRef.current = true;
@@ -395,6 +404,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         setSelectedStarter(null);
       }
       setPendingImages(current => current === images ? [] : current);
+      setPendingVoice(current => current === voice ? null : current);
       setReplyingTo(null);
       sendTyping(false);
       playChime('message');
@@ -427,7 +437,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     try {
       if (peer.isSimulated) {
         setMessages(previous => previous.map(item => item.id === message.id
-          ? { ...item, type: 'system', text: 'Message unsent.', images: undefined, reactions: undefined, replyTo: undefined }
+          ? { ...item, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, reactions: undefined, replyTo: undefined }
           : item));
       } else {
         const data = await apiRequest<{ message: ChatMessage }>('/api/chat/delete', session.token, { roomId, messageId: message.id });
@@ -524,25 +534,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       <div className="chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         <Header {...headerProps} showReroll={false}
           conversation={
-          <div className="flex min-w-0 flex-1 items-center space-x-2">
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
+          <div className="chat-header-conversation flex min-w-0 flex-1 items-center">
+            <div className="chat-header-peer min-w-0 w-full">
+              <div className="flex min-w-0 items-start gap-1.5">
                 <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  className="min-w-0 font-bold text-sm sm:text-base truncate text-stone-900 dark:text-white">
+                  className="chat-header-peer-name min-w-0 break-words font-bold text-sm leading-tight sm:text-base text-stone-900 dark:text-white">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
-                {!peerDisconnected ? (
-                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                    {peer.isSimulated ? 'AI' : 'CONNECTED'}
+                {!peerDisconnected && peer.isSimulated ? (
+                  <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
+                    AI
                   </span>
                 ) : (
-                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800">
-                    LEFT
-                  </span>
+                  peerDisconnected && <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">LEFT</span>
                 )}
               </div>
 
-              <div className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate mt-0.5">
+              <div className="chat-header-topic mt-0.5 min-w-0 truncate text-left text-xs text-stone-500 dark:text-stone-400">
                 <span className="truncate font-semibold" style={{ color: chatTheme.accent }}>{topic}</span>
               </div>
 
@@ -557,7 +565,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="chat-theme-accent-soft flex h-9 w-9 items-center justify-center rounded-xl border bg-white/70 dark:bg-stone-800/70 transition-colors cursor-pointer"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -581,7 +589,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 onClick={requestLeave}
                 aria-label="Disconnect and leave chat"
                 title="Disconnect and leave chat"
-                className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                className="chat-theme-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white/70 dark:bg-stone-900/70 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -707,7 +715,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       actions={(
                         <>
                           <button type="button" aria-label="Reply" title="Reply" onClick={() => setReplyingTo(msg)} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
-                            <Reply className="h-4 w-4" />
+                            <Reply className="chat-theme-accent-text h-4 w-4" />
                           </button>
                           {msg.isMe && (
                             <button
@@ -720,7 +728,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                               }}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
                             >
-                              <MoreVertical className="h-3.5 w-3.5" />
+                              <MoreVertical className="chat-theme-accent-text h-3.5 w-3.5" />
                             </button>
                           )}
                         </>
@@ -764,6 +772,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           <img src={image.url} alt={image.name} width={image.width} height={image.height}
                             className="max-h-64 w-full max-w-80 object-contain" loading="lazy" draggable={false} />
                         </button>)}
+                      </div>}
+                      {msg.voice && <div className={`min-w-[220px] rounded-xl p-2 ${msg.isMe ? 'bg-black/15' : 'bg-stone-100 dark:bg-stone-800'}`}>
+                        <audio controls preload="metadata" src={msg.voice.url} aria-label={`Voice message, ${formatVoiceDuration(msg.voice.duration)}`} className="h-10 w-full max-w-[300px]" />
+                        <span className={`mt-1 block text-[10px] ${msg.isMe ? 'text-white/75' : 'text-stone-500 dark:text-stone-400'}`}>{formatVoiceDuration(msg.voice.duration)} voice message</span>
                       </div>}
                       {msg.text && <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.text}</p>}
                       {msg.edited && isGroupedWithPrevious && (
@@ -821,7 +833,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   : 'border-stone-300 bg-white text-stone-800 hover:bg-stone-50'
               }`}
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="chat-theme-accent-text h-4 w-4" />
               {unreadMessageCount > 0 ? `${unreadMessageCount} new message${unreadMessageCount === 1 ? '' : 's'}` : 'Latest messages'}
             </button>
           )}
@@ -846,9 +858,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 onClick={() => fetchAiSuggestions()}
                 disabled={isSuggestionsLoading || isSending}
                 title="Shuffle and generate new topic prompts"
-                className="chat-theme-outline flex items-center space-x-1 px-2 py-0.5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-[10px] font-mono uppercase text-stone-600 dark:text-stone-300 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                className="chat-theme-accent-soft flex items-center space-x-1 rounded-md px-2 py-0.5 border text-[10px] uppercase text-stone-600 dark:text-stone-300 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
               >
-                <RefreshCw className={`w-3 h-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`chat-theme-accent-text w-3 h-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`} />
                 <span>Shuffle</span>
               </button>
             </div>
@@ -989,7 +1001,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <p className="truncate font-semibold text-stone-700 dark:text-stone-200">Replying to {replyingTo.isMe ? 'yourself' : replyingTo.senderHandle}</p>
                   <p className="truncate text-stone-500 dark:text-stone-400">{replyingTo.text || 'Photo'}</p>
                 </div>
-                <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="chat-theme-accent-text h-4 w-4" /></button>
               </div>
             )}
             {editingMessageId && (
@@ -998,7 +1010,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <p className="truncate font-semibold text-stone-700 dark:text-stone-200">Editing your message</p>
                   <p className="truncate text-stone-500 dark:text-stone-400">Your changes will be shared instantly.</p>
                 </div>
-                <button type="button" onClick={() => { setEditingMessageId(null); if (inputRef.current) { inputRef.current.value = ''; setHasInputText(false); } }} aria-label="Cancel edit" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => { setEditingMessageId(null); if (inputRef.current) { inputRef.current.value = ''; setHasInputText(false); } }} aria-label="Cancel edit" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"><X className="chat-theme-accent-text h-4 w-4" /></button>
               </div>
             )}
             {error && <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
@@ -1010,6 +1022,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   aria-label={'Remove photo ' + image.name} className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow disabled:opacity-40"><X className="h-3 w-3" /></button>
               </div>)}
             </div>}
+            {pendingVoice && <div className="mb-2 flex items-center gap-3 rounded-xl border border-stone-200 bg-white/80 px-3 py-2 text-xs dark:border-stone-700 dark:bg-stone-900/80" aria-label="Voice message ready to send">
+              <span className="font-semibold">Voice message · {formatVoiceDuration(pendingVoice.duration)}</span>
+              <button type="button" onClick={() => setPendingVoice(null)} disabled={isSending} className="ml-auto flex h-7 w-7 items-center justify-center rounded-full hover:bg-stone-100 disabled:opacity-40 dark:hover:bg-stone-800" aria-label="Remove voice message"><X className="h-3.5 w-3.5" /></button>
+            </div>}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1018,7 +1034,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               }}
               className={`flex items-center space-x-2 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
-              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
+              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
+              {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
               <input
                 ref={inputRef}
                 id="chat-message-input"
@@ -1054,14 +1071,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   aria-label="Cancel edit"
                   title="Cancel editing"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="chat-theme-accent-text h-4 w-4" />
                 </button>
               )}
               <button
                 id="send-message-btn"
                 type="submit"
                 aria-label={editingMessageId ? 'Save edited message' : isSending ? 'Sending message' : 'Send message'}
-                disabled={peerDisconnected || isSending || preparingImages || (!hasInputText && !pendingImages.length) || (editingMessageId && !inputRef.current?.value.trim())}
+                disabled={peerDisconnected || isSending || preparingImages || isRecordingVoice || (!hasInputText && !pendingImages.length && !pendingVoice) || (editingMessageId && !inputRef.current?.value.trim())}
                 className="chat-theme-accent-button flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editingMessageId ? <Pencil className="h-4 w-4" /> : isSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1071,7 +1088,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         </div>
       </div>
       {viewingImage && <PhotoDialog title="Photo" onClose={() => setViewingImage(null)}>
-        <img src={viewingImage.url} alt={viewingImage.name} className="mx-auto max-h-[70dvh] max-w-full rounded-lg object-contain" />
+        <ZoomablePhoto src={viewingImage.url} alt={viewingImage.name} />
       </PhotoDialog>}
       {pendingAction && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" role="presentation">

@@ -3,7 +3,7 @@ async function signIn(page: Page, _name: string) {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 }
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.keyboard.press('Escape');
@@ -96,6 +96,25 @@ test('HTTP fallback matches and delivers when WebSockets are unavailable', async
   await logout(a); await logout(b);
   await Promise.all(contexts.map(c => c.close()));
 });
+test('a selected chat intent is prioritized before normal matching', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    window.WebSocket = class { constructor() { throw new Error('Use HTTP fallback'); } } as any;
+  });
+  const page = await context.newPage();
+  let joinPayload: any;
+  await page.route('**/api/match/join', async route => {
+    joinPayload = route.request().postDataJSON();
+    await route.fulfill({ json: { status: 'queued', position: 1, interestMatchUnavailable: true } });
+  });
+  await page.route('**/api/match/poll', route => route.fulfill({ json: { status: 'queued', position: 1, interestMatchUnavailable: true } }));
+  await signIn(page, 'chat-intent');
+  await page.getByRole('radio', { name: /Study together/ }).click();
+  await page.locator('#start-chat-btn').click();
+  await expect.poll(() => joinPayload).toMatchObject({ interests: ['Study together'], allowNormal: false });
+  await expect(page.locator('#normal-match-btn')).toHaveText('Proceed with normal matching');
+  await context.close();
+});
 test('mobile layout, theme persistence, demo chat and music controls', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.emulateMedia({ colorScheme: 'light' });
@@ -142,6 +161,42 @@ test('student chatbot clears the composer before its reply arrives', async ({ pa
   await logout(page);
 });
 
+test('records, previews, and sends a voice message', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    const track = { stop() {} };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => ({ getTracks: () => [track] }) } });
+    class TestMediaRecorder {
+      static isTypeSupported() { return true; }
+      state = 'inactive';
+      mimeType = 'audio/webm';
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(_stream: unknown, _options: unknown) {}
+      start() { this.state = 'recording'; }
+      stop() {
+        this.state = 'inactive';
+        this.ondataavailable?.({ data: new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1])], { type: this.mimeType }) });
+        this.onstop?.();
+      }
+    }
+    Object.defineProperty(window, 'MediaRecorder', { configurable: true, value: TestMediaRecorder });
+  });
+  const page = await context.newPage();
+  await page.route('**/api/ai/chatbot', route => route.fulfill({ json: { reply: 'I received your voice message.', source: 'test-model' } }));
+  await signIn(page, 'voice-message');
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+  await page.getByRole('button', { name: 'Record voice message' }).click();
+  await expect(page.getByRole('button', { name: 'Stop voice recording' })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop voice recording' }).click();
+  await expect(page.getByLabel('Voice message ready to send')).toBeVisible();
+  await page.locator('#send-message-btn').click();
+  await expect(page.getByLabel(/Voice message, 0:01/)).toBeVisible();
+  await context.close();
+});
+
 test('mobile long press opens reactions and scrolling cancels the gesture', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.route('**/api/ai/chatbot', route => route.fulfill({ json: { reply: 'Test bot greeting', source: 'test-model' } }));
@@ -180,7 +235,7 @@ test('terms acceptance is required and the session restores after refresh', asyn
   await page.screenshot({ path: 'test-results/desktop-login.png' });
   await signIn(page, 'restore');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
   await logout(page);
   await expect(page.getByRole('button', { name: 'Continue to CourseMates' })).toBeDisabled();
 });

@@ -77,7 +77,7 @@ export function ChatAttachments({ images, onChange, disabled, onError, onBusyCha
   }, [disabled, onBusyChange]);
   const choose = async (files: File[]) => {
     if (disabled || busy || !files.length) return;
-    if (images.length + files.length > MAX_CHAT_IMAGES) { onError('Attach up to 4 photos per message.'); return; }
+    if (images.length + files.length > MAX_CHAT_IMAGES) { onError('Attach up to 4 images per message.'); return; }
     const current = ++generation.current;
     setOpen(false); setCamera(false); setBusy(true); onBusyChange(true); onError('');
     try {
@@ -93,19 +93,19 @@ export function ChatAttachments({ images, onChange, disabled, onError, onBusyCha
   };
   const close = () => { setOpen(false); setCamera(false); };
   return <>
-    <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" aria-label="Choose photos to attach"
+    <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" aria-label="Choose photos to attach"
       onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void choose(files); }} />
-    <button type="button" aria-label="Attach photos" title="Attach photos" disabled={disabled || busy || images.length >= MAX_CHAT_IMAGES}
+    <button type="button" aria-label="Attach photos" title="Attach photos or GIFs" disabled={disabled || busy || images.length >= MAX_CHAT_IMAGES}
       onClick={() => setOpen(true)} className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
     </button>
     {open && !disabled && <PhotoDialog title={camera ? 'Take a photo' : 'Attach photos'} onClose={close}>
-      {camera ? <CameraCapture onCapture={file => void choose([file])} accent={accent} accentHover={accentHover} /> : <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Choose up to 4 photos. Preview them before sending.</p>}
+      {camera ? <CameraCapture onCapture={file => void choose([file])} accent={accent} accentHover={accentHover} /> : <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Choose up to 4 images, including an animated GIF. Preview them before sending.</p>}
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => fileInput.current?.click()} className="flex flex-1 items-center justify-center gap-2 border border-stone-300 px-4 py-3 text-sm dark:border-stone-700"><ImagePlus className="h-4 w-4" />Choose photos</button>
         {!camera && <button type="button" onClick={() => setCamera(true)} className="flex flex-1 items-center justify-center gap-2 border border-stone-300 px-4 py-3 text-sm dark:border-stone-700"><Camera className="h-4 w-4" />Take photo</button>}
       </div>
-      <p className="mt-3 text-xs text-stone-500 dark:text-stone-400">JPEG, PNG, or WebP · Up to 10 MB each. Camera access needs your browser’s permission.</p>
+      <p className="mt-3 text-xs text-stone-500 dark:text-stone-400">JPEG, PNG, WebP, or GIF · GIFs up to 3 MB. Camera access needs your browser’s permission.</p>
     </PhotoDialog>}
   </>;
 }

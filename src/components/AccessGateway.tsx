@@ -87,7 +87,9 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact />
         </div>
         <div className="w-full max-w-[430px] lg:pt-10">
-          <h1 className={`text-[28px] font-bold leading-tight tracking-[-0.035em] sm:text-[30px] ${isDarkMode ? 'text-white' : 'text-stone-950'}`}>Welcome to CourseMates</h1>
+          <h1 className={`text-[28px] font-bold leading-tight tracking-[-0.035em] sm:text-[30px] ${isDarkMode ? 'text-white' : 'text-stone-950'}`}>
+            Welcome to <span className="text-[#c51e2b]">Course</span><span className="text-[#f2a400]">Mates</span>
+          </h1>
           <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-stone-300' : 'text-stone-600'}`}>
             CourseMates is an exclusive online community for college and university students in the Philippines (18+). It’s a space to connect, share experiences, collaborate on academics, and make friends.
           </p>

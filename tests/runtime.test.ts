@@ -48,6 +48,36 @@ test('queue requires a real session and handles repeated joins and cancellation'
   await request('/api/match/cancel', a, {});
   assert.equal((await request('/api/match/poll', a)).data.status, 'idle');
 });
+test('chat intents match first and normal matching requires an explicit opt-in', async () => {
+  const studyPeer = identity(), casualPeer = identity(), secondStudyPeer = identity();
+  try {
+    const first = await request('/api/match/join', studyPeer, { interests: ['Study together'] });
+    assert.equal(first.data.status, 'queued');
+    assert.equal(first.data.interestMatchUnavailable, true);
+
+    const incompatible = await request('/api/match/join', casualPeer, { interests: ['Casual conversation'] });
+    assert.equal(incompatible.data.status, 'queued');
+    assert.equal((await request('/api/match/poll', studyPeer)).data.status, 'queued');
+
+    const intentMatch = await request('/api/match/join', secondStudyPeer, { interests: ['Study together'] });
+    assert.equal(intentMatch.data.status, 'matched');
+    assert.equal(intentMatch.data.peer.sessionId, studyPeer.id);
+    assert.equal(intentMatch.data.topic, 'Study together');
+
+    const normal = await request('/api/match/join', casualPeer, { interests: ['Casual conversation'], allowNormal: true });
+    assert.equal(normal.data.status, 'queued');
+    const noInterest = identity();
+    const fallback = await request('/api/match/join', noInterest, { interests: [] });
+    assert.equal(fallback.data.status, 'matched');
+    assert.equal(fallback.data.peer.sessionId, casualPeer.id);
+    assert.equal(fallback.data.topic, 'General Peer Discovery');
+    await request('/api/match/cancel', noInterest, {});
+  } finally {
+    await request('/api/match/cancel', studyPeer, {});
+    await request('/api/match/cancel', casualPeer, {});
+    await request('/api/match/cancel', secondStudyPeer, {});
+  }
+});
 test('HTTP matching, member-only messages, idempotent delivery, typing and immediate purge', async () => {
   const { a, b, roomId } = await pair();
   const outsider = identity();

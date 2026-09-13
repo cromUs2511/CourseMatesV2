@@ -17,7 +17,7 @@ test('main menu exposes light-dark and chat color controls together', async ({ p
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 
   await expect(page.getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
   const colorsButton = page.getByRole('button', { name: 'Choose chat color theme' });
