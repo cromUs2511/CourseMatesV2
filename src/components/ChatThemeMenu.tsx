@@ -33,9 +33,10 @@ interface ChatThemeMenuProps {
   theme: ChatTheme;
   onChange: (theme: ChatTheme) => void;
   isDarkMode: boolean;
+  standalone?: boolean;
 }
 
-export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, isDarkMode }) => {
+export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, isDarkMode, standalone = false }) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +57,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
   }, [open]);
 
   return (
-    <div ref={menuRef} className="contents min-[960px]:relative min-[960px]:block">
+    <div ref={menuRef} className={standalone ? 'relative block' : 'contents min-[960px]:relative min-[960px]:block'}>
       <button
         type="button"
         aria-label="Choose chat color theme"
@@ -71,7 +72,10 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         <div
           role="dialog"
           aria-label="Chat color themes"
-          className={`order-last w-full rounded-xl border p-3 min-[960px]:absolute min-[960px]:right-0 min-[960px]:top-11 min-[960px]:z-30 min-[960px]:max-h-[calc(100dvh-80px)] min-[960px]:w-64 min-[960px]:overflow-y-auto min-[960px]:shadow-xl ${
+          className={`${standalone
+            ? 'fixed left-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-[calc(100vw-24px)] max-w-64 overflow-y-auto shadow-xl sm:absolute sm:left-0 sm:top-11 sm:w-64'
+            : 'order-last w-full min-[960px]:absolute min-[960px]:right-0 min-[960px]:top-11 min-[960px]:z-30 min-[960px]:max-h-[calc(100dvh-80px)] min-[960px]:w-64 min-[960px]:overflow-y-auto min-[960px]:shadow-xl'
+          } rounded-xl border p-3 ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
           }`}
         >

@@ -6,6 +6,7 @@ import { ChatRoom } from './components/ChatRoom';
 import { StudentSession, ActivePeerInfo } from './types';
 import { apiRequest } from './utils/api';
 import { getSoundEnabled, setSoundEnabled } from './utils/sound';
+import { CHAT_THEMES, ChatThemeMenu, type ChatTheme } from './components/ChatThemeMenu';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -16,6 +17,12 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => getSoundEnabled());
+  const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
+    try {
+      const saved = localStorage.getItem('coursemates_chat_theme');
+      return CHAT_THEMES.find(theme => theme.id === saved) || CHAT_THEMES[0];
+    } catch { return CHAT_THEMES[0]; }
+  });
   const [session, setSession] = useState<StudentSession | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [activePeer, setActivePeer] = useState<ActivePeerInfo | null>(null);
@@ -70,6 +77,10 @@ export default function App() {
     } catch (err) { setError((err as Error).message); }
   };
   const handleSessionUpdate = (updatedSession: StudentSession) => setSession(updatedSession);
+  const handleChatThemeChange = (next: ChatTheme) => {
+    setChatTheme(next);
+    try { localStorage.setItem('coursemates_chat_theme', next.id); } catch {}
+  };
   const handleLogout = async () => {
     if (session) {
       try { await apiRequest('/api/auth/logout', session.token, {}); }
@@ -91,7 +102,9 @@ export default function App() {
   };
   return (
     <div className={'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
-      {session && !activePeer && <Header {...headerProps} />}
+      {session && !activePeer && <Header {...headerProps} displayActions={
+        <ChatThemeMenu theme={chatTheme} onChange={handleChatThemeChange} isDarkMode={isDarkMode} standalone />
+      } />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
         {restoring ? <p role="status" className="m-auto">Loading your session…</p> : !session ?
@@ -100,8 +113,8 @@ export default function App() {
           activePeer ? <ChatRoom key={activeRoomId} session={session} peer={activePeer} topic={activeTopic} ws={activeWs || undefined} roomId={activeRoomId}
             onNextMatch={() => { resetChat(); setAutoSearch(true); setQueueKey(k => k + 1); }}
             onLeaveChat={() => { resetChat(); setAutoSearch(false); }}
-            isDarkMode={isDarkMode} headerProps={headerProps} /> :
-          <MatchmakingQueue key={queueKey} session={session} onMatched={handleMatched} onRerollHandle={handleRerollHandle} onSessionUpdate={handleSessionUpdate} isDarkMode={isDarkMode} autoSearch={autoSearch} />}
+            isDarkMode={isDarkMode} headerProps={headerProps} chatTheme={chatTheme} onChatThemeChange={handleChatThemeChange} /> :
+          <MatchmakingQueue key={queueKey} session={session} onMatched={handleMatched} onRerollHandle={handleRerollHandle} onSessionUpdate={handleSessionUpdate} isDarkMode={isDarkMode} autoSearch={autoSearch} chatTheme={chatTheme} />}
       </main>
     </div>
   );

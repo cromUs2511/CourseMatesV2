@@ -4,6 +4,7 @@ import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../t
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
+import type { ChatTheme } from './ChatThemeMenu';
 
 const MATCH_POLL_INTERVAL_MS = 400;
 const MATCH_SOCKET_TIMEOUT_MS = 1500;
@@ -15,6 +16,7 @@ interface MatchmakingQueueProps {
   onSessionUpdate: (session: StudentSession) => void;
   isDarkMode: boolean;
   autoSearch?: boolean;
+  chatTheme: ChatTheme;
 }
 
 export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
@@ -24,6 +26,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   onSessionUpdate,
   isDarkMode,
   autoSearch = false,
+  chatTheme,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -199,10 +202,12 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
   return (
     <div
-      className="ambient-grid flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
+      className="ambient-grid chat-theme-scope flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
       style={{
-        backgroundColor: isDarkMode ? '#111110' : '#f7f4ef',
-      }}
+        backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
+        '--chat-accent': chatTheme.accent,
+        '--chat-accent-hover': chatTheme.accentHover,
+      } as React.CSSProperties}
     >
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
@@ -303,7 +308,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
              <button
                type="submit"
                disabled={isSearching || !customInterestInput.trim()}
-               className="rounded-xl px-5 py-3 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+               className="chat-theme-accent-button rounded-xl px-5 py-3 text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
              >
                Add
              </button>
@@ -337,7 +342,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   id="start-chat-btn"
                   type="button"
                   onClick={startMatchmaking}
-                  className="w-full rounded-xl py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-[0_8px_20px_rgba(153,27,27,0.18)]"
+                  className="chat-theme-accent-button w-full rounded-xl py-3.5 px-6 text-white font-bold text-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-[0_8px_20px_rgba(153,27,27,0.18)]"
                 >
                   <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />

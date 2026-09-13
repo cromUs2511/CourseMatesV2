@@ -10,7 +10,7 @@ import { AmbientAurora } from './AmbientAurora';
 import { SpiderWebBackground } from './SpiderWebBackground';
 import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
-import { ChatTheme, CHAT_THEMES, ChatThemeMenu } from './ChatThemeMenu';
+import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
 import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog } from './PhotoDialog';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
@@ -54,6 +54,8 @@ interface ChatRoomProps {
   onLeaveChat: () => void;
   isDarkMode?: boolean;
   headerProps: HeaderProps;
+  chatTheme: ChatTheme;
+  onChatThemeChange: (theme: ChatTheme) => void;
 }
 
 export const ChatRoom: React.FC<ChatRoomProps> = ({
@@ -66,6 +68,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   onLeaveChat,
   isDarkMode = false,
   headerProps,
+  chatTheme,
+  onChatThemeChange,
 }) => {
   const [roomMusic, setRoomMusic] = useState<RoomMusicState>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -89,14 +93,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [messageActionsPosition, setMessageActionsPosition] = useState<{ left: number; top: number } | null>(null);
   const messageBubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [ambient, setAmbient] = useState<{ active: boolean; enabled: boolean; color: string; effect: 'aurora' | 'spider-web' }>({ active: false, enabled: true, color: '#6ee7b7', effect: 'aurora' });
-  const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
-    try {
-      const saved = localStorage.getItem('coursemates_chat_theme');
-      return CHAT_THEMES.find(theme => theme.id === saved) || CHAT_THEMES[0];
-    } catch {
-      return CHAT_THEMES[0];
-    }
-  });
   const [pendingAction, setPendingAction] = useState<'leave' | 'next' | null>(null);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -511,15 +507,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color && current.effect === next.effect ? current : next);
   }, []);
   const ambientActive = ambient.active && ambient.enabled;
-  const updateChatTheme = (next: ChatTheme) => {
-    setChatTheme(next);
-    try {
-      localStorage.setItem('coursemates_chat_theme', next.id);
-    } catch {
-      // Storage may be unavailable in private browsers.
-    }
-  };
-
   return (
     <div
       className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
@@ -564,7 +551,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
           }
           displayActions={<>
-            <ChatThemeMenu theme={chatTheme} onChange={updateChatTheme} isDarkMode={isDarkMode} />
+            <ChatThemeMenu theme={chatTheme} onChange={onChatThemeChange} isDarkMode={isDarkMode} />
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}

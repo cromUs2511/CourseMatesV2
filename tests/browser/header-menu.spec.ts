@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+test('main menu exposes light-dark and chat color controls together', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await expect(page.getByRole('heading', { name: 'Add an interest' })).toBeVisible();
+
+  await expect(page.getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
+  const colorsButton = page.getByRole('button', { name: 'Choose chat color theme' });
+  await expect(colorsButton).toBeVisible();
+  await colorsButton.click();
+  await page.getByRole('dialog', { name: 'Chat color themes' }).getByRole('button', { name: 'Ocean blue' }).click();
+  await expect(colorsButton).toHaveAttribute('title', 'Chat theme: Ocean blue');
+  await expect(page.locator('.ambient-grid')).toHaveCSS('background-color', 'rgb(242, 248, 252)');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('coursemates_chat_theme'))).toBe('ocean');
+});
+
 test('chat color picker stays inside mobile settings and the viewport', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();

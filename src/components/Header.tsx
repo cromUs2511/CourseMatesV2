@@ -82,12 +82,15 @@ export const Header: React.FC<HeaderProps> = ({
                 className="h-9 w-9 rounded-xl shadow-sm sm:h-10 sm:w-10"
               />
             ) : (
-              <ThemeToggle
-                id="dark-mode-toggle-btn"
-                isDarkMode={isDarkMode}
-                onToggle={onToggleDarkMode}
-                className="shadow-sm"
-              />
+              <div className="flex items-center gap-2">
+                <ThemeToggle
+                  id="dark-mode-toggle-btn"
+                  isDarkMode={isDarkMode}
+                  onToggle={onToggleDarkMode}
+                  className="shadow-sm"
+                />
+                {displayActions}
+              </div>
             )}
           </div>
           {conversation && <div className="min-w-0 flex-1 sm:flex sm:justify-center">{conversation}</div>}
@@ -157,7 +160,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               </div>
             )}
-            {displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[960px]:w-auto min-[960px]:flex-nowrap min-[960px]:border-t-0 min-[960px]:pt-0">{displayActions}</div>}
+            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[960px]:w-auto min-[960px]:flex-nowrap min-[960px]:border-t-0 min-[960px]:pt-0">{displayActions}</div>}
           </div>
           </div>
           {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
