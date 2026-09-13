@@ -75,13 +75,18 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <div className="w-full px-3 sm:px-5 lg:px-8">
         <div id={conversation ? 'chat-header' : undefined} className="flex min-h-16 items-center gap-2.5 py-2">
-          <div className={`${conversation ? 'hidden sm:block' : 'block'} min-w-0 flex-1`}>
+          <div className={`${conversation ? 'hidden min-[768px]:block' : 'block'} min-w-0 flex-1`}>
             {conversation ? (
-              <img
-                src="/favicon.png"
-                alt="CourseMates"
-                className="h-9 w-9 rounded-xl shadow-sm sm:h-10 sm:w-10"
-              />
+              <div className="flex items-center gap-2">
+                <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} className="shadow-sm" />
+                {session && (
+                  <div className={`min-w-0 max-w-40 truncate rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm ${
+                    isDarkMode ? 'border-stone-700 bg-stone-900/80 text-stone-200' : 'border-stone-200 bg-white/80 text-stone-800'
+                  }`} title={`You: ${session.sessionHandle}`}>
+                    {session.sessionHandle}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <ThemeToggle
@@ -95,12 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
           {conversation && <div className="min-w-0 flex-1 sm:flex sm:justify-center">{conversation}</div>}
-          {conversation && (
-            <div className="hidden shrink-0 min-[960px]:block">
-              <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} className="shadow-sm" />
-            </div>
-          )}
-          <div ref={settingsRef} className="shrink-0 min-[960px]:relative">
+          <div ref={settingsRef} className="shrink-0 min-[768px]:relative">
             {conversation && <button
               ref={settingsButtonRef}
               type="button"
@@ -108,18 +108,18 @@ export const Header: React.FC<HeaderProps> = ({
               aria-expanded={settingsOpen}
               aria-controls="header-settings"
               onClick={() => setSettingsOpen(value => !value)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[960px]:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[768px]:hidden"
             ><Settings2 className="h-4 w-4" /></button>}
           <div ref={settingsPanelRef} id="header-settings" className={conversation
-            ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-84px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[960px]:static min-[960px]:mt-0 min-[960px]:flex min-[960px]:w-auto min-[960px]:max-h-none min-[960px]:max-w-none min-[960px]:overflow-visible min-[960px]:flex-nowrap min-[960px]:rounded-none min-[960px]:border-0 min-[960px]:bg-transparent min-[960px]:p-0 min-[960px]:shadow-none min-[960px]:dark:bg-transparent`
+            ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-84px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[768px]:static min-[768px]:mt-0 min-[768px]:flex min-[768px]:w-auto min-[768px]:max-h-none min-[768px]:max-w-none min-[768px]:overflow-visible min-[768px]:flex-nowrap min-[768px]:rounded-none min-[768px]:border-0 min-[768px]:bg-transparent min-[768px]:p-0 min-[768px]:shadow-none min-[768px]:dark:bg-transparent`
             : 'flex items-center gap-2 text-xs'}>
-            {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[960px]:hidden">Appearance &amp; account</p>}
+            {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[768px]:hidden">Appearance &amp; account</p>}
             {/* Dark / Light Theme Toggle */}
             {conversation && <ThemeToggle
               id="dark-mode-toggle-btn"
               isDarkMode={isDarkMode}
               onToggle={onToggleDarkMode}
-              className="shadow-sm min-[960px]:hidden"
+              className="shadow-sm min-[768px]:hidden"
             />}
             <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
             <button
@@ -135,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Authenticated Identity Badge - No user emojis or icons */}
             {session && (
-              <div className={conversation ? 'order-first w-full border-b border-stone-200 pb-3 dark:border-stone-700 min-[960px]:w-auto min-[960px]:border-b-0 min-[960px]:pb-0' : 'flex items-center space-x-2 pl-1 sm:pl-2 border-l border-stone-200 dark:border-stone-800'}>
+              <div className={conversation ? 'order-first w-full border-b border-stone-200 pb-3 dark:border-stone-700 min-[768px]:hidden' : 'flex items-center space-x-2 pl-1 sm:pl-2 border-l border-stone-200 dark:border-stone-800'}>
                 <div
                   className={`flex items-center space-x-2 px-2.5 py-1.5 border rounded-lg text-xs font-mono shadow-sm ${
                     isDarkMode
@@ -161,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               </div>
             )}
-            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[960px]:w-auto min-[960px]:flex-nowrap min-[960px]:border-t-0 min-[960px]:pt-0">{displayActions}</div>}
+            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[768px]:w-auto min-[768px]:flex-nowrap min-[768px]:border-t-0 min-[768px]:pt-0">{displayActions}</div>}
           </div>
           </div>
           {chatActions && <div className="flex shrink-0 items-center gap-1.5">{chatActions}</div>}
