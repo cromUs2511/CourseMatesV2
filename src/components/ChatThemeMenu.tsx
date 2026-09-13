@@ -63,7 +63,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         aria-expanded={open}
         title={`Chat theme: ${theme.label}`}
         onClick={() => setOpen(value => !value)}
-        className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-stone-50 text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200"
+        className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200"
       >
         <Palette className="h-4 w-4" />
       </button>
@@ -71,32 +71,36 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         <div
           role="dialog"
           aria-label="Chat color themes"
-          className={`order-last w-full rounded-xl border p-2 min-[960px]:absolute min-[960px]:right-0 min-[960px]:top-11 min-[960px]:z-30 min-[960px]:max-h-[calc(100dvh-80px)] min-[960px]:w-52 min-[960px]:overflow-y-auto min-[960px]:shadow-xl ${
+          className={`order-last w-full rounded-xl border p-3 min-[960px]:absolute min-[960px]:right-0 min-[960px]:top-11 min-[960px]:z-30 min-[960px]:max-h-[calc(100dvh-80px)] min-[960px]:w-64 min-[960px]:overflow-y-auto min-[960px]:shadow-xl ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
           }`}
         >
-          <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-stone-500">Chat colors</p>
+          <p className="pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">Chat colors</p>
+          <div className="grid grid-cols-3 gap-1.5">
           {CHAT_THEMES.map(option => (
             <button
               key={option.id}
               type="button"
+              aria-label={option.label}
               aria-pressed={theme.id === option.id}
+              title={option.label}
               onClick={() => {
                 onChange(option);
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition-colors ${
-                theme.id === option.id ? 'bg-stone-500/15 font-semibold' : 'hover:bg-stone-500/10'
+              className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[9px] leading-tight transition-colors ${
+                theme.id === option.id ? 'border-stone-400 bg-stone-500/15 font-semibold dark:border-stone-500' : 'border-transparent hover:bg-stone-500/10'
               }`}
             >
               <span
                 aria-hidden="true"
-                className="h-4 w-4 rounded-full border border-black/10"
+                className="h-5 w-5 rounded-full border border-black/10 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${option.swatch} 50%, ${option.lightBackground} 50%)` }}
               />
-              <span>{option.label}</span>
+              <span className="w-full truncate">{option.label}</span>
             </button>
           ))}
+          </div>
         </div>
       )}
     </div>

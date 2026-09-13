@@ -570,11 +570,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="chat-theme-outline flex h-9 w-9 items-center justify-center border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
-
           </>}
           chatActions={<>
             {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
@@ -583,11 +582,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               aria-label="Next Peer"
               title="Find next peer"
               onClick={requestNext}
-              className="chat-theme-accent-button h-10 flex-none px-2 sm:px-3 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="chat-theme-accent-button h-10 flex-none rounded-xl px-3 sm:px-4 text-white text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 cursor-pointer shadow-[0_6px_16px_rgba(41,37,36,0.12)]"
             >
               <span className="next-peer-label">Next Peer</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            {!peerDisconnected && (
+              <button
+                id="leave-chat-btn"
+                type="button"
+                onClick={requestLeave}
+                aria-label="Disconnect and leave chat"
+                title="Disconnect and leave chat"
+                className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
 
           </>}
         />
@@ -596,7 +607,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           id="chat-messages-container"
           ref={messagesContainerRef}
           onScroll={handleMessagesScroll}
-          className="flex-1 min-h-0 w-full p-3 sm:p-6 overflow-y-auto overscroll-contain space-y-1 select-text"
+          className="flex-1 min-h-0 w-full px-3 py-5 sm:px-6 sm:py-7 overflow-y-auto overscroll-contain space-y-1 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
             {messages.map((msg, index) => {
@@ -605,7 +616,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 return (
                   <div key={msg.id} className={`my-3 flex w-full ${isUnsentMessage ? (msg.isMe ? 'justify-end' : 'justify-start') : 'justify-center'}`}>
                     <div
-                      className={`inline-block max-w-[92%] rounded-xl border px-3 py-1.5 text-xs font-mono ${
+                      className={`inline-block max-w-[92%] rounded-full border px-3 py-1.5 text-xs ${
                         isUnsentMessage ? 'text-left' : 'text-center'
                       } ${
                         isDarkMode
@@ -733,14 +744,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3 text-left text-sm leading-5 border transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
-                        isGroupedWithPrevious ? 'gap-1 py-1.5' : 'gap-1.5 py-2'
+                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3.5 text-left text-sm leading-5 border shadow-[0_1px_2px_rgba(41,37,36,0.04)] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
+                        isGroupedWithPrevious ? 'gap-1 py-2' : 'gap-1.5 py-2.5'
                       } ${
                         msg.isMe
                           ? 'text-white'
                           : isDarkMode
-                          ? 'bg-stone-900/90 border-stone-700/70 text-stone-100'
-                          : 'bg-white/75 border-stone-300 text-stone-900'
+                          ? 'bg-stone-900/95 border-stone-700/80 text-stone-100'
+                          : 'bg-white/95 border-stone-200 text-stone-900'
                       }`}
                       style={{
                       transform: swipe?.id === msg.id && swipe.offset !== 0 ? `translateX(${swipe.offset}px)` : undefined,
@@ -832,18 +843,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
         {/* Each chat allows three successfully sent conversation starters. */}
         {!peerDisconnected && startersSent < CONVERSATION_STARTER_LIMIT && aiSuggestions.length > 0 && (
-          <div
-            id="ai-suggestions-bar"
-            className={`border-t px-4 sm:px-6 py-2 shrink-0 ${
-            isDarkMode ? 'bg-black/15 border-stone-800' : 'bg-white/75 border-stone-300'
-            }`}
-          >
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
+          <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-2 sm:px-6 sm:pb-3">
+            <div className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-sm ${isDarkMode ? 'border-stone-700 bg-[#1c1b1a]/95' : 'border-stone-200 bg-[#fffdfa]/95'}`}>
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center space-x-1.5 shrink-0 text-stone-500 dark:text-stone-400">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider" style={{ color: chatTheme.accent }}>
-                  Conversation starters
+                <Sparkles className="h-3.5 w-3.5" style={{ color: chatTheme.accent }} />
+                <span className="brand-script text-sm font-bold" style={{ color: chatTheme.accent }}>
+                  Break the ice
                 </span>
-                <span className="text-[10px] font-mono" aria-live="polite">{CONVERSATION_STARTER_LIMIT - startersSent} left</span>
+                <span className="text-[10px]" aria-live="polite">{CONVERSATION_STARTER_LIMIT - startersSent} left</span>
               </div>
 
               {/* Shuffle button */}
@@ -860,22 +868,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </div>
 
             {/* Suggestions list */}
-            <div className="max-w-3xl mx-auto flex items-center space-x-2 overflow-x-auto no-scrollbar pt-1.5 pb-0.5">
+            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
               {aiSuggestions.map((prompt, idx) => (
                 <button
                   key={idx}
                   disabled={isSending}
                   onClick={() => handleSuggestionClick(prompt)}
                   title="Use this conversation starter"
-                  className={`text-[11px] font-mono px-2.5 py-1 whitespace-nowrap border transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${
+                  className={`text-xs px-3 py-1.5 whitespace-nowrap rounded-full border transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${
                     isDarkMode
-                      ? 'bg-stone-900 border-stone-800 text-stone-300 hover:text-white'
-                      : 'bg-stone-50 border-stone-300 text-stone-700'
+                      ? 'bg-stone-900 border-stone-700 text-stone-300 hover:border-stone-500 hover:text-white'
+                      : 'bg-white border-stone-200 text-stone-700 hover:border-stone-400 hover:bg-stone-50'
                   }`}
                 >
                   {prompt}
                 </button>
               ))}
+            </div>
             </div>
           </div>
         )}
@@ -972,8 +981,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Bottom Input Console */}
         <div
           id="chat-input-console"
-          className={`border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4 shrink-0 ${
-            isDarkMode ? 'bg-black/15 border-stone-800' : 'bg-white/75 border-stone-300'
+          className={`border-t px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-3 sm:pb-4 shrink-0 backdrop-blur-xl ${
+            isDarkMode ? 'bg-[#141312]/88 border-stone-800' : 'bg-[#fffdfa]/88 border-stone-200'
           }`}
         >
           <div className="max-w-3xl mx-auto">
@@ -1010,7 +1019,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 if (editingMessageId) void handleEditMessage();
                 else handleSendMessage();
               }}
-              className="flex items-center space-x-2"
+              className={`flex items-center space-x-2 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
               <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
               <input
@@ -1028,10 +1037,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         ? "Session ended. Click 'Next Peer' above."
                         : pendingImages.length ? 'Add a caption…' : `Message ${peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}... (Press Enter to send)`
                 }
-                className={`chat-theme-input min-w-0 flex-1 px-4 py-2.5 border text-base sm:text-sm font-mono focus:outline-none disabled:opacity-50 transition-colors ${
+                className={`chat-theme-input min-w-0 flex-1 px-3 py-2.5 border-0 bg-transparent text-base sm:text-sm focus:outline-none focus:shadow-none disabled:opacity-50 transition-colors ${
                   isDarkMode
-                    ? 'bg-stone-900 border-stone-700 text-white placeholder:text-stone-500'
-                    : 'bg-stone-50 border-stone-300 text-stone-900 placeholder:text-stone-400'
+                    ? 'text-white placeholder:text-stone-500'
+                    : 'text-stone-900 placeholder:text-stone-400'
                 }`}
               />
               {editingMessageId && (
@@ -1056,27 +1065,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 type="submit"
                 aria-label={editingMessageId ? 'Save edited message' : isSending ? 'Sending message' : 'Send message'}
                 disabled={peerDisconnected || isSending || preparingImages || (!hasInputText && !pendingImages.length) || (editingMessageId && !inputRef.current?.value.trim())}
-                className="chat-theme-accent-button py-2.5 px-3 sm:px-5 text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-40 shrink-0 cursor-pointer flex items-center space-x-1.5"
+                className="chat-theme-accent-button flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="hidden sm:inline">{editingMessageId ? 'Save' : isSending ? 'Sending…' : 'Send'}</span>
-                {editingMessageId ? null : <Send className="w-3.5 h-3.5" />}
+                {editingMessageId ? <Pencil className="h-4 w-4" /> : isSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
-              {!peerDisconnected && (
-                <button
-                  id="leave-chat-btn"
-                  type="button"
-                  onClick={requestLeave}
-                  aria-label="Disconnect and leave chat"
-                  title="Disconnect and leave chat"
-                  className={`chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center border transition-colors ${
-                    isDarkMode
-                      ? 'border-stone-700 bg-stone-900 text-stone-300 hover:border-red-400 hover:text-red-400'
-                      : 'border-stone-300 bg-stone-50 text-stone-600 hover:border-red-600 hover:text-red-600'
-                  }`}
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
             </form>
           </div>
         </div>

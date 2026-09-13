@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Bot, ArrowRight, Shield, Sparkles } from 'lucide-react';
+import { RefreshCw, Loader2, Bot, ArrowRight, Shield, X } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -199,7 +199,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
   return (
     <div
-      className="ambient-grid flex-1 min-h-0 w-full h-full flex flex-col items-center p-3 sm:p-6 overflow-y-auto select-none"
+      className="ambient-grid flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
       style={{
         backgroundColor: isDarkMode ? '#111110' : '#f7f4ef',
       }}
@@ -207,24 +207,24 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       <div className="w-full max-w-2xl space-y-4 my-auto">
         {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
         <div
-          className={`rounded-md border p-3 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${
+          className={`ui-surface rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
             isDarkMode
-              ? 'bg-[#181716] border-stone-700/80 text-stone-100 shadow-black/20'
-              : 'bg-white border-stone-300/90 text-stone-800 shadow-stone-300/30'
+              ? 'text-stone-100'
+              : 'text-stone-800'
           }`}
         >
           <div className="flex items-center space-x-3.5 min-w-0">
             <div className="min-w-0">
               {!isEditingName ? (
                 <div className="flex flex-wrap items-center gap-2">
-                 <span className="max-w-full break-words font-bold text-base tracking-tight text-stone-900 dark:text-white font-mono">
+                 <span className="max-w-full break-words text-base font-bold tracking-tight text-stone-900 dark:text-white">
                     {session.sessionHandle}
                   </span>
                   {!session.customHandle && <button
                     onClick={onRerollHandle}
                     disabled={isSearching}
                     title="Shuffle default name"
-                    className="rounded-md p-1 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
+                    className="rounded-lg p-1.5 border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-300 hover:border-[#991B1B] hover:text-[#991B1B] dark:hover:text-[#F87171] transition-colors cursor-pointer shrink-0"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>}
@@ -232,7 +232,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     type="button"
                     onClick={() => { setNameInput(session.customHandle ? session.sessionHandle : ''); setIsEditingName(true); }}
                     disabled={isSearching}
-                    className="rounded-md border border-[#991B1B] bg-[#991B1B] px-2.5 py-1 text-[10px] font-mono font-semibold text-white transition-colors hover:bg-[#7F1D1D] disabled:opacity-50"
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-[#991B1B] transition-colors hover:border-[#991B1B] hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                   >
                     {session.customHandle ? 'Edit name' : 'Use a custom name'}
                   </button>
@@ -253,7 +253,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 </form>
               )}
 
-              <div className="mt-1 text-xs font-mono text-stone-500 dark:text-stone-400">
+              <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
                 <span className="text-[#991B1B] dark:text-[#F87171] font-semibold">
                   {session.isVerified ? 'Verified account' : 'Community access'}
                 </span>
@@ -261,7 +261,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             </div>
           </div>
 
-          <div className="text-left sm:text-right shrink-0 text-xs border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto border-stone-200 dark:border-stone-800 font-mono">
+          <div className="text-left sm:text-right shrink-0 text-xs border-t sm:border-t-0 pt-3 sm:pt-0 w-full sm:w-auto border-stone-200 dark:border-stone-800">
             <span className="text-[10px] text-stone-400 block uppercase tracking-wider font-semibold">
               Private session
             </span>
@@ -273,21 +273,21 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
         {/* Main Interest / Topic Selection Card */}
         <div
-          className={`rounded-md border p-4 sm:p-7 space-y-5 sm:space-y-6 shadow-[0_12px_32px_rgba(0,0,0,0.10)] ${
+          className={`ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
             isDarkMode
-              ? 'bg-[#181716] border-stone-700/80 text-stone-100 shadow-black/25'
-              : 'bg-white border-stone-300/90 text-stone-800 shadow-stone-300/30'
+              ? 'text-stone-100'
+              : 'text-stone-800'
           }`}
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
-           <h2 className="text-lg font-bold text-stone-900 dark:text-white">Add an interest</h2>
-           <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+           <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">Add an interest</h2>
+           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
              Optional: add something you'd like to discuss
            </p>
           </div>
 
           <div className="space-y-3">
-           <form onSubmit={handleAddInterest} className="flex space-x-2">
+           <form onSubmit={handleAddInterest} className="flex gap-2">
              <input
                type="text"
                maxLength={100}
@@ -296,22 +296,35 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                onChange={(e) => setCustomInterestInput(e.target.value)}
                placeholder="Type an interest (optional)"
                disabled={isSearching}
-               className={`flex-1 rounded-md px-3 py-2 border text-xs font-mono focus:outline-none focus:border-[#991B1B] ${
-                 isDarkMode ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'
+               className={`min-w-0 flex-1 rounded-xl px-4 py-3 border text-sm focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-red-900/10 ${
+                 isDarkMode ? 'bg-stone-900 border-stone-700 text-white placeholder:text-stone-500' : 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400'
                }`}
              />
              <button
                type="submit"
                disabled={isSearching || !customInterestInput.trim()}
-               className="rounded-md px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+               className="rounded-xl px-5 py-3 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
              >
                Add
              </button>
            </form>
            {selectedInterests.length > 0 && (
-             <p className="text-xs font-mono text-stone-500 dark:text-stone-400">
-               Added: {selectedInterests.join(', ')}
-             </p>
+             <div className="flex flex-wrap gap-2" aria-label="Selected interests">
+               {selectedInterests.map(interest => (
+                 <span key={interest} className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-[#7F1D1D] dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                   {interest}
+                   <button
+                     type="button"
+                     disabled={isSearching}
+                     onClick={() => setSelectedInterests(current => current.filter(value => value !== interest))}
+                     aria-label={`Remove interest ${interest}`}
+                     className="rounded-full p-0.5 hover:bg-red-200/70 disabled:opacity-40 dark:hover:bg-red-900/60"
+                   >
+                     <X className="h-3 w-3" />
+                   </button>
+                 </span>
+               ))}
+             </div>
            )}
           </div>
 
@@ -324,18 +337,18 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   id="start-chat-btn"
                   type="button"
                   onClick={startMatchmaking}
-                  className="w-full rounded-md py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                  className="w-full rounded-xl py-3.5 px-6 bg-[#991B1B] hover:bg-[#7F1D1D] text-white font-bold text-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-[0_8px_20px_rgba(153,27,27,0.18)]"
                 >
                   <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-                <div className="text-[11px] font-mono text-stone-400 flex items-center justify-center space-x-1.5">
+                <div className="text-[11px] text-stone-400 flex items-center justify-center space-x-1.5">
                   <Shield className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#F87171]" />
                   <span>Private rooms • Messages cleared when the chat ends</span>
                 </div>
               </div>
             ) : (
-              <div className="rounded-md p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
+              <div className="rounded-xl p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
                 <div className="flex items-center justify-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-[#991B1B]" />
                   <span className="font-semibold text-xs font-mono text-stone-800 dark:text-stone-200">

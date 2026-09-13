@@ -9,10 +9,11 @@
   font-display: swap;
 }
 
-/* All UI text uses the local font; the wordmark retains font-serif. */
+/* Keep the handwritten face as a brand accent and use a calm, highly legible
+   system stack for the functional interface. */
 @theme {
-  --font-sans: 'Architects Daughter', cursive;
-  --font-mono: 'Architects Daughter', cursive;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 @layer base {
@@ -63,9 +64,9 @@
 
   body {
     font-family: var(--font-sans);
-    letter-spacing: -0.011em;
+    letter-spacing: -0.015em;
     @apply antialiased bg-[#f7f4ef] text-stone-800 dark:bg-[#121110] dark:text-stone-100;
-    background-image: radial-gradient(circle at top right, rgba(153, 27, 27, 0.06), transparent 32rem);
+    background-image: radial-gradient(circle at 50% 18%, rgba(153, 27, 27, 0.055), transparent 34rem);
   }
 
   button, input, select, textarea {
@@ -93,6 +94,23 @@
     outline: 2px solid #dc2626;
     outline-offset: 2px;
   }
+}
+
+.brand-script {
+  font-family: 'Architects Daughter', cursive;
+  letter-spacing: -0.055em;
+}
+
+.ui-surface {
+  border: 1px solid rgb(214 211 209 / 0.9);
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 18px 50px rgb(68 52 39 / 0.08), 0 2px 8px rgb(68 52 39 / 0.04);
+}
+
+.dark .ui-surface {
+  border-color: rgb(68 64 60 / 0.9);
+  background: rgb(28 27 26 / 0.94);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.24), 0 2px 8px rgb(0 0 0 / 0.18);
 }
 
 /* Subtle clean scrollbars with sharp edges */
@@ -137,17 +155,17 @@
 }
 
 /* Keep the original wordmark scale while fitting brackets on narrow screens. */
-.access-gateway, .ambient-grid {
+.access-gateway, .ambient-grid, .chat-theme-scope {
   position: relative;
   isolation: isolate;
-  --grid-color: rgba(142, 107, 48, 0.26);
+  --grid-color: rgba(120, 113, 108, 0.11);
 }
 
-.dark .access-gateway, .dark .ambient-grid {
-  --grid-color: rgba(229, 164, 0, 0.25);
+.dark .access-gateway, .dark .ambient-grid, .dark .chat-theme-scope {
+  --grid-color: rgba(168, 162, 158, 0.08);
 }
 
-.access-gateway::before, .ambient-grid::before {
+.access-gateway::before, .ambient-grid::before, .chat-theme-scope::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -156,8 +174,9 @@
   background-image:
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: 40px 40px;
-  animation: grid-breathe 7s ease-in-out infinite, grid-drift 18s linear infinite;
+  background-size: 48px 48px;
+  opacity: 0.7;
+  animation: grid-breathe 9s ease-in-out infinite, grid-drift 28s linear infinite;
   transition: opacity 300ms ease, filter 300ms ease, background-size 450ms ease;
 }
 
@@ -335,7 +354,7 @@ html.theme-revealing *, html.theme-revealing *::before, html.theme-revealing *::
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .access-gateway::before, .ambient-grid::before {
+  .access-gateway::before, .ambient-grid::before, .chat-theme-scope::before {
     animation: none;
     opacity: 0.5;
   }
