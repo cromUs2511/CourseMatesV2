@@ -1,0 +1,52 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+CourseMates: anonymous peer-matching chat for college students. React 19 + Vite frontend, one Express server (`server.ts`) that also owns a raw WebSocket endpoint (`/ws/chat`) via `runtime.ts`. Node.js >= 22.14 required. No database — everything is in-memory in a single server process (see Architecture).
+
+## Commands
+
+- `npm run dev` — start the dev server (tsx runs `server.ts`, which mounts Vite in middleware mode). Serves at http://localhost:3000.
+- `npm run build` — builds the frontend (`vite build`) and bundles the server (`esbuild server.ts` → `dist/.server/server.cjs`).
+- `npm start` — runs the production bundle (`node dist/.server/server.cjs --production`); requires `npm run build` first.
+- `npm run lint` — `tsc --noEmit`, the only linter/type-checker configured.
+- `npm test` — runs `tests/*.test.ts` with the native Node test runner (`tsx --test`). No test framework config; tests spin up real `http.Server`/WebSocket instances against `runtime.ts` (see `tests/runtime.test.ts`).
+  - Run a single test file: `npx tsx --test tests/runtime.test.ts`
+  - Filter by test name: `npx tsx --test tests/runtime.test.ts --test-name-pattern "shared interest"`
+- `npm run test:e2e` — Playwright browser tests in `tests/browser/`; builds and runs against `dist/.server/server.cjs --production` on port 3100 with demo login forced on. Requires an installed Google Chrome (uses `channel: 'chrome'`); run `npx playwright install chromium` and remove that line from `playwright.config.ts` to use bundled Chromium instead.
+- `npm run test:e2e:dev` — same Playwright suite but against `npm run dev` (Vite) instead of the production bundle.
+- `npm run clean` — cross-platform removal of generated build output (`scripts/clean.cjs`).
+
+There is no separate frontend/backend package — one `package.json`, one Express process serves both API and (in production) the built static frontend.
+
+## Architecture
+
+### Single in-memory runtime, one process
+`runtime.ts` is the heart of the app: it owns all server-side state as plain `Map`s (`sessions`, `queue`, `rooms`, `matches`, `sockets`) local to the module — no external store. `attachRuntime(app, server)` wires REST routes and the WebSocket server onto an existing Express app/HTTP server and returns a `stop()` cleanup function. This is explicitly a **single-process** design (documented in README): running multiple replicas would require a shared session/matching/room store, which does not exist today. A periodic `setInterval` sweep in `attachRuntime` expires stale sessions, queue entries, and abandoned rooms (~30s of no heartbeat).
+
+### REST + WebSocket dual transport for the same actions
+Chat/matching actions (`send_message`, `delete_message`, `edit_message`, `music_update`, join/leave) are implemented once in `runtime.ts` as internal functions (`send`, `removeMessage`, `editMessage`, `updateMusic`, `join`, `leave`) and are invokable via **both** an HTTP POST route (e.g. `/api/chat/send`) and a WebSocket message type (e.g. `{type: 'send_message', ...}`) on `/ws/chat`. The frontend uses WebSocket when connected and falls back to REST polling (`/api/chat/messages?sinceRevision=...`, `/api/match/poll`) when the socket drops — a room's `revision` counter lets clients detect whether anything changed without retransmitting the full message buffer. When adding a new realtime action, wire it into both the REST route table and the `ws.on('message', ...)` switch in `attachRuntime`, or it'll silently only work over one transport.
+
+### Auth model
+Two session types exist side by side, tracked via `session.authProvider`: `'demo'` (email typed into a form, no verification, gated by `ALLOW_DEMO_LOGIN` — defaults on in dev, off in prod) and `'microsoft_entra_id'` (real OAuth2 PKCE flow against Microsoft Entra, requiring `MICROSOFT_CLIENT_ID`/`SECRET`/`TENANT_ID`/`APP_URL`, in `server.ts`). Demo and verified sessions are matched into **separate pools** — `join()` in `runtime.ts` filters candidates by `queuedSession?.isVerified === session.isVerified`. Sessions live 8 hours, are looked up by bearer token (`Authorization: Bearer <token>` or the `cm_session` HttpOnly cookie), and are wiped on server restart — there is no persistence layer.
+
+### Matching algorithm
+`join()` in `runtime.ts` scores queued candidates by shared interest words (tokenized, stop-words removed, case-insensitive) via `sharedInterest()`; an exact interest-string match scores much higher than a partial word overlap. A participant only matches on "General Peer Discovery" (`allowNormal`) if they opted in or have no specific interests. Highest-scoring candidate wins; ties aren't specially broken.
+
+### Media handling (photos/voice)
+Chat photos and voice clips are **not stored on disk** — they live in per-room `Map`s (`room.images`, `room.voices`) inside `runtime.ts`, bounded by `MAX_ROOM_IMAGE_BYTES` (a 24 MB/room budget) and served back through authenticated, no-cache endpoints (`/api/chat/images/:roomId/:messageId/:imageId`, `/api/chat/voice/...`). Parsing/validation of incoming base64 payloads lives in `chatImages.ts` (server) and `voiceMessages.ts` (server), separate from the client-side prep in `src/utils/prepareChatImage.ts` (resizes to ≤1600px/1MB client-side before sending) and the shared types in `src/data/chatImages.ts` / `src/data/chatVoice.ts`. Deleting a message, room expiry, or leaving clears the associated media from these maps (`clearMessageMedia`).
+
+### AI integration (`server.ts`)
+All AI endpoints (`/api/ai/icebreakers`, `/api/ai/suggestions`, `/api/ai/assist`, `/api/ai/chatbot`) are Gemini-first (`@google/genai`, model from `GEMINI_MODEL`, default `gemini-3.6-flash`) with hardcoded local/topic-keyword fallbacks when `GEMINI_API_KEY` is unset or the call fails — none of these routes should ever hard-fail the UI just because AI is unconfigured. `/api/ai/chatbot` additionally supports Groq (`GROQ_API_KEY`) as a fallback provider when Gemini isn't configured, with its own model-downgrade retry logic on HTTP 413. Web search grounding (Gemini's `googleSearch` tool) is only enabled per-request when the message text matches a "wants current/online info" heuristic regex.
+
+### Historical/dead code
+`app.py`, `engine.py`, and the root-level `fix_*.py` / `patch_*.py` / `refine_ui.py` / `polish_inputs.py` / `remove_doodles.py` scripts are **not part of the supported app** — they're historical prototypes/one-off patch scripts (per README). No Python is needed to run or build CourseMates; don't wire new features through them. Likewise check whether a component under `src/components/` (e.g. `InstitutionalDashboard.tsx`, `StudyGroupsView.tsx`) is actually reachable from `App.tsx` before assuming it's live UI.
+
+### Frontend structure
+`src/App.tsx` is the single top-level state machine (session → matchmaking queue → chat room), passing state down as props rather than through context/a store. `src/utils/api.ts`'s `apiRequest()` is the one shared fetch wrapper (bearer token header, JSON, timeout) used for all REST calls. Chat themes (`ChatThemeMenu.tsx`), dark mode, and sound preference are persisted to `localStorage` directly in `App.tsx`, not through a settings module.
+
+## Environment configuration
+
+Loaded via `dotenv` from `.env.groq.local`, `.env.gemini.local`, `.env.local`, `.env` in that order (see `.env.example`); real process env vars always win over any `.env*` file. Key vars: `GEMINI_API_KEY`/`GEMINI_MODEL`, `GROQ_API_KEY`/`GROQ_MODEL`, `YOUTUBE_API_KEY` (music search), `PORT`/`HOST`/`APP_URL`, `ALLOW_DEMO_LOGIN`, `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`/`MICROSOFT_TENANT_ID`. Never commit real credentials.
