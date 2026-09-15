@@ -12,3 +12,8 @@ coverage/
 
 test-results/
 playwright-report/
+
+# Compiled native extension (built from ./native, never committed)
+*.pyd
+*.so
+*.dylib

@@ -116,12 +116,12 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 class EngineRequestHandler(BaseHTTPRequestHandler):
-    def log_message(self, _format, *_args):
+    def log_message(self, format, *_args):
         # Zero-log: suppresses persistent request logs
-        del _format, _args
+        del format, _args
         return
 
-    def _send_json(self, status: int, data: dict):
+    def _send_json(self, status: int, data: dict | list):
         response_bytes = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
