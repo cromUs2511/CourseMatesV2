@@ -116,12 +116,6 @@ export const Header: React.FC<HeaderProps> = ({
             : 'flex items-center gap-2 text-xs'}>
             {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[900px]:hidden">Appearance &amp; account</p>}
             {/* Dark / Light Theme Toggle */}
-            {conversation && <ThemeToggle
-              id="dark-mode-toggle-btn"
-              isDarkMode={isDarkMode}
-              onToggle={onToggleDarkMode}
-              className="shadow-sm min-[768px]:hidden"
-            />}
             <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
             <button
               id="logout-btn"
@@ -165,6 +159,13 @@ export const Header: React.FC<HeaderProps> = ({
             {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[900px]:w-auto min-[900px]:flex-nowrap min-[900px]:border-t-0 min-[900px]:pt-0">{displayActions}</div>}
             </div>
             </div>
+            {conversation && <ThemeToggle
+              id="mobile-dark-mode-toggle-btn"
+              isDarkMode={isDarkMode}
+              onToggle={onToggleDarkMode}
+              iconOnly
+              className="min-[900px]:hidden"
+            />}
             {chatActions && <div className="chat-actions flex shrink-0 items-center gap-1.5">{chatActions}</div>}
           </div>
         </div>

@@ -364,7 +364,8 @@ button, input, select, textarea, [data-ui-label] {
     #chat-header .chat-actions #leave-chat-btn,
     #chat-header .chat-actions #top-music-bar,
     #chat-header .chat-actions #chat-fullscreen-btn,
-    #chat-header .chat-actions #top-music-bar > button {
+    #chat-header .chat-actions #top-music-bar > button,
+    #chat-header #mobile-dark-mode-toggle-btn {
       height: 2.125rem;
       width: 2.125rem;
     }
