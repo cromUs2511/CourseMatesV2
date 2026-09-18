@@ -11,6 +11,7 @@ import { SpiderWebBackground } from './SpiderWebBackground';
 import { TopMusicBar } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
+import { ThemeToggle } from './ThemeToggle';
 import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -573,6 +574,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </button>
           </>}
           chatActions={<>
+            <ThemeToggle
+              id="mobile-dark-mode-toggle-btn"
+              isDarkMode={headerProps.isDarkMode}
+              onToggle={headerProps.onToggleDarkMode}
+              iconOnly
+              className="min-[900px]:hidden"
+            />
             {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
             <button
               id="next-match-btn"

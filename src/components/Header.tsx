@@ -159,13 +159,6 @@ export const Header: React.FC<HeaderProps> = ({
             {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[900px]:w-auto min-[900px]:flex-nowrap min-[900px]:border-t-0 min-[900px]:pt-0">{displayActions}</div>}
             </div>
             </div>
-            {conversation && <ThemeToggle
-              id="mobile-dark-mode-toggle-btn"
-              isDarkMode={isDarkMode}
-              onToggle={onToggleDarkMode}
-              iconOnly
-              className="min-[900px]:hidden"
-            />}
             {chatActions && <div className="chat-actions flex shrink-0 items-center gap-1.5">{chatActions}</div>}
           </div>
         </div>
