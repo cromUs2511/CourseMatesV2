@@ -33,7 +33,7 @@ interface TopMusicBarProps {
   accentHover?: string;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic, onAmbientChange, accent = '#991B1B', accentHover = '#7F1D1D' }) => {
+export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = ({ isDarkMode, roomId, ws, isSimulated, token, remoteMusic, onAmbientChange, accent = '#991B1B', accentHover = '#7F1D1D', compact = false }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -416,16 +416,16 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         role="group"
         aria-label="Study music controls"
         data-playing={playbackActive}
-        style={{
+        style={compact ? undefined : {
           borderColor: `${accent}99`,
           ...(playbackActive ? {
             backgroundColor: isDarkMode ? 'rgb(24 23 22 / 0.58)' : 'rgb(255 255 255 / 0.58)',
             boxShadow: `0 0 0 1px ${accent}55, 0 0 18px 2px ${accent}99`,
           } : {}),
         }}
-        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[background-color,box-shadow,border-color] duration-500 backdrop-blur-md motion-reduce:transition-none ${
-          playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
-        } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
+        className={compact
+          ? 'chat-display-control flex h-11 w-11 items-center justify-center rounded-xl border-0 bg-transparent shadow-none transition-[background-color,box-shadow] duration-200 motion-reduce:transition-none'
+          : `flex h-10 w-10 items-center justify-center rounded-xl border transition-[background-color,box-shadow,border-color] duration-500 backdrop-blur-md motion-reduce:transition-none ${playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'} ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
         <button
           ref={menuButtonRef}
@@ -436,7 +436,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
           aria-controls="music-tracks-dropdown"
           title={`Music controls: ${currentTrack.title}`}
           style={{ color: accent }}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg hover:bg-stone-500/10 focus-visible:outline focus-visible:outline-2"
+          className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 ${compact ? 'chat-display-control border-0 bg-transparent shadow-none' : 'hover:bg-stone-500/10'}`}
         >
           {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className="h-5 w-5" />}
         </button>
@@ -454,17 +454,18 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
             id="music-tracks-dropdown"
             role="region"
             aria-label="Choose music"
-            className={`relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border p-3 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-4 ${isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'}`}
+            className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[#383838] bg-[#191919] p-3 font-mono text-stone-200 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-4"
           >
             <div className="mb-3 flex shrink-0 items-center justify-between">
               <div className="flex items-center gap-2">
                 <Music2 className="h-4 w-4" style={{ color: accent }} />
-                <span className="text-sm font-semibold">Music controls</span>
+                <span className="text-sm font-bold">Music controls</span>
               </div>
-              <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 hover:bg-stone-500/10"><X className="h-4 w-4" /></button>
+              <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 text-stone-300 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
             </div>
-            <div className="min-h-0 overflow-y-auto pr-0.5">
+            <div className="min-h-0 overflow-y-auto pr-1">
               <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
+              <div role="group" aria-label="Music playback controls" className="mb-4 border-b border-[#363636] pb-4">
               <div className="mb-3 flex items-center gap-2">
                 <button
                   id="music-play-toggle-btn"
@@ -474,7 +475,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                   style={{ backgroundColor: accent }}
                   onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }}
                   onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }}
-                  className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-white"
+                  className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255_/_0.08)]"
                 >
                   {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
                   {isPlaying || isLoading ? 'Pause' : 'Play'}
@@ -485,28 +486,29 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                   onClick={toggleMute}
                   aria-label={isMuted ? 'Unmute music' : 'Mute music'}
                   aria-pressed={isMuted}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-400/40"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-500 bg-[#1c1c1c] text-stone-100 hover:bg-[#292929]"
                 >
                   {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </button>
               </div>
-              <div className="mb-4 flex items-center gap-2">
-                <input type="range" min="0" max="100" value={isMuted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} aria-label="Music volume" style={{ accentColor: accent }} className="h-8 min-w-0 flex-1 cursor-pointer" />
-                <span className="w-9 text-right text-[11px] tabular-nums">{isMuted ? 0 : volume}%</span>
+              <div className="flex items-center gap-2">
+                <input type="range" min="0" max="100" value={isMuted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} aria-label="Music volume" style={{ accentColor: '#b91c1c' }} className="h-8 min-w-0 flex-1 cursor-pointer" />
+                <span className="w-9 text-right text-[11px] tabular-nums text-stone-300">{isMuted ? 0 : volume}%</span>
               </div>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-400/20 pt-3 text-xs">
+              </div>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#363636] pb-4 text-xs">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={glowEnabled} onChange={(event) => updateGlowEnabled(event.target.checked)} />
-                  Ambient glow
+                  <input type="checkbox" checked={glowEnabled} onChange={(event) => updateGlowEnabled(event.target.checked)} className="h-3.5 w-3.5 accent-teal-500" />
+                  <span className="font-bold">Ambient glow</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <span className="text-stone-500">Custom</span>
-                  <input type="color" value={glowColor} onChange={(event) => updateGlowColor(event.target.value)} aria-label="Custom ambient glow color" className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0" />
+                  <input type="color" value={glowColor} onChange={(event) => updateGlowColor(event.target.value)} aria-label="Custom ambient glow color" className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
                 </label>
               </div>
-              <div className="mb-4 border-b border-stone-400/20 pb-4">
+              <div className="mb-4 border-b border-[#363636] pb-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold">Aurora color</span>
+                  <span className="text-xs font-bold">Aurora color</span>
                   <span className="text-[10px] text-stone-500">{AMBIENT_GLOW_COLORS.find(option => option.color.toLowerCase() === glowColor.toLowerCase())?.name || 'Custom color'}</span>
                 </div>
                 <div className="grid grid-cols-6 gap-2">
@@ -518,7 +520,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                       aria-pressed={glowColor.toLowerCase() === option.color.toLowerCase()}
                       title={option.name}
                       onClick={() => updateGlowColor(option.color)}
-                      className="group flex h-8 items-center justify-center rounded-lg border border-stone-400/30 bg-stone-500/5 transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2"
+                      className="group flex h-8 items-center justify-center rounded-lg border border-stone-600 bg-[#202020] transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2"
                       style={{
                         outlineColor: option.color,
                         borderColor: glowColor.toLowerCase() === option.color.toLowerCase() ? option.color : undefined,
@@ -535,15 +537,15 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
                 </div>
               </div>
               <form onSubmit={searchMusic} className="flex gap-2">
-                <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" className="w-full min-w-0 rounded-lg border border-stone-400/40 bg-transparent px-3 py-2.5 text-xs outline-none focus:border-red-500" />
-                <button type="submit" aria-label="Go" style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="rounded-lg px-4 text-xs text-white disabled:opacity-50">Go</button>
+                <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" style={{ borderColor: accent }} className="w-full min-w-0 rounded-lg border bg-transparent px-3 py-2.5 text-xs text-stone-100 outline-none placeholder:text-stone-500 focus:border-[var(--chat-accent)]" />
+                <button type="submit" aria-label="Go" style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="rounded-lg px-4 text-xs font-bold text-white disabled:opacity-50">Go</button>
               </form>
               {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
               <div className="mt-3 space-y-1">
                 {searchResults.length > 0 && <p className="px-2 py-1 text-[10px] uppercase text-stone-500">Search results</p>}
                 {[...searchResults, ...tracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map(track => (
-                  <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${currentTrack.id === track.id ? 'bg-red-500/15 text-red-500' : 'hover:bg-stone-500/10'}`}>
-                    <span className="block truncate font-medium">{track.title}</span>
+                  <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} style={currentTrack.id === track.id ? { backgroundColor: `color-mix(in srgb, ${accent} 28%, transparent)`, color: accent } : undefined} className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${currentTrack.id === track.id ? '' : 'text-stone-100 hover:bg-white/10'}`}>
+                    <span className="block truncate font-bold">{track.title}</span>
                     <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
                   </button>
                 ))}

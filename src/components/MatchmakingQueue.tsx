@@ -265,6 +265,14 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   >
                     {session.customHandle ? 'Edit name' : 'Use a custom name'}
                   </button>
+                  {session.customHandle && <button
+                    type="button"
+                    onClick={onRerollHandle}
+                    disabled={isSearching}
+                    className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Use random name
+                  </button>}
                 </div>
               ) : (
                 <form onSubmit={saveName} className="flex items-center gap-2">
@@ -281,12 +289,6 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] text-stone-500 dark:border-stone-700">Cancel</button>
                 </form>
               )}
-
-              <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
-                <span className="chat-theme-accent-text font-semibold">
-                  Anonymous community session
-                </span>
-              </div>
             </div>
           </div>
 

@@ -78,6 +78,66 @@
     box-shadow: 0 0 0 1px var(--chat-accent);
   }
 
+  /* Every persistent chat utility inherits the selected room accent instead
+     of carrying a second, unrelated gold color system. */
+  .chat-theme-scope .chat-display-control {
+    color: var(--chat-accent) !important;
+    border-style: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .chat-theme-scope .chat-display-control:hover {
+    background-color: color-mix(in srgb, var(--chat-accent) 14%, transparent) !important;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--chat-accent) 36%, transparent) !important;
+  }
+
+  .app-shell .site-display-control {
+    color: var(--chat-accent) !important;
+    border-style: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .app-shell .site-display-control:hover {
+    background-color: color-mix(in srgb, var(--chat-accent) 14%, transparent) !important;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--chat-accent) 36%, transparent) !important;
+  }
+
+  .app-shell .site-display-control.theme-toggle {
+    border-style: solid !important;
+    background-color: white !important;
+    box-shadow: none !important;
+  }
+
+  .dark .app-shell .site-display-control.theme-toggle {
+    background-color: #2a2a2a !important;
+  }
+
+  .app-shell .theme-toggle > span:first-of-type {
+    border: 2px solid var(--chat-accent, #991B1B);
+    box-shadow: none;
+  }
+
+  .app-shell .theme-toggle,
+  .app-shell .theme-toggle:hover {
+    backdrop-filter: none;
+    filter: none;
+  }
+
+  .chat-theme-scope .chat-theme-toggle.theme-toggle {
+    border-color: color-mix(in srgb, var(--chat-accent) 50%, transparent) !important;
+    background-color: #2a2a2a !important;
+  }
+
+  html:not(.dark) .chat-theme-scope .chat-theme-toggle.theme-toggle {
+    background-color: white !important;
+  }
+
+  .chat-theme-scope .chat-theme-toggle.theme-toggle > span:last-of-type {
+    color: var(--chat-accent) !important;
+  }
+
   body {
     font-family: var(--font-sans);
     font-kerning: normal;
@@ -231,6 +291,22 @@ button, input, select, textarea, [data-ui-label] {
   box-shadow: 0 1px 2px rgb(41 37 36 / 0.08);
 }
 
+/* Persistent chat utilities are individual header icons. Their shared wrapper
+   only provides safe spacing; it intentionally draws no separate surface. */
+.chat-display-controls {
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-display-control:focus-visible {
+  outline: 2px solid #d8c994;
+  outline-offset: 2px;
+}
+
 /* During playback, let the aurora or web artwork carry gently through the
    fixed chrome while preserving enough contrast for chat controls. */
 .chat-theme-scope.music-playing #main-header {
@@ -364,8 +440,7 @@ button, input, select, textarea, [data-ui-label] {
     #chat-header .chat-actions #leave-chat-btn,
     #chat-header .chat-actions #top-music-bar,
     #chat-header .chat-actions #chat-fullscreen-btn,
-    #chat-header .chat-actions #top-music-bar > button,
-    #chat-header #mobile-dark-mode-toggle-btn {
+    #chat-header .chat-actions #top-music-bar > button {
       height: 2.125rem;
       width: 2.125rem;
     }

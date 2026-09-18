@@ -69,8 +69,8 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
         <div className="access-mobile-logo mb-8 w-[calc(100%+2rem)] lg:hidden" aria-label="CourseMates">
           <div className="mb-3 flex justify-end pr-1">
             <div className="flex items-center gap-2">
-              <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
-              <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact />
+              <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact className="site-display-control" />
+              <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact className="site-display-control" />
             </div>
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -83,8 +83,8 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           </div>
         </div>
         <div className="access-desktop-theme-toggle absolute right-6 top-6 z-20 hidden items-center gap-2 lg:flex">
-          <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
-          <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact />
+          <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact className="site-display-control" />
+          <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact className="site-display-control" />
         </div>
         <div className="w-full max-w-[430px] lg:pt-10">
           <h1 className={`text-[28px] font-bold leading-tight tracking-[-0.035em] sm:text-[30px] ${isDarkMode ? 'text-white' : 'text-stone-950'}`}>

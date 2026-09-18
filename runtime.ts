@@ -268,8 +268,8 @@ export function attachRuntime(app: Express, server: Server) {
     const session = authenticate(req);
     if (!session) return res.status(401).json({ error: 'Please sign in again.' });
     if (queue.has(session.id) || matches.has(session.id)) return res.status(409).json({ error: 'Leave the queue or chat before changing your handle.' });
-    if (session.customHandle) return res.status(409).json({ error: 'Custom names cannot be shuffled. Edit or clear your name first.' });
     session.sessionHandle = generateAnonymousHandle().handle;
+    session.customHandle = false;
     res.json({ session });
   });
   app.post('/api/auth/handle', (req, res) => {

@@ -69,6 +69,7 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toHaveCount(0);
   await expect(b.getByText('Peer disconnected from this session')).toBeVisible();
   await expect(b.getByText('Hello back', { exact: true })).toHaveCount(0);
+  await expect(b.getByRole('button', { name: 'Return to main menu' })).toBeVisible();
   await b.locator('#next-match-btn').click();
   await b.getByRole('dialog').getByRole('button', { name: 'Find next peer' }).click();
   await expect(b.getByText(/Finding active study peers/)).toBeVisible();

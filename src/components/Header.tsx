@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className={`${conversation ? 'hidden min-[900px]:block' : 'block'} min-w-0 flex-1`}>
             {conversation ? (
               <div className="flex items-center gap-2">
-                <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} className="shadow-sm" />
+                <ThemeToggle isDarkMode={isDarkMode} onToggle={onToggleDarkMode} className="chat-theme-toggle shadow-sm" />
                 {session && (
                   <div className={`min-w-0 max-w-40 truncate rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm ${
                     isDarkMode ? 'border-stone-700 bg-stone-900/80 text-stone-200' : 'border-stone-200 bg-white/80 text-stone-800'
@@ -93,7 +93,8 @@ export const Header: React.FC<HeaderProps> = ({
                   id="dark-mode-toggle-btn"
                   isDarkMode={isDarkMode}
                   onToggle={onToggleDarkMode}
-                  className="shadow-sm"
+                  compact
+                  className="site-display-control"
                 />
                 {displayActions}
               </div>
@@ -116,8 +117,13 @@ export const Header: React.FC<HeaderProps> = ({
             : 'flex items-center gap-2 text-xs'}>
             {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[900px]:hidden">Appearance &amp; account</p>}
             {/* Dark / Light Theme Toggle */}
-            <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} />
-            <button
+            {conversation && displayActions ? (
+              <div role="group" aria-label="Chat display controls" className="chat-display-controls flex w-full items-center justify-around min-[900px]:w-auto">
+                <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact />
+                {displayActions}
+              </div>
+            ) : <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact className="site-display-control" />}
+            {!conversation && <button
               id="logout-btn"
               type="button"
               aria-label="Disconnect and log out"
@@ -126,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950"
             >
               <LogOut className="h-4 w-4" />
-            </button>
+            </button>}
 
             {/* Authenticated Identity Badge - No user emojis or icons */}
             {session && (
@@ -156,7 +162,6 @@ export const Header: React.FC<HeaderProps> = ({
 
               </div>
             )}
-            {conversation && displayActions && <div className="flex w-full flex-wrap items-center gap-2 border-t border-stone-200 pt-2 dark:border-stone-700 min-[900px]:w-auto min-[900px]:flex-nowrap min-[900px]:border-t-0 min-[900px]:pt-0">{displayActions}</div>}
             </div>
             </div>
             {chatActions && <div className="chat-actions flex shrink-0 items-center gap-1.5">{chatActions}</div>}

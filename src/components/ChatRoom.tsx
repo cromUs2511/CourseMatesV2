@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, ArrowRight, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil } from 'lucide-react';
+import { Send, ArrowRight, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -541,11 +541,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <div className="chat-header-peer min-w-0 w-full">
               <div className="flex min-w-0 items-start gap-1.5">
                 <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  className="chat-header-peer-name min-w-0 break-words font-bold text-sm leading-tight sm:text-base text-stone-900 dark:text-white">
+                  className="chat-header-peer-name min-w-0 flex-1 line-clamp-2 break-words text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-base sm:leading-tight">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
                 {!peerDisconnected && peer.isSimulated ? (
-                  <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
+                  <span className="chat-theme-accent-soft mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
                     AI
                   </span>
                 ) : (
@@ -553,7 +553,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 )}
               </div>
 
-              <div className="chat-header-topic mt-0.5 min-w-0 truncate text-left text-xs text-stone-500 dark:text-stone-400">
+              <div className="chat-header-topic mt-1 min-w-0 truncate text-left text-[11px] leading-4 text-stone-500 dark:text-stone-400 sm:mt-0.5 sm:text-xs">
                 <span className="truncate font-semibold" style={{ color: chatTheme.accent }}>{topic}</span>
               </div>
 
@@ -562,13 +562,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
           }
           displayActions={<>
-            <ChatThemeMenu theme={chatTheme} onChange={onChatThemeChange} isDarkMode={isDarkMode} />
+            <ChatThemeMenu theme={chatTheme} onChange={onChatThemeChange} isDarkMode={isDarkMode} compact />
+            {!peerDisconnected && <TopMusicBar compact isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
             <button
               id="chat-fullscreen-btn"
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="chat-theme-accent-soft flex h-9 w-9 items-center justify-center rounded-xl border bg-white/70 dark:bg-stone-800/70 transition-colors cursor-pointer"
+              className="chat-display-control flex h-11 w-11 items-center justify-center rounded-xl text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -578,20 +579,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               id="mobile-dark-mode-toggle-btn"
               isDarkMode={headerProps.isDarkMode}
               onToggle={headerProps.onToggleDarkMode}
-              iconOnly
-              className="min-[900px]:hidden"
+              compact
+              className="chat-theme-toggle min-[900px]:hidden"
             />
-            {!peerDisconnected && <TopMusicBar isDarkMode={isDarkMode} roomId={roomId} ws={ws} token={session.token} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />}
-            <button
-              id="next-match-btn"
-              aria-label="Next Peer"
-              title="Find next peer"
-              onClick={requestNext}
-              className="chat-theme-accent-button h-10 flex-none rounded-xl px-3 sm:px-4 text-white text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 cursor-pointer shadow-[0_6px_16px_rgba(41,37,36,0.12)]"
-            >
-              <span className="next-peer-label">Next Peer</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
             {!peerDisconnected && (
               <button
                 id="leave-chat-btn"
@@ -599,7 +589,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 onClick={requestLeave}
                 aria-label="Disconnect and leave chat"
                 title="Disconnect and leave chat"
-                className="chat-theme-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white/70 dark:bg-stone-900/70 transition-colors"
+                className="chat-display-control flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -689,7 +679,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   onTouchCancel={() => { setSwipe(null); touchRef.current = null; }}
                 >
                   {!isGroupedWithPrevious && (
-                    <div className="flex max-w-[92%] items-baseline gap-1.5 text-[11px] font-mono text-stone-500 dark:text-stone-400 mb-1 px-1 sm:max-w-[75%]">
+                    <div className="mb-2 flex max-w-[92%] items-baseline gap-1.5 px-1 text-[11px] font-mono text-stone-500 dark:text-stone-400 sm:max-w-[75%]">
                       <span className="min-w-0 truncate font-semibold text-stone-600 dark:text-stone-300">
                         {msg.isMe ? 'You' : msg.senderHandle}
                       </span>
@@ -748,7 +738,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     <div
                       ref={element => { messageBubbleRefs.current[msg.id] = element; }}
                       data-message-bubble
-                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl px-3.5 text-left text-sm leading-5 border shadow-[0_1px_2px_rgba(41,37,36,0.04)] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
+                      className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl border px-3.5 text-left text-[13px] leading-[19px] shadow-[0_1px_2px_rgba(41,37,36,0.04)] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
                         isGroupedWithPrevious ? 'gap-1 py-2' : 'gap-1.5 py-2.5'
                       } ${
                         msg.isMe
@@ -819,12 +809,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 <p className="text-[11px] font-mono text-stone-500 dark:text-stone-400">
                   RAM buffer cleared. Ready for next study match.
                 </p>
-                <button
-                  onClick={requestNext}
-                  className="chat-theme-accent-button mt-2 px-4 py-2 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  Find Next Study Peer
-                </button>
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  <button onClick={requestNext} className="chat-theme-accent-button px-4 py-2 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">Find Next Study Peer</button>
+                  <button type="button" onClick={() => void leave(false)} className="chat-theme-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer">Return to main menu</button>
+                </div>
               </div>
             )}
 
@@ -1079,6 +1067,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   title="Cancel editing"
                 >
                   <X className="chat-theme-accent-text h-4 w-4" />
+                </button>
+              )}
+              {!editingMessageId && (
+                <button
+                  id="next-match-btn"
+                  type="button"
+                  aria-label="Next Peer"
+                  title="Find next peer"
+                  onClick={requestNext}
+                  className="chat-display-control flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors"
+                >
+                  <ArrowRight className="h-4 w-4" />
                 </button>
               )}
               <button

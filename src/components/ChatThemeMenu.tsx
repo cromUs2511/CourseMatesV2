@@ -34,9 +34,10 @@ interface ChatThemeMenuProps {
   onChange: (theme: ChatTheme) => void;
   isDarkMode: boolean;
   standalone?: boolean;
+  compact?: boolean;
 }
 
-export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, isDarkMode, standalone = false }) => {
+export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, isDarkMode, standalone = false, compact = false }) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,14 +58,16 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
   }, [open]);
 
   return (
-    <div ref={menuRef} className={standalone ? 'relative block' : 'contents min-[900px]:relative min-[900px]:block'}>
+    <div ref={menuRef} className={standalone || compact ? 'relative block' : 'contents min-[900px]:relative min-[900px]:block'}>
       <button
         type="button"
         aria-label="Choose chat color theme"
         aria-expanded={open}
         title={`Chat theme: ${theme.label}`}
         onClick={() => setOpen(value => !value)}
-        className="chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200"
+        className={compact
+          ? 'chat-display-control site-display-control flex h-11 w-11 items-center justify-center rounded-xl text-[#c8bb8d] transition-colors hover:bg-white/10'
+          : 'chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'}
       >
         <Palette className="h-4 w-4" />
       </button>
@@ -74,6 +77,8 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
           aria-label="Chat color themes"
           className={`${standalone
             ? 'fixed left-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-[calc(100vw-24px)] max-w-64 overflow-y-auto shadow-xl sm:absolute sm:left-0 sm:top-11 sm:w-64'
+            : compact
+              ? 'fixed right-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto shadow-xl min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-12'
             : 'order-last w-full min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-11 min-[900px]:z-30 min-[900px]:max-h-[calc(100dvh-80px)] min-[900px]:w-64 min-[900px]:overflow-y-auto min-[900px]:shadow-xl'
           } rounded-xl border p-3 ${
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'

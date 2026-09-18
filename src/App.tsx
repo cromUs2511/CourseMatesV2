@@ -101,9 +101,9 @@ export default function App() {
     onToggleSound: () => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; }),
   };
   return (
-    <div className={'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')}>
+    <div className={'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')} style={{ '--chat-accent': chatTheme.accent, '--chat-accent-hover': chatTheme.accentHover } as React.CSSProperties}>
       {session && !activePeer && <Header {...headerProps} displayActions={
-        <ChatThemeMenu theme={chatTheme} onChange={handleChatThemeChange} isDarkMode={isDarkMode} standalone />
+        <ChatThemeMenu theme={chatTheme} onChange={handleChatThemeChange} isDarkMode={isDarkMode} standalone compact />
       } />}
       {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
