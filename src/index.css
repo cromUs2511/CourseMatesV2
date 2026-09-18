@@ -136,15 +136,109 @@ button, input, select, textarea, [data-ui-label] {
 
 .ui-surface {
   border: 1px solid rgb(214 211 209 / 0.9);
-  background: rgb(255 255 255 / 0.82);
-  backdrop-filter: blur(16px) saturate(1.08);
-  box-shadow: 0 18px 50px rgb(68 52 39 / 0.08), 0 2px 8px rgb(68 52 39 / 0.04);
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 16px 36px rgb(68 52 39 / 0.07), 0 2px 6px rgb(68 52 39 / 0.035);
 }
 
 .dark .ui-surface {
   border-color: rgb(68 64 60 / 0.9);
-  background: rgb(28 27 26 / 0.82);
-  box-shadow: 0 18px 50px rgb(0 0 0 / 0.24), 0 2px 8px rgb(0 0 0 / 0.18);
+  background: rgb(28 27 26 / 0.95);
+  box-shadow: 0 16px 36px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.16);
+}
+
+/* Product polish: a restrained paper-like system that lets the original
+   brand colours and peer conversation remain the visual focus. */
+.access-gateway {
+  background-image:
+    radial-gradient(circle at 8% 8%, rgb(197 30 43 / 0.08), transparent 22rem),
+    radial-gradient(circle at 92% 88%, rgb(242 164 0 / 0.1), transparent 24rem),
+    linear-gradient(135deg, rgb(255 253 249 / 0.9), rgb(247 244 239 / 0.96));
+}
+
+.dark .access-gateway {
+  background-image:
+    radial-gradient(circle at 10% 12%, rgb(197 30 43 / 0.14), transparent 24rem),
+    radial-gradient(circle at 90% 86%, rgb(242 164 0 / 0.09), transparent 25rem),
+    linear-gradient(135deg, #121110, #181614);
+}
+
+.access-gateway::before,
+.ambient-grid::before,
+.chat-theme-scope::before {
+  background-size: 56px 56px;
+  opacity: 0.38;
+}
+
+.access-form-panel {
+  border-radius: 1.5rem !important;
+  box-shadow: 0 24px 60px rgb(68 52 39 / 0.1), 0 2px 8px rgb(68 52 39 / 0.04);
+}
+
+.access-form-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0.55rem;
+  pointer-events: none;
+  border: 1px solid rgb(255 255 255 / 0.72);
+  border-radius: 1.05rem;
+}
+
+.dark .access-form-panel::before { border-color: rgb(255 255 255 / 0.055); }
+
+.access-logo-type {
+  text-shadow: 0 3px 0 rgb(255 255 255 / 0.55), 0 14px 24px rgb(68 52 39 / 0.1);
+}
+
+.dark .access-logo-type { text-shadow: 0 3px 0 rgb(0 0 0 / 0.18), 0 14px 28px rgb(0 0 0 / 0.2); }
+
+.access-form-panel h1 {
+  letter-spacing: -0.055em;
+  max-width: 13ch;
+}
+
+.access-form-panel button[type='submit'],
+#start-chat-btn,
+#next-match-btn {
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--chat-accent, #c51e2b) 24%, transparent);
+}
+
+.access-form-panel button[type='submit']:hover:not(:disabled),
+#start-chat-btn:hover:not(:disabled),
+#next-match-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px color-mix(in srgb, var(--chat-accent, #c51e2b) 29%, transparent);
+}
+
+#main-header {
+  backdrop-filter: blur(18px) saturate(1.05);
+  box-shadow: 0 1px 0 rgb(120 113 108 / 0.045);
+}
+
+#chat-header { min-height: 4.5rem; }
+
+#chat-messages-container {
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.055), transparent 7rem);
+}
+
+.chat-message-row { margin-block: 0.2rem; }
+
+.chat-message-row [data-message-bubble] {
+  box-shadow: 0 1px 1px rgb(41 37 36 / 0.035);
+}
+
+#top-music-bar {
+  box-shadow: 0 1px 2px rgb(41 37 36 / 0.08);
+}
+
+.chat-theme-accent-soft {
+  background-color: color-mix(in srgb, var(--chat-accent) 7%, transparent);
+}
+
+@media (max-width: 767px) {
+  .access-gateway { background-image: linear-gradient(160deg, #fffdfa, #f7f4ef); }
+  .access-form-panel { box-shadow: 0 12px 28px rgb(68 52 39 / 0.075); }
+  .access-form-panel h1 { max-width: none; }
+  #chat-header { min-height: 4rem; }
 }
 
 .chat-theme-accent-text {
