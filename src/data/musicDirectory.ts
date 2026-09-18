@@ -61,6 +61,26 @@ export const DEFAULT_MUSIC_DIRECTORY: MusicTrack[] = [
     duration: '1:48:00',
     thumbnail: 'https://img.youtube.com/vi/1T_DcrYk3O0/hqdefault.jpg',
   },
+  {
+    id: 'track-brand-new-day-loser',
+    title: 'Loser',
+    artist: 'Tame Impala',
+    youtubeUrl: 'https://www.youtube.com/watch?v=s3a4OQR-10M',
+    youtubeVideoId: 's3a4OQR-10M',
+    category: 'chill',
+    duration: '4:28',
+    thumbnail: 'https://img.youtube.com/vi/s3a4OQR-10M/hqdefault.jpg',
+  },
+  {
+    id: 'track-brand-new-day-oh-yeah',
+    title: 'oh yeah?',
+    artist: 'Steve Lacy',
+    youtubeUrl: 'https://www.youtube.com/watch?v=yGHEis32s2Y',
+    youtubeVideoId: 'yGHEis32s2Y',
+    category: 'chill',
+    duration: '4:58',
+    thumbnail: 'https://img.youtube.com/vi/yGHEis32s2Y/hqdefault.jpg',
+  },
 ];
 
 // Soundtrack titles associated with the live-action and Spider-Verse films.
@@ -82,6 +102,10 @@ const SPIDER_MAN_SONGS = [
   { titles: ['self love'], artists: ['metro boomin', 'coi leray'] },
   { titles: ['all the way live'], artists: ['metro boomin', 'future', 'lil uzi vert'] },
   { titles: ['danger spider'], artists: ['offset', 'jid'] },
+  // Brand New Day room-theme selections. Match both fields so unrelated songs
+  // with the same short titles continue to use the standard aurora effect.
+  { titles: ['loser'], artists: ['tame impala'] },
+  { titles: ['oh yeah'], artists: ['steve lacy'] },
 ] as const;
 
 const normalizeTrackText = (value: string) => value

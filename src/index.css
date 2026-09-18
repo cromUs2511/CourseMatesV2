@@ -9,11 +9,27 @@
   font-display: swap;
 }
 
-/* Use the original handwritten face throughout the interface. The CourseMates
-   text logo keeps its explicit serif utility styling in AccessGateway. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-VariableFont_wght.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Italic-VariableFont_wght.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+/* JetBrains Mono gives the product a crisp, dependable UI voice. The
+   handwritten typeface is deliberately reserved for the CourseMates mark. */
 @theme {
-  --font-sans: "Architects Daughter", cursive;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-sans: "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 @layer base {
@@ -64,13 +80,16 @@
 
   body {
     font-family: var(--font-sans);
-    letter-spacing: -0.015em;
+    font-kerning: normal;
+    letter-spacing: -0.025em;
+    text-rendering: optimizeLegibility;
     @apply antialiased bg-[#f7f4ef] text-stone-800 dark:bg-[#121110] dark:text-stone-100;
     background-image: radial-gradient(circle at 50% 18%, rgba(153, 27, 27, 0.055), transparent 34rem);
   }
 
   button, input, select, textarea {
     border-radius: 0.625rem;
+    font: inherit;
   }
 
   /* iOS Safari zooms the page when a focused text control is below 16px. */
@@ -98,7 +117,21 @@
 
 .brand-script {
   font-family: 'Architects Daughter', cursive;
+  font-weight: 400;
   letter-spacing: -0.055em;
+}
+
+/* AccessGateway's wordmark also uses the branded handwritten face, regardless
+   of the utility classes applied by the component. */
+.access-logo-type {
+  font-family: 'Architects Daughter', cursive;
+  font-weight: 400;
+  letter-spacing: -0.055em;
+}
+
+/* Make dense technical UI easier to scan without changing its structure. */
+button, input, select, textarea, [data-ui-label] {
+  font-variant-numeric: tabular-nums;
 }
 
 .ui-surface {
