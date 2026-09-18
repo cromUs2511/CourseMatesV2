@@ -284,3 +284,25 @@ test('mobile chat header keeps the assistant identity compact and the topic read
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
   expect(topicBox.x + topicBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 });
+
+test('narrow chat header centers the AI badge beside the wrapped assistant name', async ({ page }) => {
+  await page.setViewportSize({ width: 286, height: 667 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+
+  const header = page.locator('#chat-header');
+  const name = header.locator('.chat-header-peer-name');
+  const badge = header.getByText('AI', { exact: true });
+  const topic = header.locator('.chat-header-topic');
+  const nameBox = (await name.boundingBox())!;
+  const badgeBox = (await badge.boundingBox())!;
+  const topicBox = (await topic.boundingBox())!;
+  const headerBox = (await header.boundingBox())!;
+
+  expect(Math.abs((nameBox.y + nameBox.height / 2) - (badgeBox.y + badgeBox.height / 2))).toBeLessThanOrEqual(1);
+  expect(topicBox.x).toBeGreaterThanOrEqual(headerBox.x);
+  expect(topicBox.x + topicBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
+});

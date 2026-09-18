@@ -539,13 +539,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           conversation={
           <div className="chat-header-conversation flex min-w-0 flex-1 items-center">
             <div className="chat-header-peer min-w-0 w-full">
-              <div className="flex min-w-0 items-start gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                   className="chat-header-peer-name min-w-0 flex-1 line-clamp-2 break-words text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-base sm:leading-tight">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
                 {!peerDisconnected && peer.isSimulated ? (
-                  <span className="chat-theme-accent-soft mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
+                  <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
                     AI
                   </span>
                 ) : (
