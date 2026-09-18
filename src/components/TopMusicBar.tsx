@@ -419,10 +419,11 @@ export const TopMusicBar: React.FC<TopMusicBarProps> = ({ isDarkMode, roomId, ws
         style={{
           borderColor: `${accent}99`,
           ...(playbackActive ? {
+            backgroundColor: isDarkMode ? 'rgb(24 23 22 / 0.58)' : 'rgb(255 255 255 / 0.58)',
             boxShadow: `0 0 0 1px ${accent}55, 0 0 18px 2px ${accent}99`,
           } : {}),
         }}
-        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[box-shadow,border-color] duration-500 motion-reduce:transition-none ${
+        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-[background-color,box-shadow,border-color] duration-500 backdrop-blur-md motion-reduce:transition-none ${
           playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'
         } ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
