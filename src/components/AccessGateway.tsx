@@ -16,7 +16,7 @@ interface AccessGatewayProps {
 export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDarkMode, onToggleDarkMode, isSoundEnabled, onToggleSound }) => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [config, setConfig] = useState<{ microsoftEnabled: boolean; allowDemo: boolean } | null>(null);
+  const [config, setConfig] = useState<{ allowAnonymousAccess: boolean } | null>(null);
   const [error, setError] = useState<string | null>(() => new URLSearchParams(location.search).get('auth_error'));
   const submitting = useRef(false);
 
@@ -30,7 +30,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
 
   const handleSubmit = async (event?: React.FormEvent) => {
     event?.preventDefault();
-    if (submitting.current || !config?.allowDemo || !acceptedTerms) return;
+    if (submitting.current || !config?.allowAnonymousAccess || !acceptedTerms) return;
     submitting.current = true;
     setLoading(true);
     setError(null);
@@ -108,7 +108,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
           </section>
 
             {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-red-900/60 bg-red-950/30 p-3 text-xs text-red-300"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span></div>}
-          {config?.allowDemo && <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          {config?.allowAnonymousAccess && <form onSubmit={handleSubmit} className="mt-4 space-y-3">
             <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5 ${
               isDarkMode ? 'border-stone-700 bg-white/[0.03] text-stone-200' : 'border-stone-300 bg-white text-stone-700'
             }`}>
@@ -121,7 +121,7 @@ export const AccessGateway: React.FC<AccessGatewayProps> = ({ onVerified, isDark
               <span>{loading ? 'Starting…' : 'Continue'}</span><ArrowRight className="h-4 w-4" />
             </button>
           </form>}
-          {config && !config.allowDemo && <p role="alert" className={`mt-8 text-sm ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>Community access is unavailable. Contact the app administrator.</p>}
+          {config && !config.allowAnonymousAccess && <p role="alert" className={`mt-8 text-sm ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>Community access is unavailable. Contact the app administrator.</p>}
         </div>
       </section>
     </div>

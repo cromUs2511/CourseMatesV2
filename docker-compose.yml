@@ -1,0 +1,24 @@
+services:
+  web:
+    build: .
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      APP_URL: http://localhost:3000
+      PYTHON_ORCHESTRATOR_MODE: shadow
+      PYTHON_ORCHESTRATOR_URL: http://python-orchestrator:5051
+    ports:
+      - "3000:3000"
+    depends_on:
+      python-orchestrator:
+        condition: service_healthy
+
+  python-orchestrator:
+    build:
+      context: .
+      dockerfile: services/python-orchestrator/Dockerfile
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:5051/internal/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

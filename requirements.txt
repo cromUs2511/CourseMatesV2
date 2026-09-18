@@ -1,16 +1,13 @@
 # Core Python Dependencies for CourseMates
 #
-# engine.py runs on the Python 3.10 standard library (no third-party deps).
-#
-# For the FastAPI REST prototype (app.py) or the WebSocket server
-# (app_realtime.py):
+# Dependencies for the optional Python orchestration service:
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 
 # The native core (C++ via pybind11): rate limiting, abuse scanning and
 # matchmaking. Needs a C++17 compiler and CMake >= 3.18 -- see native/README.md.
-# app_realtime.py runs without it on a slower pure-Python fallback, so this is
-# intentionally not a hard requirement.
+# Native acceleration remains optional; the orchestration service has a
+# deterministic Python fallback for shadow comparison.
 #
 #   pip install ./native

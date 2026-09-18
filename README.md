@@ -41,11 +41,33 @@ is persisted locally and updates both the conversation and its controls.
 
 Run `npm run build`, then `npm start`. Set `PORT` and `HOST` when needed. The production command serves the built frontend and never launches Vite or Python. The server bundle lives in `dist/.server`, which is excluded from public file serving.
 
-Production disables demo login by default. Configure Microsoft sign-in, or explicitly set `ALLOW_DEMO_LOGIN=true` for a demonstration. Set `ALLOW_DEMO_LOGIN=false` to disable it in any environment.
-
-For Microsoft sign-in, configure `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` and `APP_URL`. Register `${APP_URL}/auth/callback` as a Web redirect URI and allow the `openid profile email` scopes. Sign-in uses authorization code flow with PKCE, a short-lived state cookie, and Microsoft's UserInfo endpoint. The account must return a valid email address. Demo and verified sessions have separate matching pools.
+CourseMates uses anonymous access. `ALLOW_ANONYMOUS_ACCESS` defaults to true in both local and Render deployments; set it to `false` only when an external access gateway is in place.
 
 ## Optional services
+
+### Python shadow orchestrator (Phase 1)
+
+The live Node runtime remains authoritative. The optional Python service is
+currently **shadow-only**: it receives a versioned internal icebreaker request,
+but its response cannot alter a browser response, authentication, matching,
+rooms, chat, or WebSockets.
+
+Start it locally in a second terminal:
+
+```bash
+python -m pip install -r services/python-orchestrator/requirements.txt
+python -m uvicorn app.main:app --app-dir services/python-orchestrator --host 127.0.0.1 --port 5051
+```
+
+Then opt in from `.env.local` with `PYTHON_ORCHESTRATOR_MODE=shadow`. Leave it
+at `off` for the default behavior. There is intentionally no enforcement mode;
+promotion requires contract, replay, and side-by-side parity evidence.
+
+For the full local deployment topology, run `docker compose up --build`.
+It starts the Node web/realtime edge and the Python orchestration service;
+the Python image compiles and requires the C++ native module. Node keeps the
+public contract while Python/C++ perform shadow orchestration and native text
+normalization until the parity gate enables an authoritative path.
 
 - `GEMINI_API_KEY` powers the Student Chatbot Assistant, generated conversation starters, and separate assistant tools. Existing deployments may use `Gemini_AI` as an alias. `GEMINI_MODEL` defaults to `gemini-3.6-flash`; the retired `gemini-2.5-flash` value is automatically upgraded. Chatbot replies use one request, six compact history messages, and short output limits by default. Web grounding is enabled only for explicitly current or online questions.
 - `GROQ_API_KEY` is an optional chatbot fallback used only when Gemini is not configured. `GROQ_MODEL` defaults to `groq/compound`.
@@ -55,7 +77,7 @@ Environment values are loaded from `.env.groq.local`, `.env.gemini.local`, `.env
 
 ## Runtime and privacy
 
-`server.ts` serves the app and optional integrations. `runtime.ts` owns one shared session, queue and room store for both HTTP and WebSocket clients. No Python installation is needed. The older `app.py`, `engine.py`, patch scripts and unused dashboard/group components are historical prototypes, not part of the supported application flow.
+`server.ts` serves the app and optional integrations. `runtime.ts` owns one shared session, queue and room store for both HTTP and WebSocket clients. Render supports the live `/ws/chat` endpoint; REST polling remains the recovery path when an upgrade is unavailable.
 
 Sessions are held in memory for up to eight hours, restored through an HttpOnly cookie, and removed on sign-out. Peers receive a separate public identifier, not another participant's token or email. Changing handles is allowed outside a queue or chat.
 
@@ -63,7 +85,7 @@ Messages are held in a bounded RAM buffer (500 messages per room), with a 4,000-
 
 Photo selection uses the browser's native file picker. Taking a photo requests camera access (no microphone) only after the user selects **Take photo**; permission prompts follow the browser's saved permission state. Camera access requires HTTPS or localhost, and camera tracks stop on capture, dismissal, or disconnection. Login and main-menu grids breathe gently, and theme changes reveal the new appearance from the switch using View Transitions where supported. Both effects honor reduced-motion preferences.
 
-Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. Messages sent to the Student Chatbot Assistant and up to six recent compact text messages are sent to Gemini. Google Search grounding is enabled only when a message explicitly asks for current or online information. Groq is used only when Gemini is not configured. The separate assistant API sends supplied conversation context only when explicitly called. YouTube and Microsoft have their own data handling.
+Automatic conversation starters send topic/campus/discipline context, not conversation messages, to Gemini. Messages sent to the Student Chatbot Assistant and up to six recent compact text messages are sent to Gemini. Google Search grounding is enabled only when a message explicitly asks for current or online information. Groq is used only when Gemini is not configured. The separate assistant API sends supplied conversation context only when explicitly called. YouTube has its own data handling.
 
 This in-memory implementation runs as **one server process**. Multiple replicas would need a shared session/matching store and a coordinated expiry policy.
 
@@ -80,4 +102,4 @@ Browser tests use an installed Google Chrome. To use Playwright's bundled Chromi
 
 `package-lock.json` is the maintained dependency lockfile. The `qs` override selects the compatible patched parser release used by Express.
 
-References: [Microsoft UserInfo](https://learn.microsoft.com/en-us/entra/identity-platform/userinfo), [Gemini model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash).
+References: [Gemini model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash).

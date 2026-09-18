@@ -9,6 +9,7 @@ import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImage
 import type { ChatImage } from './src/data/chatImages';
 import { parseVoice, type StoredVoice } from './voiceMessages';
 import type { ChatVoice } from './src/data/chatVoice';
+import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; allowNormal: boolean; ws?: WebSocket; lastSeen: number };
@@ -20,6 +21,7 @@ const queue = new Map<string, Participant>();
 const rooms = new Map<string, Room>();
 const matches = new Map<string, string>();
 const sockets = new Map<string, WebSocket>();
+const pythonOrchestrator = createPythonOrchestratorClient(pythonOrchestratorConfig());
 const adjectives = ['Curious', 'Astute', 'Quantum', 'Keen', 'Creative', 'Luminous'];
 const nouns = ['Cardinal', 'Coder', 'Architect', 'Scholar', 'Explorer', 'Engineer'];
 export function generateAnonymousHandle() {
@@ -28,17 +30,15 @@ export function generateAnonymousHandle() {
 export const isValidEmail = (email: unknown): email is string =>
   typeof email === 'string' && email.length <= 254 &&
   /^[a-z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(email);
-export function issueSession(email: string, profile: any = {}, verified = false): Identity {
+export function issueSession(email: string, profile: any = {}, _verified = false): Identity {
   const { handle, avatar } = generateAnonymousHandle();
   const session: Identity = {
     id: crypto.randomUUID(), email, token: crypto.randomBytes(32).toString('hex'),
-    isVerified: verified, isSchoolVerified: verified,
     campus: ['Main Campus', 'City Campus', 'North Campus', 'Digital / Online'].includes(profile.campus) ? profile.campus : 'Main Campus',
     discipline: typeof profile.discipline === 'string' ? profile.discipline.slice(0, 100) : 'Computer Science & IT',
     interests: cleanInterests(profile.interests),
     sessionHandle: handle, customHandle: false, sessionAvatar: avatar, createdAt: Date.now(),
     expiresAt: Date.now() + 8 * 60 * 60 * 1000,
-    authProvider: verified ? 'microsoft_entra_id' : 'demo',
   };
   sessions.set(session.token, session);
   return session;
@@ -127,9 +127,15 @@ function join(session: Identity, data: any, ws?: WebSocket) {
     }
     return true;
   });
-  const sameVerification = candidates.filter(p => {
-    const queuedSession = [...sessions.values()].find(candidate => candidate.id === p.id);
-    return queuedSession?.isVerified === session.isVerified;
+  const sameVerification = candidates;
+  void pythonOrchestrator.observeMatch({
+    candidate: { id: participant.id, verified: false, interests: participant.interests, allowNormal: participant.allowNormal },
+    queued: sameVerification.map(peer => ({
+      id: peer.id,
+      verified: false,
+      interests: peer.interests,
+      allowNormal: peer.allowNormal,
+    })),
   });
   const rankedInterestMatches = sameVerification
     .map(peer => ({ peer, match: sharedInterest(participant, peer) }))

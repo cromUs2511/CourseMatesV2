@@ -4,23 +4,21 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { attachRuntime, authenticate, cookie, issueSession, isValidEmail } from './runtime';
+import { attachRuntime, authenticate, issueSession, isValidEmail } from './runtime';
 import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
+import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 
 dotenv.config({ path: ['.env.groq.local', '.env.gemini.local', '.env.local', '.env'] });
 const app = express();
+const pythonOrchestrator = createPythonOrchestratorClient(pythonOrchestratorConfig());
 const PORT = Number(process.env.PORT || 3000);
+const production = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim() || '';
 if (!youtubeApiKey) {
   console.error('[config] Missing YOUTUBE_API_KEY. YouTube search is disabled until the environment variable is set.');
 }
-const production = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
-const allowDemo = process.env.ALLOW_DEMO_LOGIN === 'true' || (!production && process.env.ALLOW_DEMO_LOGIN !== 'false');
-const clientId = process.env.MICROSOFT_CLIENT_ID || '';
-const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || '';
-const tenant = process.env.MICROSOFT_TENANT_ID || 'organizations';
-const microsoftEnabled = Boolean(clientId && clientSecret);
+const allowAnonymousAccess = process.env.ALLOW_ANONYMOUS_ACCESS !== 'false';
 app.disable('x-powered-by');
 app.post('/api/chat/send', (req, res, next) => {
   if (!authenticate(req)) return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
@@ -39,68 +37,18 @@ if (geminiApiKey && geminiApiKey !== 'MY_GEMINI_API_KEY') {
 }
 const configuredAiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
 const aiModel = configuredAiModel === 'gemini-2.5-flash' ? 'gemini-3.6-flash' : configuredAiModel;
-const oauthStates = new Map<string, { verifier: string; createdAt: number; profile: any }>();
-const oauthCleanup = setInterval(() => {
-  for (const [state, value] of oauthStates) if (Date.now() - value.createdAt > 600000) oauthStates.delete(state);
-}, 60000);
-oauthCleanup.unref();
-function redirectUri(req: express.Request) {
-  return (process.env.APP_URL || req.protocol + '://' + req.get('host')).replace(/\/$/, '') + '/auth/callback';
-}
 function sessionCookie(req: express.Request, res: express.Response, token: string) {
-  res.cookie('cm_session', token, { httpOnly: true, sameSite: 'lax', secure: redirectUri(req).startsWith('https:'), path: '/', maxAge: 8 * 60 * 60 * 1000 });
+  const secure = (process.env.APP_URL || req.protocol + '://' + req.get('host')).startsWith('https:');
+  res.cookie('cm_session', token, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 8 * 60 * 60 * 1000 });
 }
-app.get('/api/auth/config', (_req, res) => res.json({ microsoftEnabled, allowDemo }));
-app.post(['/api/auth/school-email', '/api/auth/verify-school', '/api/auth/microsoft/verify-test'], (req, res) => {
-  if (!allowDemo) return res.status(403).json({ error: 'Demo access is disabled. Sign in with Microsoft.' });
+app.get('/api/auth/config', (_req, res) => res.json({ allowAnonymousAccess }));
+app.post(['/api/auth/school-email', '/api/auth/verify-school'], (req, res) => {
+  if (!allowAnonymousAccess) return res.status(403).json({ error: 'Anonymous access is disabled.' });
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
   const session = issueSession(email, req.body);
   sessionCookie(req, res, session.token);
   res.json({ success: true, session });
-});
-app.get(['/auth/microsoft/login', '/api/auth/microsoft/login', '/api/auth/microsoft/url'], (req, res) => {
-  if (!microsoftEnabled) return res.status(503).json({ error: 'Microsoft sign-in is not configured.' });
-  const state = crypto.randomBytes(32).toString('hex');
-  const verifier = crypto.randomBytes(32).toString('base64url');
-  oauthStates.set(state, { verifier, createdAt: Date.now(), profile: { campus: req.query.campus, discipline: req.query.discipline } });
-  res.cookie('cm_oauth_state', state, { httpOnly: true, sameSite: 'lax', secure: redirectUri(req).startsWith('https:'), path: '/', maxAge: 600000 });
-  const params = new URLSearchParams({
-    client_id: clientId, response_type: 'code', redirect_uri: redirectUri(req),
-    response_mode: 'query', scope: 'openid profile email', state,
-    code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256',
-    prompt: 'select_account',
-  });
-  const url = 'https://login.microsoftonline.com/' + encodeURIComponent(tenant) + '/oauth2/v2.0/authorize?' + params;
-  if (req.path.endsWith('/url')) res.json({ url, hasClientCredentials: true });
-  else res.redirect(url);
-});
-app.get(['/auth/callback', '/api/auth/callback'], async (req, res) => {
-  const state = typeof req.query.state === 'string' ? req.query.state : '';
-  const pending = oauthStates.get(state);
-  oauthStates.delete(state);
-  res.clearCookie('cm_oauth_state', { path: '/' });
-  const fail = (message: string) => res.redirect('/?auth_error=' + encodeURIComponent(message));
-  if (!microsoftEnabled || !pending || cookie(req, 'cm_oauth_state') !== state || Date.now() - pending.createdAt > 600000) return fail('Sign-in expired. Please try again.');
-  if (req.query.error || typeof req.query.code !== 'string') return fail('Microsoft sign-in was cancelled or failed.');
-  try {
-    const response = await fetch('https://login.microsoftonline.com/' + encodeURIComponent(tenant) + '/oauth2/v2.0/token', {
-      method: 'POST', signal: AbortSignal.timeout(15000),
-      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'authorization_code',
-        code: req.query.code, redirect_uri: redirectUri(req), code_verifier: pending.verifier }),
-    });
-    const tokens = await response.json();
-    if (!response.ok || !tokens.access_token) return fail('Microsoft sign-in failed. Please try again.');
-    const userResponse = await fetch('https://graph.microsoft.com/oidc/userinfo', {
-      headers: { Authorization: 'Bearer ' + tokens.access_token }, signal: AbortSignal.timeout(15000),
-    });
-    const user = await userResponse.json();
-    const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
-    if (!userResponse.ok || !isValidEmail(email)) return fail('Sign in with an account that provides a valid email address.');
-    const session = issueSession(email, pending.profile, true);
-    sessionCookie(req, res, session.token);
-    res.redirect('/');
-  } catch { return fail('Could not reach Microsoft. Please try again.'); }
 });
 
 const musicDirectory = DEFAULT_MUSIC_DIRECTORY.map(track => ({ ...track }));
@@ -188,6 +136,11 @@ app.post('/api/ai/icebreakers', async (req, res) => {
 
   if (!ai) {
     const categoryList = DEFAULT_ICEBREAKERS[topic as keyof typeof DEFAULT_ICEBREAKERS] || DEFAULT_ICEBREAKERS.academics;
+    void pythonOrchestrator.observeIcebreakers({
+      topic: typeof topic === 'string' ? topic : '',
+      discipline: typeof discipline === 'string' ? discipline : '',
+      campus: typeof campus === 'string' ? campus : '',
+    });
     return res.json({
       icebreakers: categoryList.slice(0, 4),
       topicSuggestions: [
@@ -232,6 +185,11 @@ Return ONLY a JSON object formatted strictly as:
   } catch (error) {
     console.error('Error generating AI icebreakers:', error);
     const categoryList = DEFAULT_ICEBREAKERS[topic as keyof typeof DEFAULT_ICEBREAKERS] || DEFAULT_ICEBREAKERS.academics;
+    void pythonOrchestrator.observeIcebreakers({
+      topic: typeof topic === 'string' ? topic : '',
+      discipline: typeof discipline === 'string' ? discipline : '',
+      campus: typeof campus === 'string' ? campus : '',
+    });
     res.json({
       icebreakers: categoryList.slice(0, 4),
       topicSuggestions: [
@@ -592,7 +550,6 @@ async function startServer() {
 }
 function shutdown() {
   stopRuntime();
-  clearInterval(oauthCleanup);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 }

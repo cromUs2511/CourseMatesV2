@@ -136,8 +136,8 @@ second thing that can be down at 2am. For a university-scale deployment on one
 box, that trade is not close.
 
 The sidecar becomes the right answer at exactly one point: **when you need more
-than one server process.** Today `runtime.ts` (and `app_realtime.py`) keeps the
-queue, rooms and sessions in local memory, so a second replica would match
+than one server process.** Today `runtime.ts` keeps the queue, rooms and
+sessions in local memory, so a second replica would match
 students against a queue the first replica cannot see. If you ever scale out,
 the C++ matchmaker moving to its own process is the natural fix — not because
 C++ needs isolating, but because *the queue does*. Until then it is a solution
@@ -149,7 +149,7 @@ Every allocation in this module is owned by a `std::vector`, `std::string`,
 `malloc` or raw owning pointer in `src/`. The leak you actually have to worry
 about is the *logical* one: unbounded growth of the rate-limiter map and the
 match queue as anonymous sessions churn. Both have explicit reclamation
-(`gc()`, `expire()`) and the sweep loop in `app_realtime.py` calls them. A
+(`gc()`, `expire()`) and the future Python coordinator must call them. A
 sidecar would not have saved you from forgetting that; it would just have
 leaked in a different process.
 

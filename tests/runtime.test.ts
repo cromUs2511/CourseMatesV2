@@ -138,11 +138,12 @@ test('message edits are member-only and shared with peers', async () => {
   } finally { await request('/api/match/cancel', a, {}); }
 });
 
-test('verified sessions do not match demo sessions', async () => {
+test('anonymous sessions share one matching pool after external auth removal', async () => {
   const a = identity(), verified = identity(true), b = identity();
   await request('/api/match/join', a, {});
-  assert.equal((await request('/api/match/join', verified, {})).data.status, 'queued');
-  assert.equal((await request('/api/match/join', b, {})).data.status, 'matched');
+  assert.equal((await request('/api/match/join', verified, {})).data.status, 'matched');
+  assert.equal((await request('/api/match/poll', a)).data.status, 'matched');
+  assert.equal((await request('/api/match/join', b, {})).data.status, 'queued');
   await request('/api/match/cancel', a, {});
   await request('/api/match/cancel', verified, {});
 });
