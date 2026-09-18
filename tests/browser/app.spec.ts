@@ -315,6 +315,7 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
       }
       await expect(page.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
       await expect(page.locator('#top-music-bar')).toHaveAttribute('data-playing', 'true');
+      await expect(page.locator('.chat-theme-scope')).toHaveClass(/music-playing/);
       await expect(page.getByTestId('music-engine')).toHaveAttribute('aria-hidden', 'true');
       await expect(page.getByTestId('music-engine')).toHaveCSS('opacity', '0');
       await expect(page.getByTestId('music-engine')).toHaveAttribute('inert', '');
@@ -351,6 +352,7 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
     await a.getByRole('button', { name: 'Pause Study Music' }).click();
     await expect(b.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
     await expect(a.locator('#top-music-bar')).toHaveAttribute('data-playing', 'false');
+    await expect(a.locator('.chat-theme-scope')).not.toHaveClass(/music-playing/);
     await b.getByRole('button', { name: 'Play Study Music' }).click();
     await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeVisible();
     expect(await Promise.all([a, b].map(page => page.evaluate(() => (window as any).musicLoads.length)))).toEqual(loads);

@@ -27,9 +27,9 @@ test('main menu exposes light-dark and chat color controls together', async ({ p
   await expect(colorsButton).toHaveAttribute('title', 'Chat theme: Ocean blue');
   await expect(page.locator('.ambient-grid')).toHaveCSS('background-color', 'rgb(242, 248, 252)');
   await expect(page.getByRole('button', { name: 'Use a custom name' })).toHaveCSS('color', 'rgb(18, 103, 130)');
-  await expect(page.getByText('Community access')).toHaveCSS('color', 'rgb(18, 103, 130)');
+  await expect(page.getByText('Anonymous community session').first()).toHaveCSS('color', 'rgb(18, 103, 130)');
   await expect(page.locator('#main-header')).toHaveCSS('background-color', 'rgba(255, 253, 250, 0.82)');
-  await expect(page.locator('.ui-surface').first()).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.82)');
+  await expect(page.locator('.ui-surface').first()).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.94)');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('coursemates_chat_theme'))).toBe('ocean');
 });
 

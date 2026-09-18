@@ -518,11 +518,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color && current.effect === next.effect ? current : next);
   }, []);
   const ambientActive = ambient.active && ambient.enabled;
+  const musicPlaying = ambient.active;
   return (
     <div
       className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
-      } chat-theme-scope ${ambientActive ? 'ambient-playing' : ''} ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
+      } chat-theme-scope ${ambientActive ? 'ambient-playing' : ''} ${musicPlaying ? 'music-playing' : ''} ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
       style={{
         backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
         '--chat-accent': chatTheme.accent,

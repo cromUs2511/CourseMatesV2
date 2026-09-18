@@ -212,6 +212,7 @@ button, input, select, textarea, [data-ui-label] {
 #main-header {
   backdrop-filter: blur(18px) saturate(1.05);
   box-shadow: 0 1px 0 rgb(120 113 108 / 0.045);
+  transition: background-color 420ms ease, border-color 420ms ease, box-shadow 420ms ease;
 }
 
 #chat-header { min-height: 4.5rem; }
@@ -228,6 +229,48 @@ button, input, select, textarea, [data-ui-label] {
 
 #top-music-bar {
   box-shadow: 0 1px 2px rgb(41 37 36 / 0.08);
+}
+
+/* During playback, let the aurora or web artwork carry gently through the
+   fixed chrome while preserving enough contrast for chat controls. */
+.chat-theme-scope.music-playing #main-header {
+  background-color: rgb(255 253 250 / 0.52) !important;
+  border-color: rgb(120 113 108 / 0.22) !important;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.045);
+}
+
+.chat-theme-scope.music-playing #chat-input-console {
+  background-color: rgb(255 253 250 / 0.56) !important;
+  border-color: rgb(120 113 108 / 0.22) !important;
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+
+.dark .chat-theme-scope.music-playing #main-header {
+  background-color: rgb(20 19 18 / 0.5) !important;
+  border-color: rgb(120 113 108 / 0.32) !important;
+}
+
+.dark .chat-theme-scope.music-playing #chat-input-console {
+  background-color: rgb(20 19 18 / 0.54) !important;
+  border-color: rgb(120 113 108 / 0.32) !important;
+}
+
+@media (min-width: 1024px) {
+  /* Frame the desktop wordmark and form instead of leaving the red/gold
+     glow marooned in opposite corners of the viewport. */
+  .access-gateway {
+    background-image:
+      radial-gradient(circle at calc(50% - 25rem) 32%, rgb(197 30 43 / 0.1), transparent 23rem),
+      radial-gradient(circle at calc(50% - 16rem) 74%, rgb(242 164 0 / 0.12), transparent 24rem),
+      linear-gradient(135deg, rgb(255 253 249 / 0.9), rgb(247 244 239 / 0.96));
+  }
+
+  .dark .access-gateway {
+    background-image:
+      radial-gradient(circle at calc(50% - 25rem) 32%, rgb(197 30 43 / 0.16), transparent 24rem),
+      radial-gradient(circle at calc(50% - 16rem) 74%, rgb(242 164 0 / 0.1), transparent 25rem),
+      linear-gradient(135deg, #121110, #181614);
+  }
 }
 
 .chat-theme-accent-soft {
