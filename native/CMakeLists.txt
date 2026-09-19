@@ -49,6 +49,14 @@ else()
   target_compile_definitions(coursemates_native PRIVATE _GLIBCXX_ASSERTIONS)
 endif()
 
+if(MINGW)
+  # Static-link the MinGW runtime so the built .pyd has no dependency on
+  # libstdc++-6.dll/libgcc_s_seh-1.dll/libwinpthread-1.dll being on PATH -
+  # Python 3.8+'s DLL loader ignores PATH for extension-module dependencies.
+  target_link_options(coursemates_native PRIVATE
+    -static-libgcc -static-libstdc++ -static -lwinpthread)
+endif()
+
 # -DCM_SANITIZE=ON for the CI job that runs the Python test suite under
 # AddressSanitizer + UBSan. Never ship a sanitized wheel.
 option(CM_SANITIZE "Build with ASan/UBSan" OFF)
