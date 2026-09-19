@@ -116,6 +116,12 @@ export const Header: React.FC<HeaderProps> = ({
             ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-92px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[900px]:static min-[900px]:mt-0 min-[900px]:flex min-[900px]:w-auto min-[900px]:max-h-none min-[900px]:max-w-none min-[900px]:overflow-visible min-[900px]:flex-nowrap min-[900px]:rounded-none min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0 min-[900px]:shadow-none min-[900px]:dark:bg-transparent`
             : 'flex items-center gap-2 text-xs'}>
             {conversation && <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[900px]:hidden">Appearance &amp; account</p>}
+            {conversation && <ThemeToggle
+              isDarkMode={isDarkMode}
+              onToggle={onToggleDarkMode}
+              compact
+              className="chat-theme-toggle max-[359px]:inline-flex min-[360px]:hidden"
+            />}
             {/* Dark / Light Theme Toggle */}
             {conversation && displayActions ? (
               <div role="group" aria-label="Chat display controls" className="chat-display-controls flex w-full items-center justify-around min-[900px]:w-auto">

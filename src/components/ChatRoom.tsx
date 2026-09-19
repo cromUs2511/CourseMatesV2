@@ -541,12 +541,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <div className="chat-header-peer min-w-0 w-full">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  className="chat-header-peer-name min-w-0 flex-1 line-clamp-2 break-words text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-base sm:leading-tight">
+                  className="chat-header-peer-name min-w-0 max-w-[calc(100%-4rem)] flex-none line-clamp-2 break-words text-left text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-base sm:leading-tight">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
-                {!peerDisconnected && peer.isSimulated ? (
+                {!peerDisconnected ? (
                   <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
-                    AI
+                    {peer.isSimulated ? 'AI' : 'STUDENT'}
                   </span>
                 ) : (
                   peerDisconnected && <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">LEFT</span>
@@ -580,7 +580,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               isDarkMode={headerProps.isDarkMode}
               onToggle={headerProps.onToggleDarkMode}
               compact
-              className="chat-theme-toggle min-[900px]:hidden"
+              className="chat-theme-toggle max-[359px]:hidden min-[900px]:hidden"
             />
             {!peerDisconnected && (
               <button

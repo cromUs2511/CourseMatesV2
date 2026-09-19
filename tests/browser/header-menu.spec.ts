@@ -285,7 +285,7 @@ test('mobile chat header keeps the assistant identity compact and the topic read
   expect(topicBox.x + topicBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 });
 
-test('narrow chat header centers the AI badge beside the wrapped assistant name', async ({ page }) => {
+test('narrow chat header aligns the assistant name, status, and topic in one column', async ({ page }) => {
   await page.setViewportSize({ width: 286, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -302,7 +302,31 @@ test('narrow chat header centers the AI badge beside the wrapped assistant name'
   const topicBox = (await topic.boundingBox())!;
   const headerBox = (await header.boundingBox())!;
 
-  expect(Math.abs((nameBox.y + nameBox.height / 2) - (badgeBox.y + badgeBox.height / 2))).toBeLessThanOrEqual(1);
+  await expect(name).toHaveCSS('text-align', 'left');
+  await expect(name).toHaveCSS('flex-grow', '0');
+  expect(badgeBox.x - (nameBox.x + nameBox.width)).toBeLessThanOrEqual(8);
+  expect(Math.abs(nameBox.x - topicBox.x)).toBeLessThanOrEqual(1);
   expect(topicBox.x).toBeGreaterThanOrEqual(headerBox.x);
   expect(topicBox.x + topicBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
+});
+
+test('narrow chat header moves the theme switch into settings to preserve conversation space', async ({ page }) => {
+  await page.setViewportSize({ width: 286, height: 667 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+
+  const header = page.locator('#chat-header');
+  const themeToggle = page.locator('#mobile-dark-mode-toggle-btn');
+  await expect(themeToggle).toBeHidden();
+
+  await page.getByRole('button', { name: 'Account and display settings' }).click();
+  await expect(page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
+
+  const headerBox = (await header.boundingBox())!;
+  const nameBox = (await header.locator('.chat-header-peer-name').boundingBox())!;
+  expect(nameBox.width).toBeGreaterThanOrEqual(120);
+  expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 });
