@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_MUSIC_DIRECTORY, isSpiderManTrack } from '../src/data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY, isSpiderManTrack, parseTrackDuration } from '../src/data/musicDirectory';
+
+test('recognizes finite music durations and excludes live streams from trimming', () => {
+  assert.equal(parseTrackDuration('4:28'), 268);
+  assert.equal(parseTrackDuration('1:48:00'), 6480);
+  assert.equal(parseTrackDuration('PT3M15S'), 195);
+  assert.equal(parseTrackDuration('24/7 Live Stream'), null);
+  assert.equal(parseTrackDuration('PT0S'), null);
+});
 
 test('recognizes Spider-Man soundtrack songs and labels', () => {
   for (const track of [

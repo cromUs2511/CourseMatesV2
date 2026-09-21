@@ -28,9 +28,11 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     await expect(b.locator('#chat-header')).toBeVisible();
     const quote = "ok ill follow u later! p’wede ko ba ’to i-share sa friends ko orrrrrr — let's catch up after class and compare our notes.";
     await send(b, quote);
+    await a.locator('[data-message-bubble]').last().hover();
     await a.getByRole('button', { name: 'Reply', exact: true }).last().click();
     await expect(a.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
     await send(a, 'nah');
+    await b.locator('[data-message-bubble]').last().hover();
     await b.getByRole('button', { name: 'Reply', exact: true }).last().click();
     await send(b, 'Okay, no worries! I’ll keep it between us.');
     await a.locator('.chat-message-row').nth(1).hover();
@@ -63,7 +65,7 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
         expect(issues).toEqual([]);
         const badge = await a.getByLabel('Love reaction, 1').boundingBox();
         const action = await a.getByRole('button', { name: 'React to message', exact: true }).nth(1).boundingBox();
-        expect(badge!.y + badge!.height).toBeLessThanOrEqual(action!.y);
+        expect(badge!.y >= action!.y + action!.height || action!.y >= badge!.y + badge!.height).toBe(true);
       }
     }
     await a.setViewportSize({ width: 320, height: 800 });

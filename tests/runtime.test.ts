@@ -243,6 +243,35 @@ test('message IDs are unique across peers and deletion leaves an unsent placehol
   } finally { await request('/api/match/cancel', a, {}); }
 });
 
+test('music snippets sync to a peer, validate their window, and disappear when unsent', async () => {
+  const { a, b, roomId } = await pair();
+  const musicSnippet = {
+    trackId: 'track-brand-new-day-loser', title: 'Loser', artist: 'Tame Impala',
+    artworkUrl: 'https://example.invalid/forged.png', youtubeId: 's3a4OQR-10M',
+    startTime: 45, duration: 30, caption: 'This part is my favorite',
+  };
+  try {
+    const result = await request('/api/chat/send', a, { roomId, text: '', musicSnippet, clientMessageId: 'snippet-1' });
+    assert.equal(result.status, 200);
+    const sent = result.data.message;
+    assert.equal(sent.text, musicSnippet.caption);
+    assert.deepEqual(sent.musicSnippet, { ...musicSnippet, artworkUrl: 'https://img.youtube.com/vi/s3a4OQR-10M/hqdefault.jpg' });
+    const received = (await request('/api/chat/messages?roomId=' + roomId, b)).data.messages.find((message: any) => message.id === sent.id);
+    assert.deepEqual(received.musicSnippet, sent.musicSnippet);
+    assert.equal((await request('/api/chat/send', a, { roomId, text: '', musicSnippet, clientMessageId: 'snippet-1' })).data.message.id, sent.id);
+    for (const invalid of [
+      { ...musicSnippet, duration: 14 }, { ...musicSnippet, duration: 31 },
+      { ...musicSnippet, startTime: -1 }, { ...musicSnippet, youtubeId: 'invalid' },
+      { ...musicSnippet, caption: 'x'.repeat(281) },
+    ]) assert.equal((await request('/api/chat/send', a, { roomId, text: '', musicSnippet: invalid })).status, 400);
+    assert.equal((await request('/api/chat/edit', a, { roomId, messageId: sent.id, text: 'Changed' })).status, 400);
+    assert.equal((await request('/api/chat/delete', b, { roomId, messageId: sent.id })).status, 400);
+    assert.equal((await request('/api/chat/delete', a, { roomId, messageId: sent.id })).status, 200);
+    const afterDelete = (await request('/api/chat/messages?roomId=' + roomId, b)).data.messages.find((message: any) => message.id === sent.id);
+    assert.equal(afterDelete.musicSnippet, undefined);
+  } finally { await request('/api/match/cancel', a, {}); }
+});
+
 test('shared music survives HTTP fallback and rejects invalid tracks and non-members', async () => {
   const { a, b, roomId } = await pair();
   const track = { id: 'custom-dQw4w9WgXcQ', youtubeVideoId: 'dQw4w9WgXcQ', title: 'Shared track' };

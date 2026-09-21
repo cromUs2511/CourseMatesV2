@@ -424,7 +424,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
           } : {}),
         }}
         className={compact
-          ? 'chat-display-control flex h-11 w-11 items-center justify-center rounded-xl border-0 bg-transparent shadow-none transition-[background-color,box-shadow] duration-200 motion-reduce:transition-none'
+          ? 'chat-display-control flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-transparent shadow-none transition-[background-color,box-shadow] duration-200 motion-reduce:transition-none'
           : `flex h-10 w-10 items-center justify-center rounded-xl border transition-[background-color,box-shadow,border-color] duration-500 backdrop-blur-md motion-reduce:transition-none ${playbackActive ? '' : isDarkMode ? 'border-stone-700' : 'border-stone-300'} ${isDarkMode ? 'bg-[#181716] text-stone-300' : 'bg-white text-stone-600'}`}
       >
         <button
@@ -436,9 +436,9 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
           aria-controls="music-tracks-dropdown"
           title={`Music controls: ${currentTrack.title}`}
           style={{ color: accent }}
-          className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 ${compact ? 'chat-display-control border-0 bg-transparent shadow-none' : 'hover:bg-stone-500/10'}`}
+          className={`flex cursor-pointer items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 ${compact ? 'chat-display-control h-8 w-8 border-0 bg-transparent shadow-none' : 'h-9 w-9 hover:bg-stone-500/10'}`}
         >
-          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className="h-5 w-5" />}
+          {isLoading ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : <Music2 className={compact ? 'h-3.5 w-3.5' : 'h-5 w-5'} />}
         </button>
       </div>
       {isMenuOpen && createPortal(

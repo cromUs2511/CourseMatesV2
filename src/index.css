@@ -275,7 +275,23 @@ button, input, select, textarea, [data-ui-label] {
   transition: background-color 420ms ease, border-color 420ms ease, box-shadow 420ms ease;
 }
 
-#chat-header { min-height: 4.5rem; }
+#chat-header { min-height: 3.75rem; }
+
+.music-snippet-disc {
+  transition: transform 450ms cubic-bezier(.2,.8,.2,1);
+}
+.music-snippet-art.is-playing .music-snippet-disc {
+  transform: translateX(34px);
+  animation: music-snippet-spin 2.6s linear infinite;
+}
+@keyframes music-snippet-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .music-snippet-disc { transition: none; }
+  .music-snippet-art.is-playing .music-snippet-disc { animation: none; }
+}
 
 #chat-messages-container {
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.055), transparent 7rem);
@@ -357,7 +373,7 @@ button, input, select, textarea, [data-ui-label] {
   .access-gateway { background-image: linear-gradient(160deg, #fffdfa, #f7f4ef); }
   .access-form-panel { box-shadow: 0 12px 28px rgb(68 52 39 / 0.075); }
   .access-form-panel h1 { max-width: none; }
-  #chat-header { min-height: 4rem; }
+  #chat-header { min-height: 3.75rem; }
 }
 
 .chat-theme-accent-text {

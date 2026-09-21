@@ -19,7 +19,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ isDarkMode, onToggle, 
     aria-pressed={isDarkMode}
     title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
     className={`theme-toggle group relative inline-flex shrink-0 items-center rounded-full border p-1 transition-all duration-300 ease-out ${
-      compact ? 'h-8 w-14' : 'h-9 w-[68px]'
+      compact ? 'h-7 w-12' : 'h-9 w-[68px]'
     } ${
       isDarkMode
         ? 'border-stone-800 bg-[#2a2a2a] text-white'
@@ -30,11 +30,11 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ isDarkMode, onToggle, 
     <span
       aria-hidden="true"
       className={`absolute left-1 rounded-full transition-transform duration-300 ease-out animate-toggle-icon ${
-        compact ? 'h-6 w-6' : 'h-7 w-7'
-      } ${isDarkMode ? `bg-[#141312] ${compact ? 'translate-x-6' : 'translate-x-8'}` : 'translate-x-0 bg-white'}`}
+        compact ? 'h-5 w-5' : 'h-7 w-7'
+      } ${isDarkMode ? `bg-[#141312] ${compact ? 'translate-x-5' : 'translate-x-8'}` : 'translate-x-0 bg-white'}`}
     />
     <span aria-hidden="true" className={`absolute flex items-center justify-center ${isDarkMode ? 'left-2.5' : 'right-2.5'}`}>
-      {isDarkMode ? <Moon className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} fill="currentColor" /> : <Sun className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />}
+      {isDarkMode ? <Moon className={compact ? 'h-3 w-3' : 'h-4 w-4'} fill="currentColor" /> : <Sun className={compact ? 'h-3 w-3' : 'h-4 w-4'} />}
     </span>
   </button>
 );

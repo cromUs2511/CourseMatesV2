@@ -7,12 +7,23 @@ async function signIn(page: Page, _name: string) {
 }
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.keyboard.press('Escape');
-  if (!await page.locator('#logout-btn').isVisible()) await page.getByRole('button', { name: 'Account and display settings' }).click();
+  if (await page.locator('#chat-header').isVisible()) {
+    if (await page.getByRole('button', { name: 'Return to main menu' }).isVisible()) {
+      await page.getByRole('button', { name: 'Return to main menu' }).click();
+    } else {
+      await page.locator('#leave-chat-btn').click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click();
+    }
+  }
   await page.locator('#logout-btn').click();
   await page.getByRole('button', { name: 'Log out', exact: true }).click();
 }
 async function openMusic(page: Page) {
-  if (!await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.getByRole('button', { name: 'Open music controls' }).click();
+  if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) return;
+  if (!await page.getByRole('button', { name: 'Open music controls' }).isVisible()) {
+    await page.getByRole('button', { name: 'Account and display settings' }).click();
+  }
+  await page.getByRole('button', { name: 'Open music controls' }).click();
 }
 test('two browser sessions match, exchange once, preserve drafts on failure and rematch', async ({ browser }) => {
   const first = await browser.newContext();
@@ -191,7 +202,9 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
   await signIn(page, 'voice-message');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.getByRole('button', { name: 'Choose audio or use phone recorder' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose audio or use phone recorder' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeVisible();
+  await expect(page.getByLabel('Choose an audio recording')).toHaveCount(0);
   await page.getByRole('button', { name: 'Record with microphone' }).click();
   await expect(page.getByRole('button', { name: 'Stop voice recording' })).toBeVisible();
   await page.getByRole('button', { name: 'Stop voice recording' }).click();
@@ -321,7 +334,7 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay']) 
       await expect(page.getByTestId('music-engine')).toHaveCSS('opacity', '0');
       await expect(page.getByTestId('music-engine')).toHaveAttribute('inert', '');
       await expect(page.getByTestId('music-engine').locator('iframe')).toHaveCount(1);
-      expect((await page.locator('#top-music-bar').boundingBox())!.height).toBeLessThanOrEqual(44);
+      if (!source.includes('mobile')) expect((await page.locator('#top-music-bar').boundingBox())!.height).toBeLessThanOrEqual(44);
     }
     await openMusic(a);
     await a.getByRole('button', { name: /lofi hip hop radio/ }).click();

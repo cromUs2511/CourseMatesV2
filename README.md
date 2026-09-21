@@ -19,6 +19,10 @@ Anonymous study matching, built with React, Vite, Express and WebSockets.
   waiting for a match.
 - Chat controls for sound, ambient effects, music search/playback, fullscreen,
   photo attachments, replies, reactions, and conversation starters.
+- The music-note button beside the microphone opens Send Music Snippet. Choose a
+  catalog song or search YouTube, drag a 15–30 second timeline window, preview it,
+  and add an optional note. Peers receive the same playback window in a vinyl-style
+  chat card with a visible YouTube player, reactions, reply, copy, and delete actions.
 - The normal peer state does not display a redundant `CONNECTED` badge; the
   header only shows meaningful states such as `AI` or `LEFT`.
 
@@ -72,6 +76,9 @@ normalization until the parity gate enables an authoritative path.
 - `GEMINI_API_KEY` powers the Student Chatbot Assistant, generated conversation starters, and separate assistant tools. Existing deployments may use `Gemini_AI` as an alias. `GEMINI_MODEL` defaults to `gemini-3.6-flash`; the retired `gemini-2.5-flash` value is automatically upgraded. Chatbot replies use one request, six compact history messages, and short output limits by default. Web grounding is enabled only for explicitly current or online questions.
 - `GROQ_API_KEY` is an optional chatbot fallback used only when Gemini is not configured. `GROQ_MODEL` defaults to `groq/compound`.
 - YouTube loads only after the user requests music. Its visible player can be closed, and unavailable videos have a direct YouTube link. Playback depends on the video owner's embedding settings and browser restrictions.
+- Set `YOUTUBE_API_KEY` to enable song search in the snippet picker. Without it,
+  the finite tracks in the built-in catalog remain available. YouTube may begin
+  playback near the requested second because seeking uses video keyframes.
 
 Environment values are loaded from `.env.groq.local`, `.env.gemini.local`, `.env.local`, and `.env`; values already present in the process environment take priority. Never commit real credentials.
 

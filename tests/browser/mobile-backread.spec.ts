@@ -43,6 +43,7 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await chatInput.focus();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expect.poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: 'Account and display settings' }).click();
     await page.getByRole('button', { name: 'Open music controls' }).click();
     await page.getByRole('button', { name: 'Play Study Music' }).click();
     await page.keyboard.press('Escape');

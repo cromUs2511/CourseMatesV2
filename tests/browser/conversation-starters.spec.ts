@@ -40,6 +40,7 @@ test('three successful starters exhaust the bar without limiting normal messages
     await input.fill('I can still write my own messages.');
     await a.getByRole('button', { name: 'Send message', exact: true }).click();
     await expect(b.getByText('I can still write my own messages.', { exact: true })).toBeVisible();
+    await a.getByText('I can still write my own messages.', { exact: true }).hover();
     await a.getByRole('button', { name: 'More message actions' }).last().click();
     await expect(a.getByRole('dialog', { name: 'Message actions' })).toBeVisible();
     await a.getByRole('button', { name: 'Delete', exact: true }).click();

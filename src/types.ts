@@ -42,6 +42,7 @@ export interface ChatMessage {
   text: string;
   images?: import('./data/chatImages').ChatImage[];
   voice?: import('./data/chatVoice').ChatVoice;
+  musicSnippet?: import('./data/musicSnippet').MusicSnippet;
   timestamp: number;
   type?: 'text' | 'icebreaker' | 'code' | 'system' | 'ai_summary' | 'study_timer';
   codeLanguage?: string;

@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { attachRuntime, authenticate, issueSession, isValidEmail } from './runtime';
-import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId } from './src/data/musicDirectory';
+import { DEFAULT_MUSIC_DIRECTORY, extractYouTubeVideoId, parseTrackDuration } from './src/data/musicDirectory';
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 
@@ -65,13 +65,28 @@ app.get('/api/music/search', async (req, res) => {
     const response = await fetch('https://www.googleapis.com/youtube/v3/search?' + params, { signal: AbortSignal.timeout(10000) });
     const data = await response.json() as { items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string; thumbnails?: { medium?: { url?: string } } } }> };
     if (!response.ok) return res.status(502).json({ error: 'YouTube search is temporarily unavailable.' });
+    const ids = (data.items || []).map(item => item.id?.videoId).filter((id): id is string => typeof id === 'string' && /^[\w-]{11}$/.test(id));
+    const details = new Map<string, { duration?: string; live?: string; embeddable?: boolean }>();
+    if (ids.length) {
+      const detailParams = new URLSearchParams({ part: 'contentDetails,snippet,status', id: ids.join(','), key: youtubeApiKey });
+      const detailResponse = await fetch('https://www.googleapis.com/youtube/v3/videos?' + detailParams, { signal: AbortSignal.timeout(10000) });
+      if (!detailResponse.ok) return res.status(502).json({ error: 'YouTube track details are temporarily unavailable.' });
+      const detailData = await detailResponse.json() as { items?: Array<{ id?: string; contentDetails?: { duration?: string }; snippet?: { liveBroadcastContent?: string }; status?: { embeddable?: boolean } }> };
+      for (const item of detailData.items || []) if (item.id) details.set(item.id, {
+        duration: item.contentDetails?.duration,
+        live: item.snippet?.liveBroadcastContent,
+        embeddable: item.status?.embeddable,
+      });
+    }
     const tracks = (data.items || []).flatMap(item => {
       const videoId = item.id?.videoId;
-      if (!videoId || !item.snippet?.title) return [];
+      const detail = videoId ? details.get(videoId) : undefined;
+      if (!videoId || !item.snippet?.title || !detail || detail.live === 'live' || detail.live === 'upcoming' ||
+          detail.embeddable === false || !parseTrackDuration(detail.duration)) return [];
       return [{
         id: 'youtube-search-' + videoId, title: item.snippet.title, artist: item.snippet.channelTitle || 'YouTube',
         youtubeUrl: 'https://www.youtube.com/watch?v=' + videoId, youtubeVideoId: videoId,
-        category: 'custom' as const, thumbnail: item.snippet.thumbnails?.medium?.url,
+        category: 'custom' as const, thumbnail: item.snippet.thumbnails?.medium?.url, duration: detail.duration,
       }];
     });
     res.json({ tracks });

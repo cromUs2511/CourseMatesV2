@@ -83,6 +83,22 @@ export const DEFAULT_MUSIC_DIRECTORY: MusicTrack[] = [
   },
 ];
 
+export function parseTrackDuration(value?: string): number | null {
+  if (!value) return null;
+  const clock = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(value);
+  if (clock) {
+    const hours = clock[1] ? Number(clock[1]) : 0;
+    const minutes = Number(clock[2]);
+    const seconds = Number(clock[3]);
+    const total = hours * 3600 + minutes * 60 + seconds;
+    return minutes < 60 && seconds < 60 && total >= 15 ? total : null;
+  }
+  const iso = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(value);
+  if (!iso) return null;
+  const total = Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+  return total >= 15 ? total : null;
+}
+
 // Soundtrack titles associated with the live-action and Spider-Verse films.
 // Keep these as title phrases so search results from different official uploads,
 // lyric videos, and remasters all trigger the same room effect.

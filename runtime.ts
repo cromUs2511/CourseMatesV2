@@ -9,11 +9,12 @@ import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImage
 import type { ChatImage } from './src/data/chatImages';
 import { parseVoice, type StoredVoice } from './voiceMessages';
 import type { ChatVoice } from './src/data/chatVoice';
+import { normalizeMusicSnippet, type MusicSnippet } from './src/data/musicSnippet';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 
 type Identity = StudentSession & { id: string; expiresAt: number };
 type Participant = { id: string; handle: string; avatar: string; campus?: string; discipline?: string; interests: string[]; allowNormal: boolean; ws?: WebSocket; lastSeen: number };
-type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; voice?: ChatVoice; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string }; edited?: boolean };
+type Message = { id: string; senderId: string; senderHandle: string; senderAvatar: string; text: string; images?: ChatImage[]; voice?: ChatVoice; musicSnippet?: MusicSnippet; timestamp: number; type: 'text' | 'system'; reactions?: Record<string, string>; replyTo?: { id: string; senderHandle: string; text: string }; edited?: boolean };
 type RoomMusic = RoomMusicState;
 type Room = { id: string; peers: [Participant, Participant]; topic: string; messages: Message[]; images: Map<string, StoredImage[]>; voices: Map<string, StoredVoice>; mediaBytes: number; typing: Map<string, number>; revision: number; music?: RoomMusic };
 export const sessions = new Map<string, Identity>();
@@ -171,7 +172,10 @@ function send(session: Identity, room: Room, data: any) {
   if (duplicate) return duplicate;
   const images = parseImages(data.images);
   const voice = parseVoice(data.voice);
-  if (!data.text.trim() && !images.length && !voice) throw new Error('Write a message or attach media.');
+  const musicSnippet = data.musicSnippet === undefined ? undefined : normalizeMusicSnippet(data.musicSnippet);
+  if (data.musicSnippet !== undefined && !musicSnippet) throw new Error('Choose a valid 15–30 second music snippet.');
+  if (musicSnippet && (images.length || voice)) throw new Error('Send a music snippet separately from other attachments.');
+  if (!data.text.trim() && !images.length && !voice && !musicSnippet) throw new Error('Write a message or attach media.');
   const imageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
   const addedMediaBytes = imageBytes + (voice?.bytes.length || 0);
   if (room.mediaBytes + addedMediaBytes > MAX_ROOM_IMAGE_BYTES) throw new Error('This chat has reached its media limit. Delete earlier attachments before sending more.');
@@ -183,12 +187,13 @@ function send(session: Identity, room: Room, data: any) {
     replyTo = {
       id: source.id,
       senderHandle: source.senderHandle,
-      text: source.type === 'system' ? 'Message unsent.' : source.text,
+      text: source.type === 'system' ? 'Message unsent.' : source.text || (source.musicSnippet ? `♫ ${source.musicSnippet.title} — ${source.musicSnippet.artist}` : ''),
     };
   }
   const message: Message = {
     id, senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: session.sessionAvatar,
-    text: data.text.trim(), timestamp: Date.now(), type: 'text',
+    text: musicSnippet ? musicSnippet.caption : data.text.trim(), timestamp: Date.now(), type: 'text',
+    ...(musicSnippet ? { musicSnippet } : {}),
     ...(images.length ? { images: images.map(({ id: imageId, name, width, height }) => ({ id: imageId, name, width, height,
       url: '/api/chat/images/' + [room.id, id, imageId].map(encodeURIComponent).join('/') })) } : {}),
     ...(voice ? { voice: { id: voice.id, duration: voice.duration, mimeType: voice.mimeType,
@@ -221,6 +226,7 @@ function removeMessage(session: Identity, room: Room, messageId: unknown) {
   clearMessageMedia(room, messageId);
   message.images = undefined;
   message.voice = undefined;
+  message.musicSnippet = undefined;
   message.reactions = undefined;
   message.replyTo = undefined;
   message.type = 'system';
@@ -240,6 +246,7 @@ function editMessage(session: Identity, room: Room, data: any) {
   if (!message) throw new Error('Message not found.');
   if (message.senderId !== session.id) throw new Error('You can only edit your own messages.');
   if (message.type !== 'text') throw new Error('Only text messages can be edited.');
+  if (message.musicSnippet) throw new Error('Music snippets cannot be edited.');
   const nextText = data.text.trim();
   if (!nextText) throw new Error('Write a message before saving your edit.');
   message.text = nextText;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Smile, X } from 'lucide-react';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
-export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start' }: {
+export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start', showQuickBar = false }: {
   children: React.ReactNode;
   reactions?: Record<string, string>;
   sessionId: string;
@@ -11,6 +11,7 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
   actions?: React.ReactNode;
   onLongPress?: () => void;
   align?: 'start' | 'end';
+  showQuickBar?: boolean;
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [pending, setPending] = useState(false);
@@ -99,6 +100,11 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
           </div>
         )}
       </div>
+      {showQuickBar && <div className="mt-1 flex max-w-full items-center gap-0.5 rounded-full border border-stone-200 bg-white/95 p-0.5 shadow-sm dark:border-stone-700 dark:bg-stone-900/95" aria-label="Music snippet reactions">
+        {MESSAGE_REACTIONS.map(({ emoji, label }) => <button key={emoji} type="button" onClick={() => void choose(emoji)} aria-label={label} aria-pressed={reactions[sessionId] === emoji}
+          className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-stone-200 aria-pressed:bg-rose-100 dark:hover:bg-stone-700 dark:aria-pressed:bg-rose-950">{emoji}</button>)}
+        <button type="button" aria-label="More reactions" onClick={() => open()} className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700">+</button>
+      </div>}
       <div className={`message-action-rail absolute top-1/2 z-20 -translate-y-1/2 items-center gap-0.5 rounded-full border border-stone-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur-md transition-[opacity,transform] duration-150 dark:border-stone-700/80 dark:bg-stone-900/90 ${align === 'end' ? 'right-full mr-1.5' : 'left-full ml-1.5'} ${position ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'}`}>
       <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
         title="React"

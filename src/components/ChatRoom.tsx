@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, ArrowRight, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil } from 'lucide-react';
+import { Send, ArrowRight, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil, Music2 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -16,6 +16,9 @@ import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { MusicSnippetPicker } from './MusicSnippetPicker';
+import { MusicSnippetCard } from './MusicSnippetCard';
+import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
 import { MESSAGE_REACTIONS } from '../data/reactions';
@@ -89,6 +92,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const [activeSnippetId, setActiveSnippetId] = useState<string | null>(null);
+  const [snippetPlaying, setSnippetPlaying] = useState(false);
   const [starterPool, setStarterPool] = useState<string[]>(() => shuffleList(CONVERSATION_STARTER_POOL));
   const [startersSent, setStartersSent] = useState(0);
   const [selectedStarter, setSelectedStarter] = useState<string | null>(null);
@@ -152,6 +158,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setPendingImages([]);
     setPendingVoice(null);
     setViewingImage(null);
+    setMusicPickerOpen(false);
+    setActiveSnippetId(null);
+    setSnippetPlaying(false);
     setReplyingTo(null);
     retryMessageRef.current = null;
     setError('');
@@ -302,7 +311,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
           peerTypingTimer.current = setTimeout(() => setIsPeerTyping(false), 3000);
         }         else if (data.type === 'message_unsent') setMessages(previous => previous.map(message => message.id === data.messageId
-          ? { ...message, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, reactions: undefined, replyTo: undefined }
+          ? { ...message, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, musicSnippet: undefined, reactions: undefined, replyTo: undefined }
           : message));
         else if (data.type === 'peer_disconnected') markDisconnected();
       } catch { /* REST polling repairs missed events. */ }
@@ -416,6 +425,33 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     }
     finally { sendingRef.current = false; setIsSending(false); }
   };
+  const handleSendMusicSnippet = async (musicSnippet: MusicSnippet) => {
+    if (peerDisconnected || sendingRef.current) throw new Error('Chat is unavailable right now.');
+    sendingRef.current = true;
+    setIsSending(true);
+    setError('');
+    const replyTo = replyingTo ? { id: replyingTo.id, senderHandle: replyingTo.senderHandle, text: replyingTo.text || (replyingTo.musicSnippet ? `Music: ${replyingTo.musicSnippet.title}` : replyingTo.voice ? 'Voice message' : 'Image') } : undefined;
+    try {
+      if (peer.isSimulated) {
+        receiveMessages([{ id: crypto.randomUUID(), senderId: session.id, senderHandle: session.sessionHandle, senderAvatar: '', text: musicSnippet.caption, musicSnippet, timestamp: Date.now(), replyTo, isMe: true }]);
+      } else {
+        const data = await apiRequest<{ message: ChatMessage }>('/api/chat/send', session.token, { roomId, text: '', musicSnippet, clientMessageId: crypto.randomUUID(), replyTo });
+        if (endedRef.current) return;
+        receiveMessages([data.message]);
+      }
+      scrollAfterOwnMessageRef.current = true;
+      setReplyingTo(null);
+      setMusicPickerOpen(false);
+      sendTyping(false);
+      playChime('message');
+    } catch (err) {
+      setError((err as Error).message);
+      throw err;
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  };
   const handleReact = async (messageId: string, emoji: string | null) => {
     if (peerDisconnected) return;
     try {
@@ -439,7 +475,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     try {
       if (peer.isSimulated) {
         setMessages(previous => previous.map(item => item.id === message.id
-          ? { ...item, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, reactions: undefined, replyTo: undefined }
+          ? { ...item, type: 'system', text: 'Message unsent.', images: undefined, voice: undefined, musicSnippet: undefined, reactions: undefined, replyTo: undefined }
           : item));
       } else {
         const data = await apiRequest<{ message: ChatMessage }>('/api/chat/delete', session.token, { roomId, messageId: message.id });
@@ -537,26 +573,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       <div className="chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
         <Header {...headerProps} showReroll={false}
           conversation={
-          <div className="chat-header-conversation flex min-w-0 flex-1 items-center">
-            <div className="chat-header-peer min-w-0 w-full">
-              <div className="flex min-w-0 items-center gap-1.5">
+          <div className="chat-header-conversation flex min-w-0 flex-1 items-center justify-center">
+            <div className="chat-header-peer flex min-w-0 w-full flex-col items-center justify-center gap-0.5 text-center">
                 <span title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  className="chat-header-peer-name min-w-0 max-w-[calc(100%-4rem)] flex-none line-clamp-2 break-words text-left text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-base sm:leading-tight">
+                  className="chat-header-peer-name min-w-0 max-w-full line-clamp-2 break-words text-center text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-sm">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
                 {!peerDisconnected ? (
-                  <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">
-                    {peer.isSimulated ? 'AI' : 'STUDENT'}
+                  <span className="chat-theme-accent-text shrink-0 text-[10px] font-medium leading-3">
+                    {peer.isSimulated ? 'AI' : 'Student'}
                   </span>
                 ) : (
-                  peerDisconnected && <span className="chat-theme-accent-soft shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold">LEFT</span>
+                  <span className="chat-theme-accent-text shrink-0 text-[10px] font-medium leading-3">Left</span>
                 )}
-              </div>
-
-              <div className="chat-header-topic mt-1 min-w-0 truncate text-left text-[11px] leading-4 text-stone-500 dark:text-stone-400 sm:mt-0.5 sm:text-xs">
-                <span className="truncate font-semibold" style={{ color: chatTheme.accent }}>{topic}</span>
-              </div>
-
             </div>
           </div>
 
@@ -569,9 +598,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="chat-display-control flex h-11 w-11 items-center justify-center rounded-xl text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
+              className="chat-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
             >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
           </>}
           chatActions={<>
@@ -589,9 +618,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 onClick={requestLeave}
                 aria-label="Disconnect and leave chat"
                 title="Disconnect and leave chat"
-                className="chat-display-control flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
+                className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-3 w-3" />
               </button>
             )}
 
@@ -709,6 +738,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     )}
                     <MessageReactions
                       reactions={msg.reactions}
+                      showQuickBar={!!msg.musicSnippet}
                       sessionId={session.id}
                       onReact={emoji => handleReact(msg.id, emoji)}
                       align={msg.isMe ? 'end' : 'start'}
@@ -717,7 +747,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           <button type="button" aria-label="Reply" title="Reply" onClick={() => setReplyingTo(msg)} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
                             <Reply className="chat-theme-accent-text h-4 w-4" />
                           </button>
-                          {msg.isMe && (
+                          {(msg.isMe || !!msg.musicSnippet) && (
                             <button
                               type="button"
                               aria-label="More message actions"
@@ -775,6 +805,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       </div>}
                       {msg.voice && <VoiceMessagePlayer voice={msg.voice} isMe={msg.isMe} />}
                       {msg.text && <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{msg.text}</p>}
+                      {msg.musicSnippet && <MusicSnippetCard
+                        snippet={msg.musicSnippet}
+                        active={activeSnippetId === msg.id}
+                        playing={activeSnippetId === msg.id && snippetPlaying}
+                        onToggle={() => {
+                          if (activeSnippetId === msg.id) setSnippetPlaying(value => !value);
+                          else { setActiveSnippetId(msg.id); setSnippetPlaying(true); }
+                        }}
+                        onPlayingChange={setSnippetPlaying}
+                      />}
                       {msg.edited && isGroupedWithPrevious && (
                         <span className={`text-[9px] uppercase tracking-[0.12em] ${msg.isMe ? 'text-white/70' : 'text-stone-500 dark:text-stone-400'}`}>
                           Edited
@@ -916,16 +956,17 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       type="button"
                       onClick={() => {
                         const message = messages.find(item => item.id === deleteMenuMessageId);
-                        if (message) void navigator.clipboard?.writeText(message.text).catch(() => {});
+                        if (message) void navigator.clipboard?.writeText(message.musicSnippet
+                          ? `${message.text ? `${message.text}\n` : ''}${message.musicSnippet.title} — ${message.musicSnippet.artist}\nhttps://www.youtube.com/watch?v=${message.musicSnippet.youtubeId}&t=${message.musicSnippet.startTime}s`
+                          : message.text).catch(() => {});
                         closeMessageActions();
                       }}
                       className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-stone-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-red-400"
                     >
                       <Copy className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Copy</span>
                     </button>
-                    {messages.find(item => item.id === deleteMenuMessageId)?.isMe && (
-                      <>
-                        <button
+                    {messages.find(item => item.id === deleteMenuMessageId)?.isMe && !messages.find(item => item.id === deleteMenuMessageId)?.musicSnippet && (
+                      <button
                           type="button"
                           onClick={() => {
                             const message = messages.find(item => item.id === deleteMenuMessageId);
@@ -943,6 +984,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         >
                           <Pencil className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Edit</span>
                         </button>
+                    )}
+                    {messages.find(item => item.id === deleteMenuMessageId)?.isMe && (
                         <button
                           type="button"
                           onClick={() => {
@@ -954,7 +997,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                         >
                           <Trash2 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Delete</span>
                         </button>
-                      </>
                     )}
                   </div>
                   <div className="mt-1.5 grid grid-cols-6 items-center gap-1 rounded-xl bg-white/[0.06] px-1 py-0.5 sm:hidden">
@@ -1031,6 +1073,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             >
               <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId || !!pendingVoice} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
               {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages || pendingImages.length > 0} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
+              {!editingMessageId && <button type="button" aria-label="Send music snippet" title="Send music snippet" disabled={peerDisconnected || isSending} onClick={() => { setActiveSnippetId(null); setSnippetPlaying(false); setMusicPickerOpen(true); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"><Music2 className="h-3.5 w-3.5" /></button>}
               <input
                 ref={inputRef}
                 id="chat-message-input"
@@ -1097,6 +1140,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       {viewingImage && <PhotoDialog title="Photo" onClose={() => setViewingImage(null)}>
         <ZoomablePhoto src={viewingImage.url} alt={viewingImage.name} />
       </PhotoDialog>}
+      {musicPickerOpen && <MusicSnippetPicker token={session.token} onClose={() => setMusicPickerOpen(false)} onSend={handleSendMusicSnippet} />}
       {pendingAction && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" role="presentation">
           <div
