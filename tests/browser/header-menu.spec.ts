@@ -337,7 +337,7 @@ test('narrow chat header keeps the assistant name and status in one column', asy
   expect(badgeBox.x + badgeBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 });
 
-test('narrow chat header moves the theme switch into settings to preserve conversation space', async ({ page }) => {
+test('narrow chat header keeps one theme switch outside settings', async ({ page }) => {
   await page.setViewportSize({ width: 286, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -347,10 +347,10 @@ test('narrow chat header moves the theme switch into settings to preserve conver
 
   const header = page.locator('#chat-header');
   const themeToggle = page.locator('#mobile-dark-mode-toggle-btn');
-  await expect(themeToggle).toBeHidden();
+  await expect(themeToggle).toBeVisible();
 
   await page.getByRole('button', { name: 'Account and display settings' }).click();
-  await expect(page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
+  await expect(page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' })).toHaveCount(0);
 
   const headerBox = (await header.boundingBox())!;
   const nameBox = (await header.locator('.chat-header-peer-name').boundingBox())!;

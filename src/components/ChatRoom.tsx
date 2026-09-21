@@ -630,7 +630,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               isDarkMode={headerProps.isDarkMode}
               onToggle={headerProps.onToggleDarkMode}
               compact
-              className="chat-theme-toggle max-[359px]:hidden min-[900px]:hidden"
+              className="chat-theme-toggle min-[900px]:hidden"
             />
             {!peerDisconnected && (
               <button
