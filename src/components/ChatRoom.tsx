@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, ArrowRight, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil, Music2 } from 'lucide-react';
+import { Send, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil, Music2 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -92,6 +92,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [composerEngaged, setComposerEngaged] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [activeSnippetId, setActiveSnippetId] = useState<string | null>(null);
   const [snippetPlaying, setSnippetPlaying] = useState(false);
@@ -155,6 +156,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setMessages([]);
     if (inputRef.current) inputRef.current.value = '';
     setHasInputText(false);
+    setComposerEngaged(false);
     setPendingImages([]);
     setPendingVoice(null);
     setViewingImage(null);
@@ -361,6 +363,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         if (inputRef.current?.value.trim() === text) {
           inputRef.current.value = '';
           setHasInputText(false);
+          inputRef.current.blur();
+          setComposerEngaged(false);
         }
         if (selectedStarter && startersSent < CONVERSATION_STARTER_LIMIT) {
           setStartersSent(count => Math.min(count + 1, CONVERSATION_STARTER_LIMIT));
@@ -408,6 +412,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (inputRef.current?.value.trim() === text) {
         inputRef.current.value = '';
         setHasInputText(false);
+        inputRef.current.blur();
+        setComposerEngaged(false);
       }
       if (selectedStarter && startersSent < CONVERSATION_STARTER_LIMIT) {
         setStartersSent(count => Math.min(count + 1, CONVERSATION_STARTER_LIMIT));
@@ -544,12 +550,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     if (next) onNextMatch(); else onLeaveChat();
   };
+  const endCurrentChat = async () => {
+    if (roomId && !peer.isSimulated) {
+      try { await apiRequest('/api/chat/leave', session.token, { roomId }); } catch { /* Server lease expires when offline. */ }
+    }
+    markDisconnected();
+  };
   const requestLeave = () => setPendingAction('leave');
-  const requestNext = () => setPendingAction('next');
   const confirmPendingAction = () => {
     const action = pendingAction;
     setPendingAction(null);
-    if (action) void leave(action === 'next');
+    if (action === 'next') void leave(true);
+    else if (action === 'leave') void endCurrentChat();
   };
   const handleAmbientChange = useCallback((next: { active: boolean; enabled: boolean; color: string; effect: 'aurora' | 'spider-web' }) => {
     setAmbient(current => current.active === next.active && current.enabled === next.enabled && current.color === next.color && current.effect === next.effect ? current : next);
@@ -849,8 +861,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   RAM buffer cleared. Ready for next study match.
                 </p>
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
-                  <button onClick={requestNext} className="chat-theme-accent-button px-4 py-2 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">Find Next Study Peer</button>
-                  <button type="button" onClick={() => void leave(false)} className="chat-theme-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer">Return to main menu</button>
+                  <button onClick={() => void leave(true)} className="chat-theme-accent-button px-4 py-2 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">Next peer</button>
+                  <button type="button" onClick={() => void leave(false)} className="chat-theme-accent-soft px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer">Quit</button>
                 </div>
               </div>
             )}
@@ -1068,7 +1080,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 if (editingMessageId) void handleEditMessage();
                 else handleSendMessage();
               }}
-              className={`flex items-center space-x-2 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
+              className={`flex items-center gap-1.5 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
               <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId || !!pendingVoice} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
               {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages || pendingImages.length > 0} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
@@ -1081,6 +1093,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 maxLength={4000}
                 aria-label={editingMessageId ? 'Edit chat message' : 'Chat message'}
                 onChange={handleInputChange}
+                onFocus={() => setComposerEngaged(true)}
                 placeholder={
                   editingMessageId
                     ? 'Edit your message…'
@@ -1111,27 +1124,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <X className="chat-theme-accent-text h-4 w-4" />
                 </button>
               )}
-              {!editingMessageId && (
-                <button
-                  id="next-match-btn"
-                  type="button"
-                  aria-label="Next Peer"
-                  title="Find next peer"
-                  onClick={requestNext}
-                  className="chat-display-control flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
-              <button
+              {(editingMessageId || composerEngaged) && <button
                 id="send-message-btn"
                 type="submit"
                 aria-label={editingMessageId ? 'Save edited message' : isSending ? 'Sending message' : 'Send message'}
                 disabled={peerDisconnected || isSending || preparingImages || isRecordingVoice || (!hasInputText && !pendingImages.length && !pendingVoice) || (editingMessageId && !inputRef.current?.value.trim())}
-                className="chat-theme-accent-button flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                className="chat-theme-accent-button flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {editingMessageId ? <Pencil className="h-4 w-4" /> : isSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </button>
+                {editingMessageId ? <Pencil className="h-3.5 w-3.5" /> : isSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              </button>}
             </form>
           </div>
         </div>
@@ -1151,19 +1152,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             }`}
           >
             <h2 id="chat-action-confirm-title" className="text-base font-semibold">
-            {pendingAction === 'next' ? 'Find another peer?' : 'Leave this chat?'}
+            {pendingAction === 'next' ? 'Find another peer?' : 'End this chat?'}
             </h2>
             <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
             {pendingAction === 'next'
               ? 'This conversation will end before searching for a new match.'
-              : 'This conversation will end and its messages will be cleared.'}
+              : 'This conversation and its messages will be cleared. You can then choose another peer or quit.'}
             </p>
             <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={() => setPendingAction(null)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs dark:border-stone-700">
               Cancel
             </button>
             <button type="button" onClick={confirmPendingAction} className="chat-theme-accent-button rounded-lg px-3 py-2 text-xs font-semibold text-white">
-              {pendingAction === 'next' ? 'Find next peer' : 'Disconnect'}
+              {pendingAction === 'next' ? 'Find next peer' : 'End chat'}
             </button>
             </div>
           </div>

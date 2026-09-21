@@ -47,8 +47,8 @@ test('three successful starters exhaust the bar without limiting normal messages
     await expect(a.getByText('Message unsent.', { exact: true })).toBeVisible();
     // A new conversation gets a fresh allowance.
     await a.locator('#leave-chat-btn').click();
-    await a.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click();
-    await a.locator('#start-chat-btn').click();
+    await a.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
+    await a.getByRole('button', { name: 'Next peer', exact: true }).click();
     await a.locator('#simulate-peer-btn').click();
     await expect(bar).toContainText('3 left');
     await expect(suggestions).toHaveCount(3);

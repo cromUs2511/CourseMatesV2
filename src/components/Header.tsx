@@ -120,11 +120,11 @@ export const Header: React.FC<HeaderProps> = ({
               isDarkMode={isDarkMode}
               onToggle={onToggleDarkMode}
               compact
-              className="chat-theme-toggle max-[359px]:inline-flex min-[360px]:hidden"
+              className="chat-theme-toggle"
             />}
             {/* Dark / Light Theme Toggle */}
             {conversation && displayActions ? (
-              <div role="group" aria-label="Chat display controls" className="chat-display-controls flex w-full items-center justify-around min-[900px]:w-auto">
+              <div role="group" aria-label="Chat display controls" className="chat-display-controls flex w-full items-center justify-center gap-3 rounded-xl border border-stone-200 bg-stone-50/80 p-2 dark:border-stone-700 dark:bg-stone-900/70 min-[900px]:w-auto min-[900px]:justify-start min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0">
                 <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact />
                 {displayActions}
               </div>

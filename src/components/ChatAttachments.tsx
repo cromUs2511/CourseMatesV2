@@ -96,8 +96,8 @@ export function ChatAttachments({ images, onChange, disabled, onError, onBusyCha
     <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" aria-label="Choose photos to attach"
       onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void choose(files); }} />
     <button type="button" aria-label="Attach photos" title="Attach photos or GIFs" disabled={disabled || busy || images.length >= MAX_CHAT_IMAGES}
-      onClick={() => setOpen(true)} className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
-      {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+      onClick={() => setOpen(true)} className="chat-theme-outline flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
+      {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
     </button>
     {open && !disabled && <PhotoDialog title={camera ? 'Take a photo' : 'Attach photos'} onClose={close}>
       {camera ? <CameraCapture onCapture={file => void choose([file])} accent={accent} accentHover={accentHover} /> : <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Choose up to 4 images, including an animated GIF. Preview them before sending.</p>}

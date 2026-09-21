@@ -209,7 +209,7 @@ test('main menu keeps its sound icon chrome-free', async ({ page }) => {
   await expect(sound).toHaveCSS('border-top-style', 'none');
 });
 
-test('next peer sits beside send and the theme control remains a light-dark switch', async ({ page }) => {
+test('send appears after focusing the composer and the theme control remains a light-dark switch', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -228,14 +228,12 @@ test('next peer sits beside send and the theme control remains a light-dark swit
 
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  const nextPeer = page.getByRole('button', { name: 'Next Peer' });
   const send = page.locator('#send-message-btn');
-  await expect(nextPeer).toBeVisible();
+  await expect(send).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Chat message' }).click();
   await expect(send).toBeVisible();
-  await expect(page.locator('#chat-header').getByRole('button', { name: 'Next Peer' })).toHaveCount(0);
-  const nextBox = (await nextPeer.boundingBox())!;
   const sendBox = (await send.boundingBox())!;
-  expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(sendBox.x + 1);
+  expect(sendBox.width).toBe(32);
   expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(375);
 
   const mobileToggle = page.locator('#mobile-dark-mode-toggle-btn');

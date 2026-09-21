@@ -8,11 +8,12 @@ async function signIn(page: Page, _name: string) {
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) await page.keyboard.press('Escape');
   if (await page.locator('#chat-header').isVisible()) {
-    if (await page.getByRole('button', { name: 'Return to main menu' }).isVisible()) {
-      await page.getByRole('button', { name: 'Return to main menu' }).click();
+    if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
+      await page.getByRole('button', { name: 'Quit', exact: true }).click();
     } else {
       await page.locator('#leave-chat-btn').click();
-      await page.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
+      await page.getByRole('button', { name: 'Quit', exact: true }).click();
     }
   }
   await page.locator('#logout-btn').click();
@@ -76,15 +77,14 @@ test('two browser sessions match, exchange once, preserve drafts on failure and 
   await b.getByRole('button', { name: 'Reply', exact: true }).first().click();
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await a.locator('#leave-chat-btn').click();
-  await a.getByRole('dialog').getByRole('button', { name: 'Disconnect' }).click();
+  await a.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
   await expect(b.getByRole('button', { name: 'Cancel reply' })).toHaveCount(0);
   await expect(b.getByText('Peer disconnected from this session')).toBeVisible();
   await expect(b.getByText('Hello back', { exact: true })).toHaveCount(0);
-  await expect(b.getByRole('button', { name: 'Return to main menu' })).toBeVisible();
-  await b.locator('#next-match-btn').click();
-  await b.getByRole('dialog').getByRole('button', { name: 'Find next peer' }).click();
+  await expect(b.getByRole('button', { name: 'Quit', exact: true })).toBeVisible();
+  await b.getByRole('button', { name: 'Next peer', exact: true }).click();
+  await a.getByRole('button', { name: 'Next peer', exact: true }).click();
   await expect(b.getByText(/Finding active study peers/)).toBeVisible();
-  await a.locator('#start-chat-btn').click();
   await expect(a.locator('#chat-header')).toBeVisible();
   await expect(b.locator('#chat-header')).toBeVisible();
   await logout(a);

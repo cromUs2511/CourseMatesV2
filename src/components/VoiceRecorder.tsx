@@ -123,8 +123,8 @@ export function VoiceRecorder({ disabled, hasVoice, onChange, onError, onRecordi
     <Square className="h-3.5 w-3.5 fill-current" /> {formatDuration(elapsed)} / 3:00
   </button>;
   return <button type="button" onClick={() => void start()} disabled={disabled || hasVoice || processing}
-    className="chat-theme-outline flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+    className="chat-theme-outline flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
     aria-label="Record with microphone" title="Record with microphone">
-    {processing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+    {processing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
   </button>;
 }

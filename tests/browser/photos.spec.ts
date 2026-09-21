@@ -71,7 +71,7 @@ for (const fallback of [false, true]) test(`photos preview, retry, arrive once a
     await expect(received).toHaveCount(0);
   } finally {
     await a.locator('#leave-chat-btn').click();
-    await a.getByRole('dialog').getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await a.getByRole('dialog').getByRole('button', { name: 'End chat', exact: true }).click();
     await first.close(); await second.close();
   }
 });
