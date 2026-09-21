@@ -229,9 +229,15 @@ test('send appears after focusing the composer and the theme control remains a l
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
   const send = page.locator('#send-message-btn');
-  await expect(send).toHaveCount(0);
+  await expect(send).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Attach photos' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Send music snippet' })).toBeHidden();
   await page.getByRole('textbox', { name: 'Chat message' }).click();
   await expect(send).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Attach photos' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send music snippet' })).toBeVisible();
   const sendBox = (await send.boundingBox())!;
   expect(sendBox.width).toBe(32);
   expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(375);
@@ -240,6 +246,9 @@ test('send appears after focusing the composer and the theme control remains a l
   await expect(mobileToggle).toBeVisible();
   expect((await mobileToggle.boundingBox())!.width).toBe(48);
   expect((await mobileToggle.boundingBox())!.height).toBe(28);
+  await page.locator('#chat-messages-container').click({ position: { x: 8, y: 8 } });
+  await expect(send).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Attach photos' })).toBeHidden();
 });
 
 test('chat bubbles leave breathing room below metadata while keeping compact readable text', async ({ page }) => {

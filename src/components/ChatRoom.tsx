@@ -115,6 +115,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const touchRef = useRef<{ id: string; startX: number; startY: number; offset: number; axis: 'x' | 'y' | null } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -175,6 +176,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+  useEffect(() => {
+    if (!composerEngaged) return;
+    const collapse = (event: PointerEvent) => {
+      if (!composerRef.current?.contains(event.target as Node)) setComposerEngaged(false);
+    };
+    document.addEventListener('pointerdown', collapse);
+    return () => document.removeEventListener('pointerdown', collapse);
+  }, [composerEngaged]);
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -1042,7 +1051,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             isDarkMode ? 'bg-[#141312]/88 border-stone-800' : 'bg-[#fffdfa]/88 border-stone-200'
           }`}
         >
-          <div className="max-w-3xl mx-auto">
+          <div ref={composerRef} className="max-w-3xl mx-auto">
             {replyingTo && (
               <div className="mb-2 flex min-w-0 items-center gap-3 rounded-xl border-l-[3px] bg-stone-100 px-3 py-2 text-left text-xs dark:bg-stone-900" style={{ borderColor: chatTheme.accent }}>
                 <div className="min-w-0 flex-1">
@@ -1080,11 +1089,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 if (editingMessageId) void handleEditMessage();
                 else handleSendMessage();
               }}
-              className={`flex items-center gap-1.5 rounded-2xl border p-2 shadow-[0_10px_30px_rgba(41,37,36,0.08)] ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
+              className={`flex items-center gap-1.5 rounded-2xl border p-2 transition-all duration-200 ease-out ${composerEngaged ? '-translate-y-1 shadow-[0_14px_36px_rgba(0,0,0,0.2)]' : 'translate-y-0 shadow-[0_6px_20px_rgba(41,37,36,0.08)]'} ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
-              <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId || !!pendingVoice} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
-              {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages || pendingImages.length > 0} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
-              {!editingMessageId && <button type="button" aria-label="Send music snippet" title="Send music snippet" disabled={peerDisconnected || isSending} onClick={() => { setActiveSnippetId(null); setSnippetPlaying(false); setMusicPickerOpen(true); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"><Music2 className="h-3.5 w-3.5" /></button>}
+              <div aria-hidden={!composerEngaged} className={`flex shrink-0 items-center gap-1.5 overflow-hidden transition-all duration-200 ease-out ${composerEngaged ? 'visible max-w-28 translate-x-0 opacity-100' : 'invisible max-w-0 -translate-x-2 opacity-0 pointer-events-none'}`}>
+                <ChatAttachments images={pendingImages} onChange={setPendingImages} disabled={peerDisconnected || isSending || isRecordingVoice || !!editingMessageId || !!pendingVoice} onError={setError} onBusyChange={setPreparingImages} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
+                {!editingMessageId && <VoiceRecorder disabled={peerDisconnected || isSending || preparingImages || pendingImages.length > 0} hasVoice={!!pendingVoice} onChange={setPendingVoice} onError={setError} onRecordingChange={setIsRecordingVoice} />}
+                {!editingMessageId && <button type="button" aria-label="Send music snippet" title="Send music snippet" disabled={peerDisconnected || isSending} onClick={() => { setActiveSnippetId(null); setSnippetPlaying(false); setMusicPickerOpen(true); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition-colors hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"><Music2 className="h-3.5 w-3.5" /></button>}
+              </div>
               <input
                 ref={inputRef}
                 id="chat-message-input"
@@ -1124,7 +1135,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   <X className="chat-theme-accent-text h-4 w-4" />
                 </button>
               )}
-              {(editingMessageId || composerEngaged) && <button
+              <div className={`shrink-0 overflow-hidden transition-all duration-200 ease-out ${editingMessageId || composerEngaged ? 'visible max-w-8 translate-x-0 opacity-100' : 'invisible max-w-0 translate-x-2 opacity-0 pointer-events-none'}`}>
+              <button
                 id="send-message-btn"
                 type="submit"
                 aria-label={editingMessageId ? 'Save edited message' : isSending ? 'Sending message' : 'Send message'}
@@ -1132,7 +1144,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 className="chat-theme-accent-button flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editingMessageId ? <Pencil className="h-3.5 w-3.5" /> : isSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              </button>}
+              </button>
+              </div>
             </form>
           </div>
         </div>
