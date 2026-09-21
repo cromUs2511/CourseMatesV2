@@ -22,7 +22,7 @@ Anonymous study matching, built with React, Vite, Express and WebSockets.
 - The music-note button beside the microphone opens Send Music Snippet. Choose a
   catalog song or search YouTube, drag a 15–30 second timeline window, preview it,
   and add an optional note. Peers receive the same playback window in a vinyl-style
-  chat card with a visible YouTube player, reactions, reply, copy, and delete actions.
+  chat card with disc playback controls, reactions, reply, copy, and delete actions.
 - The normal peer state does not display a redundant `CONNECTED` badge; the
   header only shows meaningful states such as `AI` or `LEFT`.
 

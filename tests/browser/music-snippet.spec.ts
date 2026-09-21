@@ -54,6 +54,8 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
     await card.getByRole('button', { name: 'Play music snippet' }).click();
     await expect.poll(() => b.evaluate(() => (window as any).snippetLoads.at(-1))).toMatchObject({ videoId: 's3a4OQR-10M', startSeconds: 45, endSeconds: 75 });
     await expect(card.getByRole('button', { name: 'Pause music snippet' })).toBeVisible();
+    await expect(card.locator('iframe')).toBeHidden();
+    await expect(b.getByLabel('Visible YouTube snippet player')).toHaveCount(0);
     await expect(b.getByLabel('Music snippet reactions').getByRole('button', { name: 'Love' })).toBeVisible();
     await b.getByLabel('Music snippet reactions').getByRole('button', { name: 'Love' }).click();
     await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();

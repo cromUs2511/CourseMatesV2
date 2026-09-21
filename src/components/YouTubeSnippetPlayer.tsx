@@ -8,9 +8,10 @@ interface Props {
   playing: boolean;
   onPlayingChange: (playing: boolean) => void;
   onError: (message: string) => void;
+  hidden?: boolean;
 }
 
-export function YouTubeSnippetPlayer({ youtubeId, startTime, duration, playing, onPlayingChange, onError }: Props) {
+export function YouTubeSnippetPlayer({ youtubeId, startTime, duration, playing, onPlayingChange, onError, hidden = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
   const readyRef = useRef(false);
@@ -48,7 +49,7 @@ export function YouTubeSnippetPlayer({ youtubeId, startTime, duration, playing, 
             if (data === 1) callbacksRef.current.onPlayingChange(true);
           },
           onError: ({ data }) => { if (!disposed) callbacksRef.current.onError(getYouTubeErrorMessage(data)); },
-          onAutoplayBlocked: () => { if (!disposed) callbacksRef.current.onError('Press play on the visible YouTube player to start this snippet.'); },
+          onAutoplayBlocked: () => { if (!disposed) callbacksRef.current.onError('Press the snippet play button again to start the music.'); },
         },
       });
     }).catch(error => { if (!disposed) { setLoading(false); callbacksRef.current.onError((error as Error).message); } });
@@ -81,7 +82,7 @@ export function YouTubeSnippetPlayer({ youtubeId, startTime, duration, playing, 
     } else player.pauseVideo();
   }, [playing, youtubeId, startTime, duration]);
 
-  return <div className="w-[220px] max-w-full rounded-xl border border-stone-700 bg-black p-2 text-center text-white" aria-label="Visible YouTube snippet player">
+  return <div className={hidden ? 'hidden' : 'w-[220px] max-w-full rounded-xl border border-stone-700 bg-black p-2 text-center text-white'} aria-hidden={hidden || undefined} aria-label={hidden ? undefined : 'Visible YouTube snippet player'}>
     {loading && <p className="mb-2 text-xs">Loading YouTube preview…</p>}
     <div ref={hostRef} className="mx-auto h-[220px] w-[220px] max-w-full overflow-hidden rounded-md" />
     <p className="mt-1 text-[10px] text-stone-400">Playing from YouTube</p>
