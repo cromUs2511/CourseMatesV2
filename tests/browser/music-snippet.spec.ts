@@ -56,8 +56,10 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
     await expect(card.getByRole('button', { name: 'Pause music snippet' })).toBeVisible();
     await expect(card.locator('iframe')).toBeHidden();
     await expect(b.getByLabel('Visible YouTube snippet player')).toHaveCount(0);
-    await expect(b.getByLabel('Music snippet reactions').getByRole('button', { name: 'Love' })).toBeVisible();
-    await b.getByLabel('Music snippet reactions').getByRole('button', { name: 'Love' }).click();
+    await expect(card.getByRole('img')).toHaveCount(0);
+    await card.locator('xpath=ancestor::*[contains(@class,"reaction-message-anchor")]').hover();
+    await b.getByRole('button', { name: 'React to message' }).click();
+    await b.getByRole('dialog', { name: 'React to message' }).getByRole('button', { name: 'Love' }).click();
     await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
     await b.getByRole('button', { name: 'More message actions' }).click();
     await expect(b.getByRole('dialog', { name: 'Message actions' }).getByRole('button', { name: 'Copy' })).toBeVisible();

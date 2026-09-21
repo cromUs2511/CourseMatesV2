@@ -738,7 +738,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     )}
                     <MessageReactions
                       reactions={msg.reactions}
-                      showQuickBar={!!msg.musicSnippet}
                       sessionId={session.id}
                       onReact={emoji => handleReact(msg.id, emoji)}
                       align={msg.isMe ? 'end' : 'start'}
