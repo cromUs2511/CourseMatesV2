@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chat Composer</title>
+<style>
+  :root {
+    --accent: #6366F1;
+    --bg: #08080B;
+    --surface: #131318;
+    --surface-2: #1C1C23;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+    --text: #F2F2F5;
+    --muted: #85858F;
+    --shadow: rgba(0, 0, 0, 0.55);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur: 0.32s;
+    color-scheme: dark;
+  }
+
+  html[data-theme="light"] {
+    --bg: #F1F2F5;
+    --surface: #FFFFFF;
+    --surface-2: #F4F4F7;
+    --border: rgba(9, 9, 11, 0.08);
+    --border-strong: rgba(9, 9, 11, 0.15);
+    --text: #18181B;
+    --muted: #6B6B76;
+    --shadow: rgba(16, 16, 22, 0.16);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+
+  /* ---------- Component shell ---------- */
+  .composer {
+    position: relative;
+    width: 100%;
+    max-width: 540px;
+  }
+
+  /* ---------- Settings panel: hidden in the default state ---------- */
+  .panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 12px);
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: 0 24px 48px -20px var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition:
+      opacity var(--dur) var(--ease),
+      transform var(--dur) var(--ease),
+      visibility var(--dur) var(--ease),
+      background var(--dur) var(--ease),
+      border-color var(--dur) var(--ease);
+  }
+
+  .composer.is-open .panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* Header: user profile bar */
+  .profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 4px 12px;
+  }
+
+  .profile__avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #FFFFFF;
+    transition: background var(--dur) var(--ease);
+  }
+
+  .profile__avatar svg { width: 20px; height: 20px; }
+
+  .profile__name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .profile__tag {
+    margin-left: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  /* Appearance section */
+  .section {
+    padding: 12px 4px;
+    border-top: 1px solid var(--border);
+  }
+
+  .section__title {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+
+  .row + .row { margin-top: 10px; }
+
+  .row__label {
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex: none;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface-2);
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+
+  .switch[aria-checked="true"] {
+    background: var(--accent);
+    border-color: transparent;
+  }
+
+  .switch__thumb {
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    transform: translate(0, -50%);
+    transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  .switch[aria-checked="true"] .switch__thumb {
+    background: #FFFFFF;
+    transform: translate(18px, -50%);
+  }
+
+  .swatches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .swatch {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--c);
+    cursor: pointer;
+    transition: box-shadow 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .swatch:hover { transform: scale(1.12); }
+
+  .swatch[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--c);
+  }
+
+  /* Action toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 4px 2px;
+    border-top: 1px solid var(--border);
+  }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+
+  .icon-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  /* ---------- Chat bar: the default state ---------- */
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 2px 12px -4px var(--shadow);
+    transform: translateY(0);
+    transition:
+      transform var(--dur) var(--ease),
+      box-shadow var(--dur) var(--ease),
+      border-color var(--dur) var(--ease),
+      background var(--dur) var(--ease);
+  }
+
+  .composer.is-open .bar {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow:
+      0 18px 40px -16px var(--shadow),
+      0 0 32px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .bar__input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 0;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 14.5px;
+    line-height: 1.4;
+    outline: none;
+  }
+
+  .bar__input::placeholder { color: var(--muted); }
+
+  .send {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #FFFFFF;
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), transform 0.2s var(--ease);
+  }
+
+  .send:hover { transform: scale(1.06); }
+
+  .send svg { width: 18px; height: 18px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    body, .panel, .bar, .switch, .switch__thumb, .swatch,
+    .icon-btn, .send, .profile__avatar {
+      transition-duration: 0.01ms;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <div class="composer" id="composer">
+
+    <!-- Settings panel, revealed above the bar on click / focus -->
+    <div class="panel">
+
+      <!-- Header: user profile bar -->
+      <header class="profile">
+        <span class="profile__avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </span>
+        <span class="profile__name">Username<span class="profile__tag">#0000</span></span>
+      </header>
+
+      <!-- Appearance -->
+      <section class="section">
+        <h2 class="section__title">Appearance</h2>
+
+        <div class="row">
+          <span class="row__label" id="theme-label">Dark mode</span>
+          <button class="switch" id="theme-switch" type="button" role="switch" aria-checked="true" aria-labelledby="theme-label">
+            <span class="switch__thumb"></span>
+          </button>
+        </div>
+
+        <div class="row">
+          <span class="row__label" id="accent-label">Accent color</span>
+          <div class="swatches" role="radiogroup" aria-labelledby="accent-label">
+            <button class="swatch" type="button" role="radio" aria-checked="true" aria-label="Indigo" data-accent="#6366F1" style="--c: #6366F1"></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" aria-label="Emerald" data-accent="#10B981" style="--c: #10B981"></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" aria-label="Amber" data-accent="#F59E0B" style="--c: #F59E0B"></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" aria-label="Rose" data-accent="#F43F5E" style="--c: #F43F5E"></button>
+            <button class="swatch" type="button" role="radio" aria-checked="false" aria-label="Sky" data-accent="#38BDF8" style="--c: #38BDF8"></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action toolbar -->
+      <div class="toolbar">
+        <button class="icon-btn" type="button" aria-label="Attach image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 1 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="Record voice message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+          </svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="Share audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="Toggle fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+            <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+            <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Default state: text input and send button only -->
+    <div class="bar">
+      <input class="bar__input" id="message-input" type="text" placeholder="Message..." autocomplete="off" />
+      <button class="send" type="button" aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5" />
+          <path d="M5 12l7-7 7 7" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+<script>
+  (function () {
+    var composer = document.getElementById('composer');
+    var input = document.getElementById('message-input');
+
+    function reveal() {
+      composer.classList.add('is-open');
+    }
+
+    composer.addEventListener('pointerdown', reveal);
+    input.addEventListener('focus', reveal);
+
+    document.addEventListener('pointerdown', function (event) {
+      if (!composer.contains(event.target)) {
+        composer.classList.remove('is-open');
+      }
+    });
+
+    // Appearance: dark / light mode
+    var themeSwitch = document.getElementById('theme-switch');
+    themeSwitch.addEventListener('click', function () {
+      var dark = themeSwitch.getAttribute('aria-checked') !== 'true';
+      themeSwitch.setAttribute('aria-checked', String(dark));
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    });
+
+    // Appearance: theme accent color
+    var swatches = document.querySelectorAll('.swatch');
+    swatches.forEach(function (swatch) {
+      swatch.addEventListener('click', function () {
+        swatches.forEach(function (other) {
+          other.setAttribute('aria-checked', 'false');
+        });
+        swatch.setAttribute('aria-checked', 'true');
+        document.documentElement.style.setProperty('--accent', swatch.dataset.accent);
+      });
+    });
+  })();
+</script>
+</body>
+</html>
