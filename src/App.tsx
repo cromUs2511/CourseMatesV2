@@ -14,7 +14,7 @@ export default function App() {
       const saved = localStorage.getItem('coursemates_darkmode');
       if (saved !== null) return saved === 'true';
     } catch { /* Storage may be unavailable in private browsers. */ }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return false;
   });
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => getSoundEnabled());
   const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
