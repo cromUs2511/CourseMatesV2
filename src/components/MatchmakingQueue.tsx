@@ -8,6 +8,18 @@ import type { ChatTheme } from './ChatThemeMenu';
 
 const MATCH_POLL_INTERVAL_MS = 400;
 const MATCH_SOCKET_TIMEOUT_MS = 1500;
+const MATCH_POLL_TIMEOUT_MS = 4000;
+const MATCH_POLL_FAILURE_LIMIT = 4;
+const MATCH_JOIN_ATTEMPTS = 3;
+const MATCH_JOIN_TIMEOUT_MS = 5000;
+const MATCH_RETRY_DELAY_MS = 400;
+const MATCH_HEARTBEAT_MS = 5000;
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ? 'The network is responding slowly. Please try again.'
+    : error instanceof Error && error.message
+      ? error.message
+      : 'Unable to connect. Please try again.';
 const CHAT_INTENTS = [
   { label: 'Study together', description: 'Focus and work alongside a peer' },
   { label: 'Ask for help', description: 'Get support with a question or topic' },
@@ -49,13 +61,26 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const allowNormalRef = useRef(false);
   const matchingInterestsRef = useRef<string[]>([]);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const showSimulateOption = isSearching && queueTime >= 3;
 
   const clearPolling = () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     pollIntervalRef.current = null;
   };
+  const stopHeartbeat = () => {
+    if (heartbeatRef.current !== null) clearInterval(heartbeatRef.current);
+    heartbeatRef.current = null;
+  };
+  const startHeartbeat = (ws: WebSocket) => {
+    stopHeartbeat();
+    // Keep the server-side queue lease fresh even when REST polls are failing.
+    heartbeatRef.current = setInterval(() => {
+      if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+    }, MATCH_HEARTBEAT_MS);
+  };
   const closeSocket = () => {
+    stopHeartbeat();
     const ws = wsRef.current;
     wsRef.current = null;
     if (ws) { ws.onopen = null; ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); }
@@ -68,6 +93,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   useEffect(() => () => {
     ++attemptRef.current;
     clearPolling();
+    stopHeartbeat();
     // The chat owns the socket after a match.
     if (!isMatchedRef.current) {
       closeSocket();
@@ -101,11 +127,13 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     isMatchedRef.current = false;
     const attempt = ++attemptRef.current;
     const current = () => attemptRef.current === attempt && searchingRef.current;
+    const socketAlive = () => wsRef.current?.readyState === WebSocket.OPEN;
     let polling = false;
     let busy = false;
+    let pollFailures = 0;
     const fail = (err: unknown) => {
       if (!current()) return;
-      setError(err instanceof Error ? err.message : 'Unable to connect. Please try again.');
+      setError(toErrorMessage(err));
       searchingRef.current = false;
       setIsSearching(false);
       clearPolling();
@@ -116,27 +144,41 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       if (!current() || busy) return;
       busy = true;
       try {
-        const data = await apiRequest('/api/match/poll', session.token);
+        const data = await apiRequest('/api/match/poll', session.token, undefined, AbortSignal.timeout(MATCH_POLL_TIMEOUT_MS));
         if (!current()) return;
+        pollFailures = 0;
         if (data.status === 'matched') handleMatchSuccess(data);
         else if (data.status === 'queued') setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
         else if (data.status === 'idle') fail(new Error('Your queue entry expired. Please try again.'));
-      } catch (err) { fail(err); }
+      } catch (err) {
+        // A healthy socket still delivers matches, so only sustained REST
+        // failures without a socket end the search.
+        pollFailures += 1;
+        if (current() && !socketAlive() && pollFailures >= MATCH_POLL_FAILURE_LIMIT) fail(err);
+      }
       finally { busy = false; }
     };
     const fallback = async () => {
       if (!current() || polling) return;
       polling = true;
       closeSocket();
-      try {
-        const data = await apiRequest('/api/match/join', session.token, { interests: interestsToMatch, allowNormal: allowNormalRef.current });
-        if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
-        if (data.status === 'matched') handleMatchSuccess(data);
-        else {
+      let lastError: unknown;
+      for (let joinAttempt = 1; joinAttempt <= MATCH_JOIN_ATTEMPTS; joinAttempt += 1) {
+        if (!current()) return;
+        try {
+          const data = await apiRequest('/api/match/join', session.token, { interests: interestsToMatch, allowNormal: allowNormalRef.current }, AbortSignal.timeout(MATCH_JOIN_TIMEOUT_MS));
+          if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
+          if (data.status === 'matched') { handleMatchSuccess(data); return; }
+          pollFailures = 0;
           void poll();
           pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+          return;
+        } catch (err) {
+          lastError = err;
+          if (joinAttempt < MATCH_JOIN_ATTEMPTS && current()) await new Promise(resolve => setTimeout(resolve, MATCH_RETRY_DELAY_MS));
         }
-      } catch (err) { fail(err); }
+      }
+      if (current()) fail(lastError);
     };
     try {
       const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/chat');
@@ -145,6 +187,8 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
         if (!current()) { closeSocket(); return; }
+        pollFailures = 0;
+        startHeartbeat(ws);
         ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: interestsToMatch, allowNormal: allowNormalRef.current }));
         // Poll the same state as the socket; this also keeps the queue lease alive.
         void poll();
@@ -178,10 +222,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: matchingInterestsRef.current, allowNormal: true }));
         return;
       }
-      const data = await apiRequest('/api/match/join', session.token, { interests: matchingInterestsRef.current, allowNormal: true });
+      const data = await apiRequest('/api/match/join', session.token, { interests: matchingInterestsRef.current, allowNormal: true }, AbortSignal.timeout(MATCH_JOIN_TIMEOUT_MS));
       if (data.status === 'matched') handleMatchSuccess(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to continue matching. Please try again.');
+      setError(toErrorMessage(err));
       allowNormalRef.current = false;
       setCanProceedNormally(true);
     }
