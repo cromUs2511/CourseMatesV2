@@ -97,6 +97,7 @@ test('HTTP matching, member-only messages, idempotent delivery, typing and immed
   for (const text of ['', ' ', 12, 'x'.repeat(4001)]) assert.equal((await request('/api/chat/send', a, { roomId, text })).status, 400);
   await request('/api/chat/typing', a, { roomId, isTyping: true });
   assert.equal((await request('/api/chat/messages?roomId=' + roomId, b)).data.isPeerTyping, true);
+  assert.equal((await request('/api/chat/messages?roomId=' + roomId, b)).data.peerPresence, 'active');
   await request('/api/chat/leave', a, { roomId });
   assert.equal((await request('/api/chat/messages?roomId=' + roomId, b)).data.active, false);
   assert.equal((await request('/api/match/poll', b)).data.status, 'idle');

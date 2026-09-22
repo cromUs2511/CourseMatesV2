@@ -21,6 +21,6 @@ export const SoundToggle: React.FC<SoundToggleProps> = ({ isEnabled, onToggle, c
         : compact ? 'text-red-300 hover:bg-white/10' : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950'
     } ${className}`}
   >
-    {isEnabled ? <Volume2 className={compact ? 'h-3 w-3' : 'h-4 w-4'} /> : <VolumeX className={compact ? 'h-3 w-3' : 'h-4 w-4'} />}
+    {isEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
   </button>
 );

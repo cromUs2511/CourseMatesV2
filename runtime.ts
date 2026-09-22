@@ -3,7 +3,7 @@ import type { Express, Request, Response } from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'node:http';
 import { normalizeSharedTrack } from './src/data/musicDirectory';
-import type { RoomMusicState, StudentSession } from './src/types';
+import type { PeerPresence, RoomMusicState, StudentSession } from './src/types';
 import { MESSAGE_REACTIONS } from './src/data/reactions';
 import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImages';
 import type { ChatImage } from './src/data/chatImages';
@@ -48,6 +48,9 @@ function cleanInterests(value: unknown): string[] {
   return Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === 'string').map(v => v.trim().slice(0, 100)).filter(Boolean))].slice(0, 16) : ['General Peer Discovery'];
 }
 const GENERIC_INTEREST = 'general peer discovery';
+// A peer silent for this long is away from the site; the 30s room cleanup still
+// decides when the chat itself is abandoned and reported as offline.
+const PEER_INACTIVE_MS = 20000;
 const INTEREST_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'i', 'in', 'into', 'like', 'love', 'my', 'of', 'on', 'or', 'the', 'to', 'with']);
 function interestWords(interests: string[]): Set<string> {
   return new Set(interests
@@ -373,8 +376,11 @@ export function attachRuntime(app: Express, server: Server) {
     if (!room) return res.json({ active: false, messages: [], peerDisconnected: true, isPeerTyping: false });
     const sinceRevision = Number(req.query.sinceRevision);
     const changed = !Number.isInteger(sinceRevision) || sinceRevision !== room.revision;
+    const peer = room.peers.find(p => p.id !== session.id)!;
+    const peerPresence: PeerPresence = Date.now() - peer.lastSeen >= PEER_INACTIVE_MS ? 'inactive' : 'active';
     // Avoid retransmitting the bounded buffer when no chat state changed.
     res.json({ active: true, messages: changed ? room.messages : [], revision: room.revision, music: room.music, peerDisconnected: false,
+      peerPresence,
       isPeerTyping: [...room.typing].some(([id, timestamp]) => id !== session.id && Date.now() - timestamp < 3000) });
   });
   app.post('/api/chat/music', (req, res) => {

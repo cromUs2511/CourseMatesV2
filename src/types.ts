@@ -51,6 +51,8 @@ export interface ChatMessage {
   edited?: boolean;
 }
 
+export type PeerPresence = 'active' | 'inactive' | 'offline';
+
 export interface ActivePeerInfo {
   sessionId: string;
   handle: string;

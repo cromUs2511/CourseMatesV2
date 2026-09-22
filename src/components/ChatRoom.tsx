@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, ArrowLeft, LogOut, Maximize2, Minimize2, AlertTriangle, RefreshCw, Sparkles, Reply, Trash2, Copy, MoreVertical, ChevronDown, X, Pencil, Music2 } from 'lucide-react';
-import { StudentSession, ActivePeerInfo, ChatMessage, RoomMusicState } from '../types';
+import { StudentSession, ActivePeerInfo, ChatMessage, PeerPresence, RoomMusicState } from '../types';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { reconcileMessageSnapshot } from '../utils/chatMessages';
@@ -25,6 +25,7 @@ import { MESSAGE_REACTIONS } from '../data/reactions';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
 const CONVERSATION_STARTER_LIMIT = 3;
+const PRESENCE_LABELS: Record<PeerPresence, string> = { active: 'Active', inactive: 'Inactive', offline: 'Offline' };
 const messageTimeFormatter = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
 const formatVoiceDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -89,6 +90,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [viewingImage, setViewingImage] = useState<ChatImage | null>(null);
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
+  const [peerPresence, setPeerPresence] = useState<PeerPresence>('active');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -153,6 +155,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const markDisconnected = useCallback(() => {
     endedRef.current = true;
     setPeerDisconnected(true);
+    setPeerPresence('offline');
     setIsPeerTyping(false);
     setMessages([]);
     if (inputRef.current) inputRef.current.value = '';
@@ -275,6 +278,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   useEffect(() => {
     endedRef.current = false;
     snapshotRevisionRef.current = null;
+    setPeerPresence('active');
     setMessages([{ id: 'sys-1', senderHandle: 'System', senderAvatar: '', isMe: false,
       text: peer.isSimulated ? 'Conversation with the Student Chatbot Assistant.' : 'Connected with ' + peer.handle + '. Messages are held in memory until this chat ends.',
       timestamp: Date.now(), type: 'system' }]);
@@ -299,6 +303,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           snapshotRevisionRef.current = data.revision;
         }
         setRoomMusic(current => current?.revision === data.music?.revision ? current : data.music);
+        setPeerPresence(data.peerPresence === 'inactive' ? 'inactive' : 'active');
         receiveMessages(data.messages, true);
         setIsPeerTyping(data.isPeerTyping);
         setError(current => current.startsWith('Connection interrupted') ? '' : current);
@@ -600,13 +605,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   className="chat-header-peer-name min-w-0 max-w-full line-clamp-2 break-words text-center text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-sm">
                   {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                 </span>
-                {!peerDisconnected ? (
-                  <span className="chat-theme-accent-text shrink-0 text-[10px] font-medium leading-3">
-                    {peer.isSimulated ? 'AI' : 'Student'}
-                  </span>
-                ) : (
-                  <span className="chat-theme-accent-text shrink-0 text-[10px] font-medium leading-3">Left</span>
-                )}
+                <span className="chat-header-status flex shrink-0 items-center justify-center gap-1 text-[10px] font-medium leading-3">
+                  <span className="chat-presence-dot" data-status={peerPresence} aria-hidden="true" />
+                  <span className="chat-theme-accent-text shrink-0">{peer.isSimulated ? 'AI' : 'Student'}</span>
+                  <span className="shrink-0 text-stone-400 dark:text-stone-500" aria-hidden="true">·</span>
+                  <span className="chat-presence-label shrink-0" data-status={peerPresence}>{PRESENCE_LABELS[peerPresence]}</span>
+                </span>
             </div>
           </div>
 
@@ -621,7 +625,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               className="chat-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
             >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
           </>}
           chatActions={<>
@@ -639,9 +643,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 onClick={requestLeave}
                 aria-label="Disconnect and leave chat"
                 title="Disconnect and leave chat"
-                className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+                className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10"
               >
-                <LogOut className="h-3 w-3" />
+                <LogOut className="h-4 w-4" />
               </button>
             )}
 

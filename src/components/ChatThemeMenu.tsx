@@ -69,7 +69,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
           ? 'chat-display-control site-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10'
           : 'chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'}
       >
-        <Palette className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
+        <Palette className="h-4 w-4" />
       </button>
       {open && (
         <div

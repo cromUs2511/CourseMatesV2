@@ -438,7 +438,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
           style={{ color: accent }}
           className={`flex cursor-pointer items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 ${compact ? 'chat-display-control h-8 w-8 border-0 bg-transparent shadow-none' : 'h-9 w-9 hover:bg-stone-500/10'}`}
         >
-          {isLoading ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : <Music2 className={compact ? 'h-3.5 w-3.5' : 'h-5 w-5'} />}
+          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className={compact ? 'h-4 w-4' : 'h-5 w-5'} />}
         </button>
       </div>
       {isMenuOpen && createPortal(
