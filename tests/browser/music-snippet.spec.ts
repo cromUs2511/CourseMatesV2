@@ -36,6 +36,7 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
 
+    await a.locator('#chat-message-input').focus();
     await a.getByRole('button', { name: 'Send music snippet' }).click();
     const picker = a.getByRole('dialog', { name: 'Send music snippet' });
     await picker.getByRole('button', { name: 'Select Loser by Tame Impala' }).click();
@@ -61,6 +62,7 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
     await b.getByRole('button', { name: 'React to message' }).click();
     await b.getByRole('dialog', { name: 'React to message' }).getByRole('button', { name: 'Love' }).click();
     await expect(a.getByRole('button', { name: 'Love reaction, 1' })).toBeVisible();
+    await card.locator('xpath=ancestor::*[contains(@class,"reaction-message-anchor")]').hover();
     await b.getByRole('button', { name: 'More message actions' }).click();
     await expect(b.getByRole('dialog', { name: 'Message actions' }).getByRole('button', { name: 'Copy' })).toBeVisible();
   } finally { await Promise.all(contexts.map(context => context.close())); }
