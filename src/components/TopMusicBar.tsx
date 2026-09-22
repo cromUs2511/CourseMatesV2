@@ -408,6 +408,32 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
     setGlowColor(color);
     try { localStorage.setItem('coursemates_music_glow_color', color); } catch {}
   };
+  const searchResultIds = new Set(searchResults.map(track => track.id));
+  const libraryTracks = tracks.filter(track => !searchResultIds.has(track.id));
+  const renderCatalogRow = (track: MusicTrack) => {
+    const isActive = currentTrack.id === track.id;
+    return (
+      <button
+        key={track.id}
+        type="button"
+        onClick={() => selectTrack(track)}
+        aria-pressed={isActive}
+        style={isActive ? { backgroundColor: `color-mix(in srgb, ${accent} 28%, transparent)`, color: accent } : undefined}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors motion-reduce:transition-none ${isActive ? '' : 'text-stone-100 hover:bg-white/10'}`}
+      >
+        <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? 'bg-black/20' : 'bg-white/5 text-stone-400'}`}>
+          {isActive && playbackActive ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-bold">{track.title}</span>
+          <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
+        </span>
+        <span aria-hidden="true" className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${isActive ? 'border-current opacity-80' : 'border-stone-700 text-stone-500'}`}>
+          {track.category}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div ref={menuRef} className="relative min-w-0">
@@ -438,7 +464,7 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
           style={{ color: accent }}
           className={`flex cursor-pointer items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 ${compact ? 'chat-display-control h-8 w-8 border-0 bg-transparent shadow-none' : 'h-9 w-9 hover:bg-stone-500/10'}`}
         >
-          {isLoading ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : <Music2 className={compact ? 'h-3.5 w-3.5' : 'h-5 w-5'} />}
+          {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Music2 className={compact ? 'h-4 w-4' : 'h-5 w-5'} />}
         </button>
       </div>
       {isMenuOpen && createPortal(
@@ -464,7 +490,16 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
               <button type="button" aria-label="Close music selection" onClick={() => { setIsMenuOpen(false); menuButtonRef.current?.focus(); }} className="rounded-lg p-2 text-stone-300 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 overflow-y-auto pr-1">
-              <p className="mb-3 truncate text-xs text-stone-500" title={currentTrack.title}>Selected: {currentTrack.title}</p>
+              <div className="mb-3 flex items-center gap-3 rounded-xl border border-[#363636] bg-[#1f1f1f] px-3 py-2.5">
+                <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${accent} 30%, #1f1f1f)`, color: accent }}>
+                  {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : playbackActive ? <Pause className="h-4 w-4 fill-current" /> : <Music2 className="h-4 w-4" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">{playbackActive ? 'Now playing' : 'Selected'}</p>
+                  <p className="truncate text-xs font-bold text-stone-100" title={currentTrack.title}>{currentTrack.title}</p>
+                  <p className="truncate text-[10px] text-stone-500">{currentTrack.artist}</p>
+                </div>
+              </div>
               <div role="group" aria-label="Music playback controls" className="mb-4 border-b border-[#363636] pb-4">
               <div className="mb-3 flex items-center gap-2">
                 <button
@@ -538,17 +573,30 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
               </div>
               <form onSubmit={searchMusic} className="flex gap-2">
                 <input ref={searchRef} type="search" value={search} onChange={event => setSearch(event.target.value)} aria-label="Search music or paste a YouTube link" placeholder="Search or paste a YouTube link" style={{ borderColor: accent }} className="w-full min-w-0 rounded-lg border bg-transparent px-3 py-2.5 text-xs text-stone-100 outline-none placeholder:text-stone-500 focus:border-[var(--chat-accent)]" />
-                <button type="submit" aria-label="Go" style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="rounded-lg px-4 text-xs font-bold text-white disabled:opacity-50">Go</button>
+                <button type="submit" aria-label="Go" disabled={isSearching} style={{ backgroundColor: accent }} onMouseEnter={event => { event.currentTarget.style.backgroundColor = accentHover; }} onMouseLeave={event => { event.currentTarget.style.backgroundColor = accent; }} className="flex min-w-11 items-center justify-center rounded-lg px-4 text-xs font-bold text-white disabled:opacity-50">
+                  {isSearching ? <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" /> : 'Go'}
+                </button>
               </form>
+              {isSearching && <p role="status" className="mt-2 text-xs text-stone-500">Searching the catalog…</p>}
               {searchError && <p role="status" className="mt-2 text-xs text-red-500">{searchError}</p>}
               <div className="mt-3 space-y-1">
-                {searchResults.length > 0 && <p className="px-2 py-1 text-[10px] uppercase text-stone-500">Search results</p>}
-                {[...searchResults, ...tracks].filter((track, index, all) => all.findIndex(item => item.id === track.id) === index).map(track => (
-                  <button key={track.id} type="button" onClick={() => selectTrack(track)} aria-pressed={currentTrack.id === track.id} style={currentTrack.id === track.id ? { backgroundColor: `color-mix(in srgb, ${accent} 28%, transparent)`, color: accent } : undefined} className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${currentTrack.id === track.id ? '' : 'text-stone-100 hover:bg-white/10'}`}>
-                    <span className="block truncate font-bold">{track.title}</span>
-                    <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
-                  </button>
-                ))}
+                {searchResults.length > 0 && (
+                  <>
+                    <p className="flex items-center justify-between px-2.5 py-1 text-[10px] uppercase tracking-wide text-stone-500">
+                      <span>Search results</span>
+                      <span className="text-stone-600">{searchResults.length}</span>
+                    </p>
+                    {searchResults.map(renderCatalogRow)}
+                  </>
+                )}
+                <p className="flex items-center justify-between px-2.5 pb-1 pt-3 text-[10px] uppercase tracking-wide text-stone-500">
+                  <span>Library</span>
+                  <span className="text-stone-600">{libraryTracks.length} tracks</span>
+                </p>
+                {libraryTracks.map(renderCatalogRow)}
+                {libraryTracks.length === 0 && searchResults.length === 0 && (
+                  <p className="px-2.5 py-3 text-xs text-stone-500">No tracks available yet.</p>
+                )}
               </div>
             </div>
           </section>

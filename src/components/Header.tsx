@@ -111,7 +111,7 @@ export const Header: React.FC<HeaderProps> = ({
               aria-controls="header-settings"
               onClick={() => setSettingsOpen(value => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[900px]:hidden"
-            ><Settings2 className="h-3 w-3" /></button>}
+            ><Settings2 className="h-4 w-4" /></button>}
           <div ref={settingsPanelRef} id="header-settings" className={conversation
             ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-92px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[900px]:static min-[900px]:mt-0 min-[900px]:flex min-[900px]:w-auto min-[900px]:max-h-none min-[900px]:max-w-none min-[900px]:overflow-visible min-[900px]:flex-nowrap min-[900px]:rounded-none min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0 min-[900px]:shadow-none min-[900px]:dark:bg-transparent`
             : 'flex items-center gap-2 text-xs'}>
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => { setSettingsOpen(false); setIsLogoutConfirmationOpen(true); }}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950"
             >
-              <LogOut className="h-3 w-3" />
+              <LogOut className="h-4 w-4" />
             </button>}
 
             {/* Authenticated Identity Badge - No user emojis or icons */}
@@ -155,9 +155,9 @@ export const Header: React.FC<HeaderProps> = ({
                       id="reroll-handle-btn"
                       title="Reroll Anonymous Handle"
                       onClick={onRerollHandle}
-                      className="text-stone-400 hover:text-[#991B1B] dark:hover:text-[#F87171] p-0.5 transition-colors cursor-pointer"
+                      className="inline-flex cursor-pointer items-center justify-center p-0.5 text-stone-400 transition-colors hover:text-[#991B1B] dark:hover:text-[#F87171]"
                     >
-                      <RefreshCw className="w-3 h-3" />
+                      <RefreshCw className="h-3 w-3" />
                     </button>}
                 </div>
 

@@ -303,9 +303,11 @@ test('mobile chat header shows a compact centered identity without the matching 
 
   const header = page.locator('#chat-header');
   const name = header.locator('.chat-header-peer-name');
-  const status = header.getByText('AI', { exact: true });
+  const role = header.getByText('AI', { exact: true });
+  const status = header.locator('.chat-header-status');
   await expect(name).toBeVisible();
-  await expect(status).toBeVisible();
+  await expect(role).toBeVisible();
+  await expect(header.getByText('Active', { exact: true })).toBeVisible();
   await expect(header.getByText('General Peer Discovery')).toHaveCount(0);
   const headerBox = (await header.boundingBox())!;
   const nameBox = (await name.boundingBox())!;
@@ -326,7 +328,8 @@ test('narrow chat header keeps the assistant name and status in one column', asy
 
   const header = page.locator('#chat-header');
   const name = header.locator('.chat-header-peer-name');
-  const badge = header.getByText('AI', { exact: true });
+  await expect(header.getByText('AI', { exact: true })).toBeVisible();
+  const badge = header.locator('.chat-header-status');
   const nameBox = (await name.boundingBox())!;
   const badgeBox = (await badge.boundingBox())!;
   const headerBox = (await header.boundingBox())!;

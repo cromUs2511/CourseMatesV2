@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Palette } from 'lucide-react';
+import { Check, Palette } from 'lucide-react';
 
 export interface ChatTheme {
   id: string;
@@ -69,7 +69,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
           ? 'chat-display-control site-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10'
           : 'chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'}
       >
-        <Palette className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
+        <Palette className="h-4 w-4" />
       </button>
       {open && (
         <div
@@ -84,32 +84,44 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
             isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
           }`}
         >
-          <p className="pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">Chat colors</p>
+          <div className="flex items-center justify-between gap-2 pb-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">Chat colors</p>
+            <span className="min-w-0 truncate text-[10px] font-bold" style={{ color: theme.accent }}>{theme.label}</span>
+          </div>
           <div className="grid grid-cols-3 gap-1.5">
-          {CHAT_THEMES.map(option => (
+          {CHAT_THEMES.map(option => {
+            const selected = theme.id === option.id;
+            return (
             <button
               key={option.id}
               type="button"
               aria-label={option.label}
-              aria-pressed={theme.id === option.id}
+              aria-pressed={selected}
               title={option.label}
               onClick={() => {
                 onChange(option);
                 setOpen(false);
               }}
               className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[9px] leading-tight transition-colors ${
-                theme.id === option.id ? 'border-stone-400 bg-stone-500/15 font-semibold dark:border-stone-500' : 'border-transparent hover:bg-stone-500/10'
+                selected ? 'border-stone-400 bg-stone-500/15 font-semibold dark:border-stone-500' : 'border-transparent hover:bg-stone-500/10'
               }`}
             >
               <span
                 aria-hidden="true"
-                className="h-5 w-5 rounded-full border border-black/10 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${option.swatch} 50%, ${option.lightBackground} 50%)` }}
-              />
+                className="relative flex h-5 w-5 items-center justify-center rounded-full border border-black/10 shadow-sm"
+                style={{
+                  background: `linear-gradient(135deg, ${option.swatch} 50%, ${isDarkMode ? option.darkBackground : option.lightBackground} 50%)`,
+                  boxShadow: selected ? `0 0 0 2px ${option.accent}` : undefined,
+                }}
+              >
+                {selected && <Check className="h-3 w-3 text-white drop-shadow-[0_1px_1px_rgb(0_0_0_/_0.6)]" strokeWidth={3} />}
+              </span>
               <span className="w-full truncate">{option.label}</span>
             </button>
-          ))}
+            );
+          })}
           </div>
+          <p className="pt-2 text-center text-[9px] text-stone-500">Applies to chat accents and controls.</p>
         </div>
       )}
     </div>
