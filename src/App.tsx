@@ -38,6 +38,7 @@ export default function App() {
   const [queueKey, setQueueKey] = useState(0);
   const [autoSearch, setAutoSearch] = useState(false);
   const [unoOpen, setUnoOpen] = useState(false);
+  const [unoPlaying, setUnoPlaying] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -166,7 +167,7 @@ export default function App() {
         } as React.CSSProperties
       }
     >
-      {session && !activePeer && (
+      {session && !activePeer && !(unoOpen && unoPlaying) && (
         <Header
           {...headerProps}
           displayActions={
@@ -233,7 +234,11 @@ export default function App() {
             onChatThemeChange={handleChatThemeChange}
           />
         ) : unoOpen ? (
-          <UnoArena isDarkMode={isDarkMode} onBack={() => setUnoOpen(false)} />
+          <UnoArena
+            isDarkMode={isDarkMode}
+            onBack={() => setUnoOpen(false)}
+            onPlayingChange={setUnoPlaying}
+          />
         ) : (
           <MatchmakingQueue
             key={queueKey}

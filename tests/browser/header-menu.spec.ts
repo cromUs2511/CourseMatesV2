@@ -91,15 +91,13 @@ test('chat color picker stays inside mobile settings and the viewport', async ({
   ]) {
     await page.setViewportSize({ width, height });
     for (const mode of ['dark', 'light']) {
-      const mobile = width < 768;
-      const menuButton = mobile
-        ? page.getByRole('button', { name: 'Chat actions' })
-        : page.getByRole('button', { name: 'Account and display settings' });
-      if (await menuButton.isVisible()) await menuButton.click();
+      const settings = page.getByRole('button', { name: 'Account and display settings' });
+      const mobile = await settings.isVisible();
+      if (mobile) await settings.click();
       const toggle = page.getByRole('button', { name: `Switch to ${mode} mode` });
       if (await toggle.isVisible()) await toggle.click();
       const colorButton = page.getByRole('button', { name: 'Choose chat color theme' });
-      if (!(await colorButton.isVisible())) await menuButton.click();
+      if (mobile && !(await colorButton.isVisible())) await settings.click();
       await colorButton.click();
       const colors = page.getByRole('dialog', { name: 'Chat color themes' });
       await expect(colors).toBeVisible();
@@ -107,7 +105,7 @@ test('chat color picker stays inside mobile settings and the viewport', async ({
       expect(colorBox.x).toBeGreaterThanOrEqual(0);
       expect(colorBox.x + colorBox.width).toBeLessThanOrEqual(width);
       if (mobile) {
-        const panel = page.getByRole('dialog', { name: 'Chat actions menu' });
+        const panel = page.locator('#header-settings');
         const panelBox = (await panel.boundingBox())!;
         expect(colorBox.x).toBeGreaterThanOrEqual(panelBox.x);
         expect(colorBox.x + colorBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width);
@@ -126,8 +124,7 @@ test('chat color picker stays inside mobile settings and the viewport', async ({
         'title',
         'Chat theme: Slate graphite',
       );
-      if ((await menuButton.isVisible()) && (await colorButton.isVisible()))
-        await menuButton.click();
+      if (mobile) await page.keyboard.press('Escape');
     }
   }
 });
@@ -174,8 +171,7 @@ test('mobile chat theme picker keeps its full grid width', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await page.getByRole('button', { name: 'Chat actions' }).click();
+  await page.getByRole('button', { name: 'Account and display settings' }).click();
   await page.getByRole('button', { name: 'Choose chat color theme' }).click();
 
   const picker = page.getByRole('dialog', { name: 'Chat color themes' });
@@ -228,10 +224,11 @@ test('chat display icons have no shared control-shell chrome and fit mobile sett
   await expect(controls).toHaveCSS('border-top-style', 'none');
 
   await page.setViewportSize({ width: 320, height: 600 });
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await page.getByRole('button', { name: 'Chat actions' }).click();
-  await expect(page.getByRole('dialog', { name: 'Chat actions menu' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose chat color theme' })).toBeVisible();
+  await page.getByRole('button', { name: 'Account and display settings' }).click();
+  await expect(controls).toBeVisible();
+  expect(await controls.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
 });
 
 test('chat header icons are transparent at rest and glow on hover', async ({ page }) => {
@@ -308,12 +305,10 @@ test('send appears after focusing the composer and the theme control remains a l
   expect(sendBox.width).toBe(32);
   expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(375);
 
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await page.getByRole('button', { name: 'Chat actions' }).click();
-  const mobileToggle = page.locator('#mobile-chat-dark-mode-toggle-btn');
+  const mobileToggle = page.locator('#mobile-dark-mode-toggle-btn');
   await expect(mobileToggle).toBeVisible();
-  expect((await mobileToggle.boundingBox())!.height).toBeGreaterThanOrEqual(28);
-  await page.getByRole('button', { name: 'Chat actions' }).click();
+  expect((await mobileToggle.boundingBox())!.width).toBe(48);
+  expect((await mobileToggle.boundingBox())!.height).toBe(28);
   await page.locator('#chat-messages-container').click({ position: { x: 8, y: 8 } });
   await expect(send).toBeHidden();
   await expect(page.getByRole('button', { name: 'Attach photos' })).toBeHidden();
@@ -365,7 +360,7 @@ test('a custom name can be changed back to a random default handle', async ({ pa
   await expect(page.getByRole('button', { name: 'Use a custom name' })).toBeVisible();
 });
 
-test('mobile chat hides its header and keeps identity in the compact actions menu', async ({
+test('mobile chat header shows a compact centered identity without the matching topic', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 667 });
@@ -375,14 +370,26 @@ test('mobile chat hides its header and keeps identity in the compact actions men
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
 
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await page.getByRole('button', { name: 'Chat actions' }).click();
-  const menu = page.getByRole('dialog', { name: 'Chat actions menu' });
-  await expect(menu).toContainText('Student Chatbot Assistant');
-  await expect(menu.getByText('General Peer Discovery')).toHaveCount(0);
+  const header = page.locator('#chat-header');
+  const name = header.locator('.chat-header-peer-name');
+  const role = header.getByText('AI', { exact: true });
+  const status = header.locator('.chat-header-status');
+  await expect(name).toBeVisible();
+  await expect(role).toBeVisible();
+  await expect(header.getByText('Active', { exact: true })).toBeVisible();
+  await expect(header.getByText('General Peer Discovery')).toHaveCount(0);
+  const headerBox = (await header.boundingBox())!;
+  const nameBox = (await name.boundingBox())!;
+  const statusBox = (await status.boundingBox())!;
+  expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
+  expect(statusBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
+  expect(
+    Math.abs(nameBox.x + nameBox.width / 2 - (statusBox.x + statusBox.width / 2)),
+  ).toBeLessThanOrEqual(2);
+  expect(headerBox.height).toBeLessThanOrEqual(68);
 });
 
-test('narrow chat keeps the composer in view without a header', async ({ page }) => {
+test('narrow chat header keeps the assistant name and status in one column', async ({ page }) => {
   await page.setViewportSize({ width: 286, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -390,12 +397,21 @@ test('narrow chat keeps the composer in view without a header', async ({ page })
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
 
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const header = page.locator('#chat-header');
+  const name = header.locator('.chat-header-peer-name');
+  await expect(header.getByText('AI', { exact: true })).toBeVisible();
+  const badge = header.locator('.chat-header-status');
+  const nameBox = (await name.boundingBox())!;
+  const badgeBox = (await badge.boundingBox())!;
+  const headerBox = (await header.boundingBox())!;
+
+  await expect(name).toHaveCSS('text-align', 'center');
+  expect(badgeBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
+  expect(badgeBox.x).toBeGreaterThanOrEqual(headerBox.x);
+  expect(badgeBox.x + badgeBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 });
 
-test('narrow chat keeps theme and leave actions in one compact menu', async ({ page }) => {
+test('narrow chat header keeps one theme switch outside settings', async ({ page }) => {
   await page.setViewportSize({ width: 286, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -403,9 +419,42 @@ test('narrow chat keeps theme and leave actions in one compact menu', async ({ p
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
 
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await page.getByRole('button', { name: 'Chat actions' }).click();
-  const menu = page.getByRole('dialog', { name: 'Chat actions menu' });
-  await expect(menu.getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'End chat' })).toBeVisible();
+  const header = page.locator('#chat-header');
+  const themeToggle = page.locator('#mobile-dark-mode-toggle-btn');
+  await expect(themeToggle).toBeVisible();
+
+  await page.getByRole('button', { name: 'Account and display settings' }).click();
+  await expect(
+    page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' }),
+  ).toHaveCount(0);
+
+  const headerBox = (await header.boundingBox())!;
+  const nameBox = (await header.locator('.chat-header-peer-name').boundingBox())!;
+  expect(nameBox.width).toBeGreaterThanOrEqual(120);
+  expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
+});
+test('the mobile chat header slides up while composing and settles back when dismissed', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+
+  const header = page.locator('#chat-header');
+  await expect(header).toBeVisible();
+
+  await page.getByRole('textbox', { name: 'Chat message' }).click();
+  await expect(header).toBeHidden();
+
+  // Dismissing the composer restores the header and its working theme switch.
+  await page.locator('#chat-messages-container').click({ position: { x: 8, y: 8 } });
+  await expect(header).toBeVisible();
+  const themeToggle = page.locator('#mobile-dark-mode-toggle-btn');
+  await expect(themeToggle).toBeVisible();
+  await themeToggle.click();
+  await expect(page.locator('html')).toHaveClass('dark');
+  await expect(themeToggle).toHaveAttribute('aria-pressed', 'true');
 });

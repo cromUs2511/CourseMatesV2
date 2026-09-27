@@ -10,9 +10,10 @@ const ARENA_POLL_MS = 1200;
 export type UnoArenaProps = {
   isDarkMode: boolean;
   onBack: () => void;
+  onPlayingChange?: (playing: boolean) => void;
 };
 
-export function UnoArena({ isDarkMode, onBack }: UnoArenaProps) {
+export function UnoArena({ isDarkMode, onBack, onPlayingChange }: UnoArenaProps) {
   const [state, setState] = useState<UnoStateResponse | null>(null);
   const [searching, setSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -105,24 +106,30 @@ export function UnoArena({ isDarkMode, onBack }: UnoArenaProps) {
 
   const inGame = !!state?.game;
 
+  useEffect(() => {
+    onPlayingChange?.(inGame);
+  }, [inGame, onPlayingChange]);
+
   return (
     <div
       className={`ambient-grid flex-1 min-h-0 w-full h-full flex flex-col overflow-hidden ${
         isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'
       }`}
     >
-      <div className="uno-arena-bar flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg border border-stone-300 px-3.5 py-2.5 text-sm font-semibold transition hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800 md:py-1.5 md:text-xs"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to menu
-        </button>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
-          UNO Arena · live 1v1
-        </span>
-      </div>
+      {!inGame && (
+        <div className="uno-arena-bar flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 rounded-lg border border-stone-300 px-3.5 py-2.5 text-sm font-semibold transition hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800 md:py-1.5 md:text-xs"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to menu
+          </button>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+            UNO Arena · live 1v1
+          </span>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         {inGame && state?.game ? (

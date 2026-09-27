@@ -313,6 +313,28 @@ textarea,
   min-height: 3.75rem;
 }
 
+/* The compact chat header slides up and out of the way while the composer is
+   in use on narrow screens, then settles back when the conversation pauses. */
+.chat-header-shell {
+  transition:
+    margin-top 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
+}
+
+.chat-header-shell.is-retracted {
+  visibility: hidden;
+  transition:
+    margin-top 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-header-shell,
+  .chat-header-shell.is-retracted {
+    transition: none;
+  }
+}
+
 .music-snippet-spectrum span {
   width: 3px;
   height: var(--spectrum-height);

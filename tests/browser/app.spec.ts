@@ -8,26 +8,13 @@ async function signIn(page: Page, _name: string) {
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible())
     await page.keyboard.press('Escape');
-  const quit = page.getByRole('button', { name: 'Quit', exact: true });
-  if (await quit.isVisible()) {
-    await quit.click();
-  } else {
-    const mobileActions = page.getByRole('button', { name: 'Chat actions' });
-    if (await mobileActions.isVisible()) {
-      if ((await mobileActions.getAttribute('aria-expanded')) !== 'true')
-        await mobileActions.click();
-      await page.getByRole('button', { name: 'End chat' }).click();
+  if (await page.locator('#chat-header').isVisible()) {
+    if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
+      await page.getByRole('button', { name: 'Quit', exact: true }).click();
+    } else {
+      await page.locator('#leave-chat-btn').click();
       await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
-      if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible())
-        await page.getByRole('button', { name: 'Quit', exact: true }).click();
-    } else if (await page.locator('#chat-header').isVisible()) {
-      if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
-        await page.getByRole('button', { name: 'Quit', exact: true }).click();
-      } else {
-        await page.locator('#leave-chat-btn').click();
-        await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
-        await page.getByRole('button', { name: 'Quit', exact: true }).click();
-      }
+      await page.getByRole('button', { name: 'Quit', exact: true }).click();
     }
   }
   await page.locator('#logout-btn').click();
@@ -36,9 +23,7 @@ async function logout(page: Page) {
 async function openMusic(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) return;
   if (!(await page.getByRole('button', { name: 'Open music controls' }).isVisible())) {
-    const mobileActions = page.getByRole('button', { name: 'Chat actions' });
-    if (await mobileActions.isVisible()) await mobileActions.click();
-    else await page.getByRole('button', { name: 'Account and display settings' }).click();
+    await page.getByRole('button', { name: 'Account and display settings' }).click();
   }
   await page.getByRole('button', { name: 'Open music controls' }).click();
 }
@@ -179,8 +164,8 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   await signIn(page, 'mobile');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.locator('#chat-header')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Chat actions' })).toBeVisible();
+  await expect(page.locator('#chat-header')).toBeVisible();
+  await expect(page.getByText('Conversation with the Student Chatbot Assistant.')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
   const overflow = await page.evaluate(
     () =>
@@ -440,9 +425,8 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
       await signIn(b, 'music-b');
       await a.locator('#start-chat-btn').click();
       await b.locator('#start-chat-btn').click();
-      for (const page of [a, b])
-        if (source.includes('mobile')) await expect(page.locator('#chat-header')).toBeHidden();
-        else await expect(page.locator('#chat-header')).toBeVisible();
+      await expect(a.locator('#chat-header')).toBeVisible();
+      await expect(b.locator('#chat-header')).toBeVisible();
       await openMusic(a);
       await a.getByRole('slider', { name: 'Music volume' }).fill('45');
       await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();

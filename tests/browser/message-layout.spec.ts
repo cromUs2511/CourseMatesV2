@@ -32,7 +32,7 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     await expect(a.locator('#chat-header')).toBeVisible();
     await expect(b.locator('#chat-header')).toBeVisible();
     const quote =
-      "ok ill follow u later! p’wede ko ba ’to i-share sa friends ko orrrrrr — let's catch up after class and compare our notes.";
+      "ok ill follow u later! pΓÇÖwede ko ba ΓÇÖto i-share sa friends ko orrrrrr ΓÇö let's catch up after class and compare our notes.";
     await send(b, quote);
     await a.locator('[data-message-bubble]').last().hover();
     await a.getByRole('button', { name: 'Reply', exact: true }).last().click();
@@ -40,7 +40,7 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
     await send(a, 'nah');
     await b.locator('[data-message-bubble]').last().hover();
     await b.getByRole('button', { name: 'Reply', exact: true }).last().click();
-    await send(b, 'Okay, no worries! I’ll keep it between us.');
+    await send(b, 'Okay, no worries! IΓÇÖll keep it between us.');
     await a.locator('.chat-message-row').nth(1).hover();
     await a.getByRole('button', { name: 'React to message', exact: true }).nth(1).click();
     await a.getByRole('button', { name: 'Love', exact: true }).click();
@@ -50,22 +50,13 @@ test('reply quotes, text, photos and reactions stay contained on mobile and desk
       await a.setViewportSize({ width, height: 900 });
       for (const mode of ['light', 'dark']) {
         const settings = a.getByRole('button', { name: 'Account and display settings' });
-        const mobileActions = a.getByRole('button', { name: 'Chat actions' });
-        if (await mobileActions.isVisible()) await mobileActions.click();
-        else if (await settings.isVisible()) await settings.click();
+        if (await settings.isVisible()) await settings.click();
         const toggle = a.getByRole('button', { name: `Switch to ${mode} mode` });
         if (await toggle.count()) await toggle.click();
         await expect(
           a.getByRole('button', { name: `Switch to ${mode === 'light' ? 'dark' : 'light'} mode` }),
         ).toBeVisible();
-        if (
-          await a
-            .getByRole('dialog', { name: 'Chat actions menu' })
-            .isVisible()
-            .catch(() => false)
-        )
-          await mobileActions.click();
-        else if (await settings.isVisible()) await a.keyboard.press('Escape');
+        if (await settings.isVisible()) await a.keyboard.press('Escape');
         await a.screenshot({
           path: `test-results/replies-${width}-${mode}.png`,
           animations: 'disabled',

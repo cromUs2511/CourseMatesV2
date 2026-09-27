@@ -97,6 +97,46 @@ test('the arena pairs two real sessions, plays a full turn and never shows the o
   await second.close();
 });
 
+test('the main-menu arena drops the app header for as long as a game is live', async ({
+  browser,
+}) => {
+  const first = await browser.newContext();
+  const second = await browser.newContext();
+  const a = await first.newPage(),
+    b = await second.newPage();
+  const errors: string[] = [];
+  a.on('pageerror', (error) => errors.push(error.message));
+  b.on('pageerror', (error) => errors.push(error.message));
+
+  await signIn(a, 'arena-header-a');
+  await signIn(b, 'arena-header-b');
+  await expect(a.locator('#main-header')).toBeVisible();
+  await openArena(a, true);
+  // The lobby keeps its chrome while nobody is playing yet.
+  await expect(a.locator('#main-header')).toBeVisible();
+  await expect(a.getByRole('button', { name: 'Back to menu' })).toBeVisible();
+  await openArena(b, false);
+
+  await expect(a.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
+  await expect(a.locator('#main-header')).toHaveCount(0);
+  await expect(a.getByRole('button', { name: 'Back to menu' })).toHaveCount(0);
+  await expect(a.getByRole('button', { name: 'Leave the UNO table' })).toBeVisible();
+
+  // Leaving the table brings the menu chrome back.
+  await a.getByRole('button', { name: 'Leave the UNO table' }).click();
+  const leaveDialog = a.getByRole('dialog', { name: 'Leave the game?' });
+  await expect(leaveDialog).toBeVisible();
+  await leaveDialog.getByRole('button', { name: 'Leave table' }).click();
+  await expect(a.getByRole('button', { name: 'Find an opponent' })).toBeVisible();
+  await expect(a.locator('#main-header')).toBeVisible();
+  await expect(a.getByRole('button', { name: 'Back to menu' })).toBeVisible();
+  await expect(b.getByRole('heading', { name: 'Victory!' })).toBeVisible();
+
+  expect(errors).toEqual([]);
+  await first.close();
+  await second.close();
+});
+
 test('chat peers can challenge each other, accept and open the table over WebSocket', async ({
   browser,
 }) => {
@@ -113,7 +153,7 @@ test('chat peers can challenge each other, accept and open the table over WebSoc
   await a.locator('#start-chat-btn').click();
   await b.locator('#start-chat-btn').click();
   await expect(a.locator('#chat-header')).toBeVisible();
-  await expect(b.locator('#chat-header')).toBeHidden();
+  await expect(b.locator('#chat-header')).toBeVisible();
   await expect(b.locator('[aria-label="Study music controls"]')).toHaveCount(1);
 
   await a.getByRole('button', { name: 'Challenge this peer to a UNO duel' }).click();
@@ -126,12 +166,11 @@ test('chat peers can challenge each other, accept and open the table over WebSoc
   await expect(a.locator('.uno-table')).toBeVisible({ timeout: 10_000 });
   await expect(a.locator('.uno-table').getByText('Chat 1v1')).toBeVisible();
 
-  // A mobile player can minimize without stranding the active game. The idle
-  // UNO shortcut stays hidden; a text resume action only appears while playing.
+  // A mobile player can minimize without stranding the active game, then
+  // reopen the table from the restored chat header.
   await b.getByRole('button', { name: 'Minimize the UNO table' }).tap();
   await expect(b.locator('.uno-table')).toHaveCount(0);
-  await b.getByRole('button', { name: 'Chat actions' }).tap();
-  await b.getByRole('button', { name: 'Resume UNO game' }).tap();
+  await b.getByRole('button', { name: 'Open the UNO table' }).tap();
   await expect(b.locator('.uno-table')).toBeVisible();
 
   // Minimising keeps the chat usable; the header control restores the table.
@@ -285,7 +324,7 @@ test('the arena table plays with touch on a phone and still fits when rotated', 
   await second.close();
 });
 
-test('a phone chat hides the header and removes the idle UNO shortcut', async ({ browser }) => {
+test('a phone in chat can challenge, accept and reopen the table', async ({ browser }) => {
   const first = await browser.newContext(phone());
   const second = await browser.newContext(phone());
   const a = await first.newPage(),
@@ -298,11 +337,31 @@ test('a phone chat hides the header and removes the idle UNO shortcut', async ({
   await signIn(b, 'phone-chat-b');
   await a.locator('#start-chat-btn').tap();
   await b.locator('#start-chat-btn').tap();
-  await expect(a.locator('#chat-header')).toBeHidden();
-  await expect(b.locator('#chat-header')).toBeHidden();
-  await expect(a.getByRole('button', { name: 'Challenge this peer to a UNO duel' })).toBeHidden();
-  await expect(a.getByRole('button', { name: 'Chat actions' })).toBeVisible();
-  await expect(a.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
+  await expect(a.locator('#chat-header')).toBeVisible();
+  await expect(b.locator('#chat-header')).toBeVisible();
+
+  // The chat entry point is reachable on a 390px header.
+  const challenge = a.getByRole('button', { name: 'Challenge this peer to a UNO duel' });
+  await expect(challenge).toBeVisible();
+  await challenge.tap();
+  await expect(a.getByText(/Challenge sent to/)).toBeVisible();
+  await expect(b.getByText(/challenged you to a UNO duel/)).toBeVisible({ timeout: 10_000 });
+
+  await b.getByRole('button', { name: 'Accept', exact: true }).tap();
+  await expect(b.locator('.uno-table')).toBeVisible({ timeout: 10_000 });
+  await expect(a.locator('.uno-table')).toBeVisible({ timeout: 10_000 });
+  const tableBox = await a.locator('.uno-table').boundingBox();
+  expect(tableBox!.width).toBeLessThanOrEqual(390);
+  expect(tableBox!.height).toBeLessThanOrEqual(844);
+  expect(await a.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+
+  // Minimise to chat and reopen with the header control, all by tap.
+  await a.getByRole('button', { name: 'Minimize the UNO table' }).tap();
+  await expect(a.getByRole('textbox', { name: 'Chat message' })).toBeVisible();
+  await a.getByRole('button', { name: 'Open the UNO table' }).tap();
+  await expect(a.locator('.uno-table')).toBeVisible();
 
   expect(errors).toEqual([]);
   await first.close();

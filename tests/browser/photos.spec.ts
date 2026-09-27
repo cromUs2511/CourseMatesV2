@@ -18,9 +18,7 @@ async function demo(page: Page, name: string, keepMediaLocked = false) {
   await signIn(page, name);
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  if ((page.viewportSize()?.width || 1280) < 768)
-    await expect(page.locator('#chat-header')).toBeHidden();
-  else await expect(page.locator('#chat-header')).toBeVisible();
+  await expect(page.locator('#chat-header')).toBeVisible();
   if (!keepMediaLocked) {
     await page.evaluate(() => {
       const browserNow = Date.now.bind(Date);

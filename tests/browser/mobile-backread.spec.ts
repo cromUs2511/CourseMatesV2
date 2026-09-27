@@ -85,7 +85,11 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await expect
       .poll(() => scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight))
       .toBeLessThanOrEqual(1);
-    await page.getByRole('button', { name: 'Chat actions' }).click();
+    // Backreading with a focused composer keeps the header retracted, so let it
+    // settle back before reaching for the header controls.
+    await chatInput.blur();
+    await expect(page.locator('#chat-header')).toBeVisible();
+    await page.getByRole('button', { name: 'Account and display settings' }).click();
     await page.getByRole('button', { name: 'Open music controls' }).click();
     await page.getByRole('button', { name: 'Play Study Music' }).click();
     await page.keyboard.press('Escape');

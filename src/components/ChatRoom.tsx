@@ -132,7 +132,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [touchComposer, setTouchComposer] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const musicBarRef = useRef<TopMusicBarHandle>(null);
   const [mediaRemainingSeconds, setMediaRemainingSeconds] = useState(() =>
     chatMediaRemainingSeconds(peer.mediaUnlockAt),
@@ -180,6 +179,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const chatHeaderRef = useRef<HTMLDivElement>(null);
+  const [chatHeaderHeight, setChatHeaderHeight] = useState(0);
+  const [narrowViewport, setNarrowViewport] = useState(false);
   const isAtLatestRef = useRef(true);
   const scrollAfterOwnMessageRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -282,6 +284,29 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     query.addEventListener('change', sync);
     return () => query.removeEventListener('change', sync);
   }, []);
+  /* The compact mobile header retracts while the conversation is being
+       written, so the transcript keeps the keyboard-height space. */
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const sync = () => setNarrowViewport(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+  useEffect(() => {
+    const header = chatHeaderRef.current;
+    if (!header) return;
+    const update = () => setChatHeaderHeight(header.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', update);
+    };
+  }, []);
+
   useEffect(() => {
     if (!composerEngaged || touchComposer) return;
     const collapse = (event: PointerEvent) => {
@@ -1030,6 +1055,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     !!pendingVoice ||
     preparingImages ||
     isRecordingVoice;
+  const composerWriting =
+    composerEngaged ||
+    hasInputText ||
+    isRecordingVoice ||
+    !!pendingVoice ||
+    pendingImages.length > 0 ||
+    preparingImages;
+  const headerRetracted = narrowViewport && composerWriting;
   return (
     <div
       className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
@@ -1054,7 +1087,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           composerEngaged ? 'composer-engaged' : ''
         }`}
       >
-        <div className="hidden min-[768px]:contents">
+        <div
+          ref={chatHeaderRef}
+          className={`chat-header-shell w-full shrink-0 ${headerRetracted ? 'is-retracted' : ''}`}
+          style={{ marginTop: headerRetracted ? -chatHeaderHeight : undefined }}
+        >
           <Header
             {...headerProps}
             showReroll={false}
@@ -1762,113 +1799,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 Photos &amp; voice unlock in {formatChatMediaCountdown(mediaRemainingSeconds)}
               </p>
             )}
-            <div className="relative mb-1.5 flex min-h-8 items-center justify-between gap-2 min-[768px]:hidden">
-              {mediaRemainingSeconds > 0 ? (
-                <p
-                  role="status"
-                  aria-label="Media unlock timer"
-                  className="truncate text-[11px] font-semibold text-stone-500 dark:text-stone-400"
-                >
-                  Photos &amp; voice in {formatChatMediaCountdown(mediaRemainingSeconds)}
-                </p>
-              ) : (
-                <span />
-              )}
-              <button
-                type="button"
-                aria-label="Chat actions"
-                aria-expanded={mobileActionsOpen}
-                onClick={() => setMobileActionsOpen((open) => !open)}
-                className="chat-theme-outline flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-white/90 text-stone-600 dark:border-stone-700 dark:bg-stone-900/90 dark:text-stone-300"
+            {mediaRemainingSeconds > 0 && (
+              <p
+                role="status"
+                aria-label="Media unlock timer"
+                className="mb-1.5 truncate text-[11px] font-semibold text-stone-500 dark:text-stone-400 min-[768px]:hidden"
               >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-              {mobileActionsOpen && (
-                <div
-                  role="dialog"
-                  aria-label="Chat actions menu"
-                  className="absolute bottom-10 right-0 z-50 w-64 rounded-2xl border border-stone-200 bg-white p-3 shadow-2xl dark:border-stone-700 dark:bg-stone-900"
-                >
-                  <p className="mb-2 truncate text-xs font-bold text-stone-800 dark:text-stone-100">
-                    {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  </p>
-                  <div className="flex items-center justify-between gap-2 border-y border-stone-200 py-2 dark:border-stone-700">
-                    <span className="text-xs text-stone-500 dark:text-stone-400">Appearance</span>
-                    <div className="flex items-center gap-2">
-                      <ChatThemeMenu
-                        theme={chatTheme}
-                        onChange={onChatThemeChange}
-                        isDarkMode={isDarkMode}
-                        compact
-                      />
-                      <ThemeToggle
-                        id="mobile-chat-dark-mode-toggle-btn"
-                        isDarkMode={headerProps.isDarkMode}
-                        onToggle={headerProps.onToggleDarkMode}
-                        compact
-                        className="chat-theme-toggle"
-                      />
-                    </div>
-                  </div>
-                  {!peerDisconnected && (
-                    <div className="flex items-center justify-between gap-2 border-b border-stone-200 py-2 dark:border-stone-700">
-                      <span className="text-xs text-stone-500 dark:text-stone-400">Room music</span>
-                      <button
-                        type="button"
-                        aria-label="Open music controls"
-                        onClick={() => {
-                          setMobileActionsOpen(false);
-                          musicBarRef.current?.openMenu();
-                        }}
-                        className="chat-display-control flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-semibold"
-                        style={{ color: chatTheme.accent }}
-                      >
-                        <Music2 className="h-4 w-4" /> Open
-                      </button>
-                    </div>
-                  )}
-                  <div className="mt-2 grid gap-1">
-                    {unoState?.game && !unoOpen && (
-                      <button
-                        type="button"
-                        aria-label="Resume UNO game"
-                        onClick={() => {
-                          setMobileActionsOpen(false);
-                          setUnoOpen(true);
-                        }}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800"
-                      >
-                        <Gamepad2 className="h-4 w-4" /> Resume UNO game
-                      </button>
-                    )}
-                    {!peer.isSimulated && !peerDisconnected && roomId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileActionsOpen(false);
-                          setSafetyOpen(true);
-                        }}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800"
-                      >
-                        <Shield className="h-4 w-4" /> Report or block peer
-                      </button>
-                    )}
-                    {!peerDisconnected && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileActionsOpen(false);
-                          requestLeave();
-                        }}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
-                      >
-                        <LogOut className="h-4 w-4" /> End chat
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+                Photos &amp; voice in {formatChatMediaCountdown(mediaRemainingSeconds)}
+              </p>
+            )}
             {replyingTo && (
               <div
                 className="mb-2 flex min-w-0 items-center gap-3 rounded-xl border-l-[3px] bg-stone-100 px-3 py-2 text-left text-xs dark:bg-stone-900"
@@ -2046,6 +1985,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 aria-describedby="composer-help"
                 onChange={handleInputChange}
                 onFocus={() => setComposerEngaged(true)}
+                onBlur={(event) => {
+                  if (!composerRef.current?.contains(event.relatedTarget as Node | null))
+                    setComposerEngaged(false);
+                }}
                 placeholder={
                   editingMessageId
                     ? 'Edit your message…'
