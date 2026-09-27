@@ -128,6 +128,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [composerEngaged, setComposerEngaged] = useState(false);
+  const [touchComposer, setTouchComposer] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [activeSnippetId, setActiveSnippetId] = useState<string | null>(null);
@@ -254,14 +255,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+  /* Touch has no hover: a scroll or a tap on the transcript would otherwise
+     hide the send and attachment controls while the keyboard is still up. */
   useEffect(() => {
-    if (!composerEngaged) return;
+    const query = window.matchMedia('(hover: none)');
+    const sync = () => setTouchComposer(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+  useEffect(() => {
+    if (!composerEngaged || touchComposer) return;
     const collapse = (event: PointerEvent) => {
       if (!composerRef.current?.contains(event.target as Node)) setComposerEngaged(false);
     };
     document.addEventListener('pointerdown', collapse);
     return () => document.removeEventListener('pointerdown', collapse);
-  }, [composerEngaged]);
+  }, [composerEngaged, touchComposer]);
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -995,6 +1005,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const ambientActive = ambient.active && ambient.enabled;
   const musicPlaying = ambient.active;
   const composerControlsVisible =
+    touchComposer ||
     composerEngaged ||
     hasInputText ||
     pendingImages.length > 0 ||
@@ -1020,7 +1031,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         ) : (
           <AmbientAurora color={ambient.color} />
         ))}
-      <div className="chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible">
+      <div
+        className={`chat-content relative w-full flex flex-col flex-1 min-h-0 h-full overflow-visible ${
+          composerEngaged ? 'composer-engaged' : ''
+        }`}
+      >
         <Header
           {...headerProps}
           showReroll={false}
@@ -1161,7 +1176,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           id="chat-messages-container"
           ref={messagesContainerRef}
           onScroll={handleMessagesScroll}
-          className="flex-1 min-h-0 w-full px-3 py-5 sm:px-6 sm:py-7 overflow-y-auto overscroll-contain space-y-1 select-text"
+          className="flex-1 min-h-0 w-full px-3 py-3.5 sm:px-6 sm:py-7 overflow-y-auto overscroll-contain space-y-1 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
             {messages.map((msg, index) => {
@@ -1484,7 +1499,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {!peerDisconnected &&
           startersSent < CONVERSATION_STARTER_LIMIT &&
           aiSuggestions.length > 0 && (
-            <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-2 sm:px-6 sm:pb-3">
+            <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-1.5 sm:px-6 sm:pb-3">
               <div
                 className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-sm ${isDarkMode ? 'border-stone-700 bg-[#1c1b1a]/95' : 'border-stone-200 bg-[#fffdfa]/95'}`}
               >
@@ -1668,7 +1683,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         {/* Bottom Input Console */}
         <div
           id="chat-input-console"
-          className={`border-t px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-3 sm:pb-4 shrink-0 backdrop-blur-xl ${
+          className={`border-t px-3 pt-2 pb-[calc(0.65rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-3 sm:pb-4 shrink-0 backdrop-blur-xl ${
             isDarkMode ? 'bg-[#141312]/88 border-stone-800' : 'bg-[#fffdfa]/88 border-stone-200'
           }`}
         >

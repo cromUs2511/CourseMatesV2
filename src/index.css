@@ -535,6 +535,25 @@ textarea,
     animation: spin 8s linear infinite;
   }
 
+  /* Horizontal chip rows scroll by touch without leaving a scrollbar strip
+     across the conversation starters. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Typing on a phone already costs half the screen to the keyboard, so the
+     starter chips step aside until the field is dismissed again. */
+  @media (max-width: 639px) {
+    .chat-content.composer-engaged #ai-suggestions-bar {
+      display: none;
+    }
+  }
+
   .animate-toggle-icon {
     animation: toggle-pop 220ms ease-out;
   }
