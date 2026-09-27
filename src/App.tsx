@@ -4,7 +4,7 @@ import { AccessGateway } from './components/AccessGateway';
 import { MatchmakingQueue } from './components/MatchmakingQueue';
 import { ChatRoom } from './components/ChatRoom';
 import { StudentSession, ActivePeerInfo } from './types';
-import { apiRequest } from './utils/api';
+import { apiRequest, SESSION_EXPIRED_EVENT } from './utils/api';
 import { getSoundEnabled, setSoundEnabled } from './utils/sound';
 import { CHAT_THEMES, ChatThemeMenu, type ChatTheme } from './components/ChatThemeMenu';
 
@@ -13,15 +13,19 @@ export default function App() {
     try {
       const saved = localStorage.getItem('coursemates_darkmode');
       if (saved !== null) return saved === 'true';
-    } catch { /* Storage may be unavailable in private browsers. */ }
+    } catch {
+      /* Storage may be unavailable in private browsers. */
+    }
     return false;
   });
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => getSoundEnabled());
   const [chatTheme, setChatTheme] = useState<ChatTheme>(() => {
     try {
       const saved = localStorage.getItem('coursemates_chat_theme');
-      return CHAT_THEMES.find(theme => theme.id === saved) || CHAT_THEMES[0];
-    } catch { return CHAT_THEMES[0]; }
+      return CHAT_THEMES.find((theme) => theme.id === saved) || CHAT_THEMES[0]!;
+    } catch {
+      return CHAT_THEMES[0]!;
+    }
   });
   const [session, setSession] = useState<StudentSession | null>(null);
   const [restoring, setRestoring] = useState(true);
@@ -36,12 +40,17 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
     document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
-    try { localStorage.setItem('coursemates_darkmode', String(isDarkMode)); } catch {}
+    try {
+      localStorage.setItem('coursemates_darkmode', String(isDarkMode));
+    } catch {}
   }, [isDarkMode]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const updateAppHeight = () => {
-      document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty(
+        '--app-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
       document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
     };
     updateAppHeight();
@@ -58,9 +67,17 @@ export default function App() {
   }, []);
   useEffect(() => {
     let disposed = false;
-    apiRequest('/api/auth/session').then(data => { if (!disposed) setSession(data.session); })
-      .catch(() => {}).finally(() => { if (!disposed) setRestoring(false); });
-    return () => { disposed = true; };
+    apiRequest('/api/auth/session')
+      .then((data) => {
+        if (!disposed) setSession(data.session);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!disposed) setRestoring(false);
+      });
+    return () => {
+      disposed = true;
+    };
   }, []);
   const resetChat = () => {
     activeWs?.close();
@@ -68,23 +85,44 @@ export default function App() {
     setActivePeer(null);
     setActiveRoomId(undefined);
   };
+  useEffect(() => {
+    const expired = () => {
+      activeWs?.close();
+      setActiveWs(null);
+      setActivePeer(null);
+      setActiveRoomId(undefined);
+      setSession(null);
+      setAutoSearch(false);
+      setError('Your session ended. Continue to start a new anonymous session.');
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
+  }, [activeWs]);
   const handleRerollHandle = async () => {
     if (!session) return;
     try {
-      const data = await apiRequest('/api/auth/reroll', session.token, {});
+      const data = await apiRequest('/api/auth/reroll', {});
       setSession(data.session);
       setError('');
-    } catch (err) { setError((err as Error).message); }
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
   const handleSessionUpdate = (updatedSession: StudentSession) => setSession(updatedSession);
   const handleChatThemeChange = (next: ChatTheme) => {
     setChatTheme(next);
-    try { localStorage.setItem('coursemates_chat_theme', next.id); } catch {}
+    try {
+      localStorage.setItem('coursemates_chat_theme', next.id);
+    } catch {}
   };
   const handleLogout = async () => {
     if (session) {
-      try { await apiRequest('/api/auth/logout', session.token, {}); }
-      catch (err) { setError((err as Error).message); return; }
+      try {
+        await apiRequest('/api/auth/logout', {});
+      } catch (err) {
+        setError((err as Error).message);
+        return;
+      }
     }
     resetChat();
     setSession(null);
@@ -92,29 +130,116 @@ export default function App() {
     setAutoSearch(false);
   };
   const handleMatched = (peer: ActivePeerInfo, topic: string, ws?: WebSocket, roomId?: string) => {
-    setActivePeer(peer); setActiveTopic(topic); setActiveWs(ws || null); setActiveRoomId(roomId);
+    setActivePeer(peer);
+    setActiveTopic(topic);
+    setActiveWs(ws || null);
+    setActiveRoomId(roomId);
   };
   const headerProps = {
-    session, onRerollHandle: handleRerollHandle, onLogout: handleLogout, isDarkMode,
-    onToggleDarkMode: () => setIsDarkMode(value => !value),
+    session,
+    onRerollHandle: handleRerollHandle,
+    onLogout: handleLogout,
+    isDarkMode,
+    onToggleDarkMode: () => setIsDarkMode((value) => !value),
     isSoundEnabled,
-    onToggleSound: () => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; }),
+    onToggleSound: () =>
+      setIsSoundEnabled((value) => {
+        const next = !value;
+        setSoundEnabled(next);
+        return next;
+      }),
   };
   return (
-    <div className={'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' + (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')} style={{ '--chat-accent': chatTheme.accent, '--chat-accent-hover': chatTheme.accentHover } as React.CSSProperties}>
-      {session && !activePeer && <Header {...headerProps} displayActions={
-        <ChatThemeMenu theme={chatTheme} onChange={handleChatThemeChange} isDarkMode={isDarkMode} standalone compact />
-      } />}
-      {error && <div role="alert" className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+    <div
+      className={
+        'app-shell fixed inset-x-0 w-full flex flex-col font-sans overflow-hidden ' +
+        (isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800')
+      }
+      style={
+        {
+          '--chat-accent': chatTheme.accent,
+          '--chat-accent-hover': chatTheme.accentHover,
+        } as React.CSSProperties
+      }
+    >
+      {session && !activePeer && (
+        <Header
+          {...headerProps}
+          displayActions={
+            <ChatThemeMenu
+              theme={chatTheme}
+              onChange={handleChatThemeChange}
+              isDarkMode={isDarkMode}
+              standalone
+              compact
+            />
+          }
+        />
+      )}
+      {error && (
+        <div
+          role="alert"
+          className="px-4 py-2 bg-red-100 text-red-900 text-sm flex justify-between gap-3"
+        >
+          {error}
+          <button onClick={() => setError('')} aria-label="Dismiss error">
+            ×
+          </button>
+        </div>
+      )}
       <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
-        {restoring ? <p role="status" className="m-auto">Loading your session…</p> : !session ?
-          <AccessGateway onVerified={setSession} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(value => !value)}
-            isSoundEnabled={isSoundEnabled} onToggleSound={() => setIsSoundEnabled(value => { const next = !value; setSoundEnabled(next); return next; })} /> :
-          activePeer ? <ChatRoom key={activeRoomId} session={session} peer={activePeer} topic={activeTopic} ws={activeWs || undefined} roomId={activeRoomId}
-            onNextMatch={() => { resetChat(); setAutoSearch(true); setQueueKey(k => k + 1); }}
-            onLeaveChat={() => { resetChat(); setAutoSearch(false); }}
-            isDarkMode={isDarkMode} headerProps={headerProps} chatTheme={chatTheme} onChatThemeChange={handleChatThemeChange} /> :
-          <MatchmakingQueue key={queueKey} session={session} onMatched={handleMatched} onRerollHandle={handleRerollHandle} onSessionUpdate={handleSessionUpdate} isDarkMode={isDarkMode} autoSearch={autoSearch} chatTheme={chatTheme} />}
+        {restoring ? (
+          <p role="status" className="m-auto">
+            Loading your session…
+          </p>
+        ) : !session ? (
+          <AccessGateway
+            onVerified={setSession}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode((value) => !value)}
+            isSoundEnabled={isSoundEnabled}
+            onToggleSound={() =>
+              setIsSoundEnabled((value) => {
+                const next = !value;
+                setSoundEnabled(next);
+                return next;
+              })
+            }
+          />
+        ) : activePeer ? (
+          <ChatRoom
+            key={activeRoomId}
+            session={session}
+            peer={activePeer}
+            topic={activeTopic}
+            ws={activeWs || undefined}
+            roomId={activeRoomId}
+            onNextMatch={() => {
+              resetChat();
+              setAutoSearch(true);
+              setQueueKey((k) => k + 1);
+            }}
+            onLeaveChat={() => {
+              resetChat();
+              setAutoSearch(false);
+            }}
+            isDarkMode={isDarkMode}
+            headerProps={headerProps}
+            chatTheme={chatTheme}
+            onChatThemeChange={handleChatThemeChange}
+          />
+        ) : (
+          <MatchmakingQueue
+            key={queueKey}
+            session={session}
+            onMatched={handleMatched}
+            onRerollHandle={handleRerollHandle}
+            onSessionUpdate={handleSessionUpdate}
+            isDarkMode={isDarkMode}
+            autoSearch={autoSearch}
+            chatTheme={chatTheme}
+          />
+        )}
       </main>
     </div>
   );

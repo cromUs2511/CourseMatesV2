@@ -13,15 +13,12 @@ export type AcademicDiscipline =
 
 export interface StudentSession {
   id: string;
-  email: string;
-  hashedStudentId?: string;
   campus?: Campus;
   discipline?: AcademicDiscipline;
   interests: string[];
   sessionHandle: string; // e.g. "Astute Cardinal #8192"
   customHandle?: boolean;
   sessionAvatar: string; // emoji or avatar icon ID
-  token: string;
   createdAt: number;
 }
 

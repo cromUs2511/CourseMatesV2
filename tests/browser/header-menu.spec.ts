@@ -23,16 +23,36 @@ test('main menu exposes light-dark and chat color controls together', async ({ p
   const colorsButton = page.getByRole('button', { name: 'Choose chat color theme' });
   await expect(colorsButton).toBeVisible();
   await colorsButton.click();
-  await page.getByRole('dialog', { name: 'Chat color themes' }).getByRole('button', { name: 'Ocean blue' }).click();
+  await page
+    .getByRole('dialog', { name: 'Chat color themes' })
+    .getByRole('button', { name: 'Ocean blue' })
+    .click();
   await expect(colorsButton).toHaveAttribute('title', 'Chat theme: Ocean blue');
   await expect(page.locator('.ambient-grid')).toHaveCSS('background-color', 'rgb(242, 248, 252)');
-  await expect(page.getByRole('button', { name: 'Use a custom name' })).toHaveCSS('color', 'rgb(18, 103, 130)');
-  await expect(page.locator('#main-header')).toHaveCSS('background-color', 'rgba(255, 253, 250, 0.82)');
-  await expect(page.locator('.ui-surface').first()).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.94)');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('coursemates_chat_theme'))).toBe('ocean');
+  await expect(page.getByRole('button', { name: 'Use a custom name' })).toHaveCSS(
+    'color',
+    'rgb(18, 103, 130)',
+  );
+  const headerBackground = await page
+    .locator('#main-header')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  // Tailwind emits color-mix(in oklab, ...) in dev; the production CSS minifier
+  // resolves the same colour to rgba. Both are the Ocean header surface.
+  expect(['rgba(255, 253, 250, 0.82)', 'oklab(0.994737 0.000958711 0.00442898 / 0.82)']).toContain(
+    headerBackground,
+  );
+  await expect(page.locator('.ui-surface').first()).toHaveCSS(
+    'background-color',
+    'rgba(255, 255, 255, 0.94)',
+  );
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('coursemates_chat_theme')))
+    .toBe('ocean');
 });
 
-test('main header switch, leave button, and handle indicator use the smaller scale', async ({ page }) => {
+test('main header switch, leave button, and handle indicator use the smaller scale', async ({
+  page,
+}) => {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
@@ -45,7 +65,9 @@ test('main header switch, leave button, and handle indicator use the smaller sca
   await expect(handle).toBeVisible();
   const switchBox = (await switchButton.boundingBox())!;
   const leaveBox = (await leaveButton.boundingBox())!;
-  const handleHeight = await handle.evaluate(element => element.parentElement!.getBoundingClientRect().height);
+  const handleHeight = await handle.evaluate(
+    (element) => element.parentElement!.getBoundingClientRect().height,
+  );
   expect(switchBox.height).toBeLessThanOrEqual(28);
   expect(leaveBox.height).toBeLessThanOrEqual(28);
   expect(handleHeight).toBeLessThanOrEqual(26);
@@ -60,9 +82,12 @@ test('chat color picker stays inside mobile settings and the viewport', async ({
   await expect(page.locator('#chat-header')).toBeVisible();
 
   for (const { width, height } of [
-    { width: 320, height: 600 }, { width: 375, height: 667 },
-    { width: 768, height: 600 }, { width: 980, height: 600 },
-    { width: 1280, height: 600 }, { width: 320, height: 360 },
+    { width: 320, height: 600 },
+    { width: 375, height: 667 },
+    { width: 768, height: 600 },
+    { width: 980, height: 600 },
+    { width: 1280, height: 600 },
+    { width: 320, height: 360 },
   ]) {
     await page.setViewportSize({ width, height });
     for (const mode of ['dark', 'light']) {
@@ -85,20 +110,28 @@ test('chat color picker stays inside mobile settings and the viewport', async ({
         expect(colorBox.x).toBeGreaterThanOrEqual(panelBox.x);
         expect(colorBox.x + colorBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width);
         expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(height);
-        expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+        expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
       } else {
         expect(colorBox.y + colorBox.height).toBeLessThanOrEqual(height);
       }
-      await page.screenshot({ path: `test-results/header-colors-${width}-${height}-${mode}.png`, animations: 'disabled' });
+      await page.screenshot({
+        path: `test-results/header-colors-${width}-${height}-${mode}.png`,
+        animations: 'disabled',
+      });
       await colors.getByRole('button', { name: 'Slate graphite' }).click();
       await expect(colors).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Choose chat color theme' })).toHaveAttribute('title', 'Chat theme: Slate graphite');
+      await expect(page.getByRole('button', { name: 'Choose chat color theme' })).toHaveAttribute(
+        'title',
+        'Chat theme: Slate graphite',
+      );
       if (mobile) await page.keyboard.press('Escape');
     }
   }
 });
 
-test('chat header groups sound, color, music, and fullscreen controls in one compact strip', async ({ page }) => {
+test('chat header groups sound, color, music, and fullscreen controls in one compact strip', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -157,14 +190,28 @@ test('selected chat theme colors every chat display control', async ({ page }) =
 
   const controls = page.getByRole('group', { name: 'Chat display controls' });
   await controls.getByRole('button', { name: 'Choose chat color theme' }).click();
-  await page.getByRole('dialog', { name: 'Chat color themes' }).getByRole('button', { name: 'Violet dusk' }).click();
+  await page
+    .getByRole('dialog', { name: 'Chat color themes' })
+    .getByRole('button', { name: 'Violet dusk' })
+    .click();
 
-  await expect(controls.getByRole('button', { name: 'Disable chat sound' })).toHaveCSS('color', 'rgb(112, 75, 155)');
-  await expect(controls.getByRole('button', { name: 'Open music controls' })).toHaveCSS('color', 'rgb(112, 75, 155)');
-  await expect(controls.getByRole('button', { name: 'Enter Fullscreen' })).toHaveCSS('color', 'rgb(112, 75, 155)');
+  await expect(controls.getByRole('button', { name: 'Disable chat sound' })).toHaveCSS(
+    'color',
+    'rgb(112, 75, 155)',
+  );
+  await expect(controls.getByRole('button', { name: 'Open music controls' })).toHaveCSS(
+    'color',
+    'rgb(112, 75, 155)',
+  );
+  await expect(controls.getByRole('button', { name: 'Enter Fullscreen' })).toHaveCSS(
+    'color',
+    'rgb(112, 75, 155)',
+  );
 });
 
-test('chat display icons have no shared control-shell chrome and fit mobile settings', async ({ page }) => {
+test('chat display icons have no shared control-shell chrome and fit mobile settings', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -179,7 +226,9 @@ test('chat display icons have no shared control-shell chrome and fit mobile sett
   await page.setViewportSize({ width: 320, height: 600 });
   await page.getByRole('button', { name: 'Account and display settings' }).click();
   await expect(controls).toBeVisible();
-  expect(await controls.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await controls.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
 });
 
 test('chat header icons are transparent at rest and glow on hover', async ({ page }) => {
@@ -209,7 +258,9 @@ test('main menu keeps its sound icon chrome-free', async ({ page }) => {
   await expect(sound).toHaveCSS('border-top-style', 'none');
 });
 
-test('send appears after focusing the composer and the theme control remains a light-dark switch', async ({ page }) => {
+test('send appears after focusing the composer and the theme control remains a light-dark switch', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -218,13 +269,25 @@ test('send appears after focusing the composer and the theme control remains a l
   const siteToggle = page.getByRole('button', { name: 'Switch to dark mode' });
   await expect(siteToggle).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   expect((await siteToggle.boundingBox())!.width).toBeGreaterThanOrEqual(48);
-  await expect(siteToggle.locator('> span').first()).toHaveCSS('border-top-color', 'rgb(153, 27, 27)');
+  await expect(siteToggle.locator('> span').first()).toHaveCSS(
+    'border-top-color',
+    'rgb(153, 27, 27)',
+  );
   await expect(siteToggle.locator('> span').first()).toHaveCSS('border-top-width', '2px');
   await expect(siteToggle.locator('> span').first()).toHaveCSS('box-shadow', 'none');
   await siteToggle.click();
-  await expect(page.locator('#dark-mode-toggle-btn')).toHaveCSS('background-color', 'rgb(42, 42, 42)');
-  await expect(page.locator('#dark-mode-toggle-btn')).toHaveAttribute('aria-label', 'Switch to light mode');
-  await expect(page.locator('#dark-mode-toggle-btn').locator('> span').first()).toHaveCSS('background-color', 'rgb(20, 19, 18)');
+  await expect(page.locator('#dark-mode-toggle-btn')).toHaveCSS(
+    'background-color',
+    'rgb(42, 42, 42)',
+  );
+  await expect(page.locator('#dark-mode-toggle-btn')).toHaveAttribute(
+    'aria-label',
+    'Switch to light mode',
+  );
+  await expect(page.locator('#dark-mode-toggle-btn').locator('> span').first()).toHaveCSS(
+    'background-color',
+    'rgb(20, 19, 18)',
+  );
 
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
@@ -251,14 +314,18 @@ test('send appears after focusing the composer and the theme control remains a l
   await expect(page.getByRole('button', { name: 'Attach photos' })).toBeHidden();
 });
 
-test('chat bubbles leave breathing room below metadata while keeping compact readable text', async ({ page }) => {
+test('chat bubbles leave breathing room below metadata while keeping compact readable text', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await page.getByRole('textbox', { name: 'Chat message' }).fill('A compact message should remain comfortable to read.');
+  await page
+    .getByRole('textbox', { name: 'Chat message' })
+    .fill('A compact message should remain comfortable to read.');
   await page.locator('#send-message-btn').click();
 
   const row = page.locator('.chat-message-row').last();
@@ -293,7 +360,9 @@ test('a custom name can be changed back to a random default handle', async ({ pa
   await expect(page.getByRole('button', { name: 'Use a custom name' })).toBeVisible();
 });
 
-test('mobile chat header shows a compact centered identity without the matching topic', async ({ page }) => {
+test('mobile chat header shows a compact centered identity without the matching topic', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -314,7 +383,9 @@ test('mobile chat header shows a compact centered identity without the matching 
   const statusBox = (await status.boundingBox())!;
   expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
   expect(statusBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
-  expect(Math.abs(nameBox.x + nameBox.width / 2 - (statusBox.x + statusBox.width / 2))).toBeLessThanOrEqual(2);
+  expect(
+    Math.abs(nameBox.x + nameBox.width / 2 - (statusBox.x + statusBox.width / 2)),
+  ).toBeLessThanOrEqual(2);
   expect(headerBox.height).toBeLessThanOrEqual(68);
 });
 
@@ -353,7 +424,9 @@ test('narrow chat header keeps one theme switch outside settings', async ({ page
   await expect(themeToggle).toBeVisible();
 
   await page.getByRole('button', { name: 'Account and display settings' }).click();
-  await expect(page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' })).toHaveCount(0);
+  await expect(
+    page.locator('#header-settings').getByRole('button', { name: 'Switch to dark mode' }),
+  ).toHaveCount(0);
 
   const headerBox = (await header.boundingBox())!;
   const nameBox = (await header.locator('.chat-header-peer-name').boundingBox())!;

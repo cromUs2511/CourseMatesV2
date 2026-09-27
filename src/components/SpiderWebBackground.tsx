@@ -35,7 +35,11 @@ function makeWeb(x: number, y: number, complete = false): AnimatedWeb {
   };
 }
 
-export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isDarkMode }: { isDarkMode: boolean }) {
+export const SpiderWebBackground = React.memo(function SpiderWebBackground({
+  isDarkMode,
+}: {
+  isDarkMode: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -86,7 +90,9 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
 
       if (web.state !== 'shooting') {
         const loopSpacing = 25;
-        const nodes = Math.floor(Math.floor(web.maxRadius / loopSpacing) * web.radialCount * web.weaveProgress);
+        const nodes = Math.floor(
+          Math.floor(web.maxRadius / loopSpacing) * web.radialCount * web.weaveProgress,
+        );
         context.beginPath();
         for (let index = 0; index <= nodes; index += 1) {
           const loopIndex = Math.floor(index / web.radialCount);
@@ -138,10 +144,18 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
       }
       context.clearRect(0, 0, width, height);
       if (Math.random() < 0.006 && webs.length < 5) {
-        webs.push(makeWeb(Math.random() * width * 1.5 - width * 0.25, Math.random() * height * 1.5 - height * 0.25));
+        webs.push(
+          makeWeb(
+            Math.random() * width * 1.5 - width * 0.25,
+            Math.random() * height * 1.5 - height * 0.25,
+          ),
+        );
       }
-      webs.forEach(web => { update(web); draw(web); });
-      webs = webs.filter(web => web.alpha > 0);
+      webs.forEach((web) => {
+        update(web);
+        draw(web);
+      });
+      webs = webs.filter((web) => web.alpha > 0);
       frame = window.requestAnimationFrame(animate);
     };
 
@@ -149,7 +163,10 @@ export const SpiderWebBackground = React.memo(function SpiderWebBackground({ isD
       window.cancelAnimationFrame(frame);
       resize();
       if (reducedMotion.matches) renderStatic();
-      else { seed(); frame = window.requestAnimationFrame(animate); }
+      else {
+        seed();
+        frame = window.requestAnimationFrame(animate);
+      }
     };
 
     start();

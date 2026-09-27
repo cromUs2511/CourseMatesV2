@@ -34,7 +34,11 @@ Requires Node.js 22.14 or newer.
 2. Optionally copy `.env.example` to `.env.local` and configure integrations.
 3. Run `npm run dev`, then open http://localhost:3000.
 
-Local development enables clearly labelled demo access by default. Enter a valid email or use the Gmail quick-fill button; this does **not** verify email ownership. Open two independent browser profiles/private sessions to test real matching, or choose the simulated partner while waiting.
+Local development uses the same anonymous entry as production: confirm that you
+are 18 or older, accept the community terms, and continue. No email is collected
+and no identity is verified. Open two independent browser profiles/private
+sessions to test real matching, or use the labelled Student Chatbot Assistant
+simulation while waiting.
 
 After signing in, choose an optional interest and select **Find my peers**.
 While searching, the progress indicator and chatbot fallback use the selected
@@ -44,6 +48,19 @@ is persisted locally and updates both the conversation and its controls.
 ## Production
 
 Run `npm run build`, then `npm start`. Set `PORT` and `HOST` when needed. The production command serves the built frontend and never launches Vite or Python. The server bundle lives in `dist/.server`, which is excluded from public file serving.
+
+`NODE_ENV=production` (or the `--production` flag) turns on a fail-closed
+configuration check. The process exits at startup unless all of these are set:
+
+| Variable            | Requirement                                                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_URL`           | Public `https://` origin with no path, query or credentials. It also decides the WebSocket origin check and whether the session cookie is `Secure`.   |
+| `SINGLE_INSTANCE`   | Must be `true`, with `WEB_CONCURRENCY` unset or `1` and `NODE_APP_INSTANCE` unset or `0`. Chat state is RAM-only and is not shared between processes. |
+| `DATA_DIR`          | A persistent private volume. It holds `moderation.json`, the durable report/block/ban store.                                                          |
+| `MODERATION_SECRET` | At least 32 random characters. Stable across restarts, otherwise browser-identity bans are lost.                                                      |
+| `ADMIN_TOKEN`       | At least 32 random characters, different from `MODERATION_SECRET`. Bearer token for `/api/admin/*`.                                                   |
+
+`docker compose` wires all of these; see `docs/operations.md` for the runbook.
 
 CourseMates uses anonymous access. `ALLOW_ANONYMOUS_ACCESS` defaults to true in both local and Render deployments; set it to `false` only when an external access gateway is in place.
 
@@ -98,14 +115,38 @@ This in-memory implementation runs as **one server process**. Multiple replicas 
 
 ## Verification
 
-- `npm run lint`: TypeScript checks.
+Every command below is a release gate. CI runs them on every push and pull
+request (`.github/workflows/ci.yml`).
+
+- `npm run typecheck`: strict TypeScript only (`tsc --noEmit`).
+- `npm run lint`: typecheck plus ESLint over every `*.ts`/`*.tsx`.
+- `npm run format:check` / `npm run format`: Prettier gate and writer.
 - `npm test`: runtime regression tests with real HTTP/WebSocket clients.
+- `npm run test:coverage`: the same suite under c8 with the line/branch/
+  function thresholds in `.c8rc.json`.
+- `npm run test:python`: FastAPI shadow-service contract tests.
 - `npm run build`: frontend and production server bundles.
-- `npm run test:e2e`: headless Chrome tests; build first. Uses an isolated server on port 3100 with demo login and local suggestions.
+- `npm run test:e2e`: the production-mode browser suite; build first. It uses
+  an isolated server on port 3100 with `NODE_ENV=test`, so local `.env*` files
+  and AI keys are never loaded.
 - `npm run test:e2e:dev`: the same browser suite against Vite development mode.
 - `npm run clean`: cross-platform cleanup of generated build output.
 
-Browser tests use an installed Google Chrome. To use Playwright's bundled Chromium instead, install it with `npx playwright install chromium` and remove `channel: 'chrome'` from `playwright.config.ts`.
+Native module checks (optional, C++17 + CMake 3.18+):
+
+```bash
+g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -I native/src native/tests/smoke.cpp -o smoke
+./smoke
+pip install ./native
+python -m pytest -p no:cacheprovider native/tests/test_native.py -q
+python native/tests/bench.py
+```
+
+Import through `native_bridge.py`, never `coursemates_native` directly.
+
+Browser tests use an installed Google Chrome by default. Override the browser
+with `PW_CHANNEL` — for example `PW_CHANNEL=chromium npx playwright test` after
+`npx playwright install chromium`. CI runs the matrix over both channels.
 
 `package-lock.json` is the maintained dependency lockfile. The `qs` override selects the compatible patched parser release used by Express.
 

@@ -1,7 +1,9 @@
 export interface YouTubePlayer {
   playVideo(): void;
   pauseVideo(): void;
-  loadVideoById(video: string | { videoId: string; startSeconds: number; endSeconds: number }): void;
+  loadVideoById(
+    video: string | { videoId: string; startSeconds: number; endSeconds: number },
+  ): void;
   cueVideoById(video: string | { videoId: string; startSeconds: number; endSeconds: number }): void;
   getCurrentTime(): number;
   mute(): void;
@@ -59,7 +61,11 @@ export function loadYouTubeAPI(): Promise<YouTubeAPI> {
       cleanup();
       script.remove();
       apiPromise = null;
-      reject(new Error('YouTube could not load. Check your connection or content blocker, then try again.'));
+      reject(
+        new Error(
+          'YouTube could not load. Check your connection or content blocker, then try again.',
+        ),
+      );
     };
     const onReady = () => {
       if (!window.YT?.Player) {

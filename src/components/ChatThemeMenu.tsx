@@ -12,21 +12,141 @@ export interface ChatTheme {
 }
 
 export const CHAT_THEMES: ChatTheme[] = [
-  { id: 'crimson', label: 'Crimson red', lightBackground: '#FAF8F5', darkBackground: '#141312', accent: '#991B1B', accentHover: '#7F1D1D', swatch: '#991B1B' },
-  { id: 'ocean', label: 'Ocean blue', lightBackground: '#F2F8FC', darkBackground: '#101A22', accent: '#126782', accentHover: '#0E5268', swatch: '#168AAD' },
-  { id: 'forest', label: 'Forest green', lightBackground: '#F3F8F1', darkBackground: '#142018', accent: '#2F6B3D', accentHover: '#245631', swatch: '#4F8A5B' },
-  { id: 'violet', label: 'Violet dusk', lightBackground: '#F7F3FB', darkBackground: '#1C1724', accent: '#704B9B', accentHover: '#5B3D80', swatch: '#8B5FBF' },
-  { id: 'sunset', label: 'Sunset orange', lightBackground: '#FFF7ED', darkBackground: '#241711', accent: '#C2410C', accentHover: '#9A3412', swatch: '#EA580C' },
-  { id: 'rose', label: 'Rose pink', lightBackground: '#FFF1F2', darkBackground: '#241419', accent: '#BE185D', accentHover: '#9D174D', swatch: '#DB2777' },
-  { id: 'amber', label: 'Amber glow', lightBackground: '#FFFBEB', darkBackground: '#211B0D', accent: '#A16207', accentHover: '#854D0E', swatch: '#D97706' },
-  { id: 'slate', label: 'Slate graphite', lightBackground: '#F1F5F9', darkBackground: '#111827', accent: '#475569', accentHover: '#334155', swatch: '#64748B' },
-  { id: 'neon-cyan', label: 'Neon cyan', lightBackground: '#ECFEFF', darkBackground: '#071B22', accent: '#0891B2', accentHover: '#0E7490', swatch: '#06B6D4' },
-  { id: 'electric-blue', label: 'Electric blue', lightBackground: '#EFF6FF', darkBackground: '#0C1630', accent: '#2563EB', accentHover: '#1D4ED8', swatch: '#3B82F6' },
-  { id: 'neon-magenta', label: 'Neon magenta', lightBackground: '#FDF2F8', darkBackground: '#261025', accent: '#C026D3', accentHover: '#A21CAF', swatch: '#E879F9' },
-  { id: 'teal', label: 'Deep teal', lightBackground: '#F0FDFA', darkBackground: '#09201F', accent: '#0F766E', accentHover: '#115E59', swatch: '#14B8A6' },
-  { id: 'gold', label: 'Cyber gold', lightBackground: '#FEFCE8', darkBackground: '#211B08', accent: '#CA8A04', accentHover: '#A16207', swatch: '#FACC15' },
-  { id: 'indigo', label: 'Indigo night', lightBackground: '#EEF2FF', darkBackground: '#11132D', accent: '#4F46E5', accentHover: '#4338CA', swatch: '#6366F1' },
-  { id: 'graphite', label: 'Graphite neon', lightBackground: '#F4F4F5', darkBackground: '#09090B', accent: '#71717A', accentHover: '#52525B', swatch: '#A1A1AA' },
+  {
+    id: 'crimson',
+    label: 'Crimson red',
+    lightBackground: '#FAF8F5',
+    darkBackground: '#141312',
+    accent: '#991B1B',
+    accentHover: '#7F1D1D',
+    swatch: '#991B1B',
+  },
+  {
+    id: 'ocean',
+    label: 'Ocean blue',
+    lightBackground: '#F2F8FC',
+    darkBackground: '#101A22',
+    accent: '#126782',
+    accentHover: '#0E5268',
+    swatch: '#168AAD',
+  },
+  {
+    id: 'forest',
+    label: 'Forest green',
+    lightBackground: '#F3F8F1',
+    darkBackground: '#142018',
+    accent: '#2F6B3D',
+    accentHover: '#245631',
+    swatch: '#4F8A5B',
+  },
+  {
+    id: 'violet',
+    label: 'Violet dusk',
+    lightBackground: '#F7F3FB',
+    darkBackground: '#1C1724',
+    accent: '#704B9B',
+    accentHover: '#5B3D80',
+    swatch: '#8B5FBF',
+  },
+  {
+    id: 'sunset',
+    label: 'Sunset orange',
+    lightBackground: '#FFF7ED',
+    darkBackground: '#241711',
+    accent: '#C2410C',
+    accentHover: '#9A3412',
+    swatch: '#EA580C',
+  },
+  {
+    id: 'rose',
+    label: 'Rose pink',
+    lightBackground: '#FFF1F2',
+    darkBackground: '#241419',
+    accent: '#BE185D',
+    accentHover: '#9D174D',
+    swatch: '#DB2777',
+  },
+  {
+    id: 'amber',
+    label: 'Amber glow',
+    lightBackground: '#FFFBEB',
+    darkBackground: '#211B0D',
+    accent: '#A16207',
+    accentHover: '#854D0E',
+    swatch: '#D97706',
+  },
+  {
+    id: 'slate',
+    label: 'Slate graphite',
+    lightBackground: '#F1F5F9',
+    darkBackground: '#111827',
+    accent: '#475569',
+    accentHover: '#334155',
+    swatch: '#64748B',
+  },
+  {
+    id: 'neon-cyan',
+    label: 'Neon cyan',
+    lightBackground: '#ECFEFF',
+    darkBackground: '#071B22',
+    accent: '#0891B2',
+    accentHover: '#0E7490',
+    swatch: '#06B6D4',
+  },
+  {
+    id: 'electric-blue',
+    label: 'Electric blue',
+    lightBackground: '#EFF6FF',
+    darkBackground: '#0C1630',
+    accent: '#2563EB',
+    accentHover: '#1D4ED8',
+    swatch: '#3B82F6',
+  },
+  {
+    id: 'neon-magenta',
+    label: 'Neon magenta',
+    lightBackground: '#FDF2F8',
+    darkBackground: '#261025',
+    accent: '#C026D3',
+    accentHover: '#A21CAF',
+    swatch: '#E879F9',
+  },
+  {
+    id: 'teal',
+    label: 'Deep teal',
+    lightBackground: '#F0FDFA',
+    darkBackground: '#09201F',
+    accent: '#0F766E',
+    accentHover: '#115E59',
+    swatch: '#14B8A6',
+  },
+  {
+    id: 'gold',
+    label: 'Cyber gold',
+    lightBackground: '#FEFCE8',
+    darkBackground: '#211B08',
+    accent: '#CA8A04',
+    accentHover: '#A16207',
+    swatch: '#FACC15',
+  },
+  {
+    id: 'indigo',
+    label: 'Indigo night',
+    lightBackground: '#EEF2FF',
+    darkBackground: '#11132D',
+    accent: '#4F46E5',
+    accentHover: '#4338CA',
+    swatch: '#6366F1',
+  },
+  {
+    id: 'graphite',
+    label: 'Graphite neon',
+    lightBackground: '#F4F4F5',
+    darkBackground: '#09090B',
+    accent: '#71717A',
+    accentHover: '#52525B',
+    swatch: '#A1A1AA',
+  },
 ];
 
 interface ChatThemeMenuProps {
@@ -37,7 +157,13 @@ interface ChatThemeMenuProps {
   compact?: boolean;
 }
 
-export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, isDarkMode, standalone = false, compact = false }) => {
+export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({
+  theme,
+  onChange,
+  isDarkMode,
+  standalone = false,
+  compact = false,
+}) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -58,16 +184,23 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
   }, [open]);
 
   return (
-    <div ref={menuRef} className={standalone || compact ? 'relative block' : 'contents min-[900px]:relative min-[900px]:block'}>
+    <div
+      ref={menuRef}
+      className={
+        standalone || compact ? 'relative block' : 'contents min-[900px]:relative min-[900px]:block'
+      }
+    >
       <button
         type="button"
         aria-label="Choose chat color theme"
         aria-expanded={open}
         title={`Chat theme: ${theme.label}`}
-        onClick={() => setOpen(value => !value)}
-        className={compact
-          ? 'chat-display-control site-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10'
-          : 'chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'}
+        onClick={() => setOpen((value) => !value)}
+        className={
+          compact
+            ? 'chat-display-control site-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10'
+            : 'chat-theme-outline flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition-colors hover:border-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'
+        }
       >
         <Palette className="h-4 w-4" />
       </button>
@@ -75,53 +208,72 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({ theme, onChange, i
         <div
           role="dialog"
           aria-label="Chat color themes"
-          className={`${standalone
-            ? 'fixed left-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-[calc(100vw-24px)] max-w-64 overflow-y-auto shadow-xl sm:absolute sm:left-0 sm:top-11 sm:w-64'
-            : compact
-              ? 'fixed right-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto shadow-xl min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-12'
-            : 'order-last w-full min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-11 min-[900px]:z-30 min-[900px]:max-h-[calc(100dvh-80px)] min-[900px]:w-64 min-[900px]:overflow-y-auto min-[900px]:shadow-xl'
+          className={`${
+            standalone
+              ? 'fixed left-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-[calc(100vw-24px)] max-w-64 overflow-y-auto shadow-xl sm:absolute sm:left-0 sm:top-11 sm:w-64'
+              : compact
+                ? 'fixed right-3 top-[4.5rem] z-50 max-h-[calc(100dvh-84px)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto shadow-xl min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-12'
+                : 'order-last w-full min-[900px]:absolute min-[900px]:right-0 min-[900px]:top-11 min-[900px]:z-30 min-[900px]:max-h-[calc(100dvh-80px)] min-[900px]:w-64 min-[900px]:overflow-y-auto min-[900px]:shadow-xl'
           } rounded-xl border p-3 ${
-            isDarkMode ? 'border-stone-700 bg-[#181716] text-stone-200' : 'border-stone-300 bg-white text-stone-800'
+            isDarkMode
+              ? 'border-stone-700 bg-[#181716] text-stone-200'
+              : 'border-stone-300 bg-white text-stone-800'
           }`}
         >
           <div className="flex items-center justify-between gap-2 pb-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">Chat colors</p>
-            <span className="min-w-0 truncate text-[10px] font-bold" style={{ color: theme.accent }}>{theme.label}</span>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">
+              Chat colors
+            </p>
+            <span
+              className="min-w-0 truncate text-[10px] font-bold"
+              style={{ color: theme.accent }}
+            >
+              {theme.label}
+            </span>
           </div>
           <div className="grid grid-cols-3 gap-1.5">
-          {CHAT_THEMES.map(option => {
-            const selected = theme.id === option.id;
-            return (
-            <button
-              key={option.id}
-              type="button"
-              aria-label={option.label}
-              aria-pressed={selected}
-              title={option.label}
-              onClick={() => {
-                onChange(option);
-                setOpen(false);
-              }}
-              className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[9px] leading-tight transition-colors ${
-                selected ? 'border-stone-400 bg-stone-500/15 font-semibold dark:border-stone-500' : 'border-transparent hover:bg-stone-500/10'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="relative flex h-5 w-5 items-center justify-center rounded-full border border-black/10 shadow-sm"
-                style={{
-                  background: `linear-gradient(135deg, ${option.swatch} 50%, ${isDarkMode ? option.darkBackground : option.lightBackground} 50%)`,
-                  boxShadow: selected ? `0 0 0 2px ${option.accent}` : undefined,
-                }}
-              >
-                {selected && <Check className="h-3 w-3 text-white drop-shadow-[0_1px_1px_rgb(0_0_0_/_0.6)]" strokeWidth={3} />}
-              </span>
-              <span className="w-full truncate">{option.label}</span>
-            </button>
-            );
-          })}
+            {CHAT_THEMES.map((option) => {
+              const selected = theme.id === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-label={option.label}
+                  aria-pressed={selected}
+                  title={option.label}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                  className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[9px] leading-tight transition-colors ${
+                    selected
+                      ? 'border-stone-400 bg-stone-500/15 font-semibold dark:border-stone-500'
+                      : 'border-transparent hover:bg-stone-500/10'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="relative flex h-5 w-5 items-center justify-center rounded-full border border-black/10 shadow-sm"
+                    style={{
+                      background: `linear-gradient(135deg, ${option.swatch} 50%, ${isDarkMode ? option.darkBackground : option.lightBackground} 50%)`,
+                      boxShadow: selected ? `0 0 0 2px ${option.accent}` : undefined,
+                    }}
+                  >
+                    {selected && (
+                      <Check
+                        className="h-3 w-3 text-white drop-shadow-[0_1px_1px_rgb(0_0_0_/_0.6)]"
+                        strokeWidth={3}
+                      />
+                    )}
+                  </span>
+                  <span className="w-full truncate">{option.label}</span>
+                </button>
+              );
+            })}
           </div>
-          <p className="pt-2 text-center text-[9px] text-stone-500">Applies to chat accents and controls.</p>
+          <p className="pt-2 text-center text-[9px] text-stone-500">
+            Applies to chat accents and controls.
+          </p>
         </div>
       )}
     </div>

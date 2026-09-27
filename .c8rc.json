@@ -1,0 +1,11 @@
+{
+  "all": true,
+  "include": ["*.ts", "src/data/**/*.ts", "src/utils/chatMessages.ts"],
+  "exclude": ["*.config.ts", "server.ts", "src/data/chatThemes.ts", "src/data/mockProfiles.ts"],
+  "reporter": ["text", "lcov", "json-summary"],
+  "check-coverage": true,
+  "lines": 65,
+  "statements": 65,
+  "functions": 65,
+  "branches": 55
+}

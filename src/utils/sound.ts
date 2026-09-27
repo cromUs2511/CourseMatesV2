@@ -21,9 +21,11 @@ export function setSoundEnabled(enabled: boolean) {
 export function playChime(type: 'match' | 'message' | 'timer' | 'purge' | 'click') {
   if (!getSoundEnabled()) return;
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = audioContext ??= new AudioCtx();
+    const ctx = (audioContext ??= new AudioCtx());
     if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
 
     if (type === 'click') {

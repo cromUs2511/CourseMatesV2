@@ -124,12 +124,13 @@ const SPIDER_MAN_SONGS = [
   { titles: ['oh yeah'], artists: ['steve lacy'] },
 ] as const;
 
-const normalizeTrackText = (value: string) => value
-  .toLowerCase()
-  .replace(/[\u2018\u2019]/g, "'")
-  .replace(/[^a-z0-9']+/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
+const normalizeTrackText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[^a-z0-9']+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** True when a track belongs to a Spider-Man or Spider-Verse soundtrack. */
 export function isSpiderManTrack(track: Pick<MusicTrack, 'title' | 'artist'>): boolean {
@@ -137,9 +138,10 @@ export function isSpiderManTrack(track: Pick<MusicTrack, 'title' | 'artist'>): b
   const artist = normalizeTrackText(track.artist);
   const combined = `${title} ${artist}`;
   if (/\bspider ?man\b|\bspider ?verse\b/.test(combined)) return true;
-  return SPIDER_MAN_SONGS.some(song =>
-    song.titles.some(candidate => title.includes(candidate)) &&
-    song.artists.some(candidate => combined.includes(candidate)),
+  return SPIDER_MAN_SONGS.some(
+    (song) =>
+      song.titles.some((candidate) => title.includes(candidate)) &&
+      song.artists.some((candidate) => combined.includes(candidate)),
   );
 }
 
@@ -168,13 +170,24 @@ export function extractYouTubeVideoId(input: string): string | null {
     let videoId: string | null = null;
 
     if (host === 'youtu.be') {
-      if (segments.length === 1) videoId = segments[0];
-    } else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com',
-      'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) {
+      if (segments.length === 1) videoId = segments[0] ?? null;
+    } else if (
+      [
+        'youtube.com',
+        'www.youtube.com',
+        'm.youtube.com',
+        'music.youtube.com',
+        'youtube-nocookie.com',
+        'www.youtube-nocookie.com',
+      ].includes(host)
+    ) {
       if (url.pathname === '/watch') {
         videoId = url.searchParams.get('v');
-      } else if (segments.length === 2 && ['embed', 'live', 'shorts', 'v', 'e'].includes(segments[0])) {
-        videoId = segments[1];
+      } else if (
+        segments.length === 2 &&
+        ['embed', 'live', 'shorts', 'v', 'e'].includes(segments[0] ?? '')
+      ) {
+        videoId = segments[1] ?? null;
       }
     }
 
@@ -188,8 +201,14 @@ export function extractYouTubeVideoId(input: string): string | null {
 export function normalizeSharedTrack(value: unknown): MusicTrack | null {
   if (!value || typeof value !== 'object') return null;
   const track = value as Partial<MusicTrack>;
-  if (typeof track.id !== 'string' || !track.id || track.id.length > 100 ||
-      typeof track.youtubeVideoId !== 'string' || !/^[a-zA-Z0-9_-]{11}$/.test(track.youtubeVideoId)) return null;
+  if (
+    typeof track.id !== 'string' ||
+    !track.id ||
+    track.id.length > 100 ||
+    typeof track.youtubeVideoId !== 'string' ||
+    !/^[a-zA-Z0-9_-]{11}$/.test(track.youtubeVideoId)
+  )
+    return null;
   return {
     id: track.id,
     youtubeVideoId: track.youtubeVideoId,

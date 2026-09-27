@@ -1,14 +1,39 @@
 services:
   web:
     build: .
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      replicas: 1
     environment:
       PORT: 3000
       HOST: 0.0.0.0
-      APP_URL: http://localhost:3000
+      NODE_ENV: production
+      LOAD_LOCAL_ENV: 'false'
+      SINGLE_INSTANCE: 'true'
+      APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS origin}
+      MODERATION_SECRET: ${MODERATION_SECRET:?Set a stable random secret of at least 32 characters}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a separate random admin token of at least 32 characters}
+      DATA_DIR: /app/data
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       PYTHON_ORCHESTRATOR_MODE: shadow
       PYTHON_ORCHESTRATOR_URL: http://python-orchestrator:5051
     ports:
-      - "3000:3000"
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - moderation-data:/app/data
     depends_on:
       python-orchestrator:
         condition: service_healthy
@@ -17,8 +42,27 @@ services:
     build:
       context: .
       dockerfile: services/python-orchestrator/Dockerfile
+    init: true
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:5051/internal/v1/health')"]
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:5051/internal/v1/health')",
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
+
+volumes:
+  moderation-data:
