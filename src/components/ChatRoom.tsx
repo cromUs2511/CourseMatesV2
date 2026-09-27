@@ -18,6 +18,7 @@ import {
   Pencil,
   Music2,
   Shield,
+  Gamepad2,
 } from 'lucide-react';
 import {
   StudentSession,
@@ -43,6 +44,8 @@ import { SafetyDialog } from './SafetyDialog';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { MusicSnippetPicker } from './MusicSnippetPicker';
 import { MusicSnippetCard } from './MusicSnippetCard';
+import { UnoTable } from './UnoTable';
+import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
@@ -151,6 +154,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     effect: 'aurora' | 'spider-web';
   }>({ active: false, enabled: true, color: '#6ee7b7', effect: 'aurora' });
   const [pendingAction, setPendingAction] = useState<'leave' | 'next' | null>(null);
+  const [unoState, setUnoState] = useState<UnoStateResponse | null>(null);
+  const [unoOpen, setUnoOpen] = useState(false);
+  const [unoBusy, setUnoBusy] = useState(false);
+  const [unoError, setUnoError] = useState('');
+  const unoInitiatedRef = useRef(false);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
@@ -416,6 +424,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     const onMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === 'uno_state') {
+          setUnoState({
+            game: data.game ?? null,
+            challenge: data.challenge ?? null,
+            queued: !!data.queued,
+          });
+          return;
+        }
         if (data.roomId !== roomId) return;
         if (Number.isInteger(data.revision)) {
           if (snapshotRevisionRef.current !== null && data.revision <= snapshotRevisionRef.current)
@@ -479,6 +495,93 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
     };
   }, [peer, roomId, session.id, ws, receiveMessages, markDisconnected]);
+
+  // UNO: polled as well as pushed so a challenge or move survives a dead socket.
+  useEffect(() => {
+    if (peer.isSimulated || !roomId) return;
+    let disposed = false;
+    const sync = () => {
+      void apiRequest<UnoStateResponse>('/api/uno/state')
+        .then((data) => {
+          if (!disposed) setUnoState(data);
+        })
+        .catch(() => {
+          /* Transient failures retry on the next tick. */
+        });
+    };
+    sync();
+    const interval = setInterval(sync, 2000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+  }, [peer.isSimulated, roomId]);
+
+  // Open my own table as soon as the peer accepts the challenge I sent.
+  useEffect(() => {
+    if (unoState?.game && unoInitiatedRef.current) {
+      unoInitiatedRef.current = false;
+      setUnoOpen(true);
+    }
+  }, [unoState?.game]);
+
+  const sendUnoAction = async (action: UnoAction) => {
+    setUnoBusy(true);
+    setUnoError('');
+    try {
+      const data = await apiRequest<UnoStateResponse>('/api/uno/action', action);
+      setUnoState(data);
+    } catch (err) {
+      setUnoError((err as Error).message);
+    } finally {
+      setUnoBusy(false);
+    }
+  };
+
+  const refreshUno = async () => {
+    try {
+      setUnoState(await apiRequest<UnoStateResponse>('/api/uno/state'));
+    } catch {
+      /* The next poll restores state. */
+    }
+  };
+
+  const challengePeer = async () => {
+    if (!roomId) return;
+    setUnoError('');
+    try {
+      await apiRequest('/api/uno/challenge', { roomId });
+      unoInitiatedRef.current = true;
+      await refreshUno();
+    } catch (err) {
+      unoInitiatedRef.current = false;
+      setUnoError((err as Error).message);
+    }
+  };
+
+  const respondToUnoChallenge = async (accept: boolean) => {
+    const challengeId = unoState?.challenge?.id;
+    if (!challengeId) return;
+    setUnoError('');
+    try {
+      await apiRequest('/api/uno/challenge/respond', { challengeId, accept });
+      if (accept) setUnoOpen(true);
+      await refreshUno();
+    } catch (err) {
+      setUnoError((err as Error).message);
+    }
+  };
+
+  const leaveUnoTable = async () => {
+    setUnoOpen(false);
+    setUnoError('');
+    try {
+      await apiRequest('/api/uno/leave', {});
+    } catch {
+      /* The server drops abandoned tables anyway. */
+    }
+    await refreshUno();
+  };
 
   const sendTyping = (isTyping: boolean) => {
     if (roomId && !peer.isSimulated && !peerDisconnected) {
@@ -996,6 +1099,39 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
                 >
                   <Shield className="h-4 w-4" />
+                </button>
+              )}
+              {!peer.isSimulated && !peerDisconnected && roomId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (unoState?.game) {
+                      setUnoOpen(true);
+                      setUnoError('');
+                    } else if (!unoState?.challenge) void challengePeer();
+                  }}
+                  aria-label={
+                    unoState?.game
+                      ? 'Open the UNO table'
+                      : unoState?.challenge
+                        ? 'A UNO challenge is pending'
+                        : 'Challenge this peer to a UNO duel'
+                  }
+                  title={
+                    unoState?.game
+                      ? 'Open UNO table'
+                      : unoState?.challenge
+                        ? 'UNO challenge pending'
+                        : 'Challenge peer to UNO'
+                  }
+                  className={`chat-display-control relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10 ${
+                    unoState?.game ? 'text-yellow-400' : 'text-[#c8bb8d]'
+                  }`}
+                >
+                  <Gamepad2 className="h-4 w-4" />
+                  {unoState?.challenge?.direction === 'incoming' && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse motion-reduce:animate-none rounded-full bg-red-500" />
+                  )}
                 </button>
               )}
               <ThemeToggle
@@ -1536,6 +1672,47 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             isDarkMode ? 'bg-[#141312]/88 border-stone-800' : 'bg-[#fffdfa]/88 border-stone-200'
           }`}
         >
+          {unoState?.challenge && (
+            <div
+              role="status"
+              className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-xs dark:border-stone-700 dark:bg-stone-900"
+            >
+              <span className="min-w-0 truncate font-semibold text-stone-700 dark:text-stone-200">
+                {unoState.challenge.direction === 'incoming'
+                  ? `${unoState.challenge.fromHandle} challenged you to a UNO duel`
+                  : `Challenge sent to ${unoState.challenge.fromHandle}…`}
+                {unoError && <span className="ml-2 text-red-500">{unoError}</span>}
+              </span>
+              <span className="flex shrink-0 gap-2">
+                {unoState.challenge.direction === 'incoming' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void respondToUnoChallenge(true)}
+                      className="rounded-lg bg-stone-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-stone-700 dark:bg-white dark:text-stone-900 md:py-1 md:text-[11px]"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void respondToUnoChallenge(false)}
+                      className="rounded-lg border border-stone-300 px-3.5 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-200 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800 md:py-1 md:text-[11px]"
+                    >
+                      Decline
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void respondToUnoChallenge(false)}
+                    className="rounded-lg border border-stone-300 px-3 py-1 text-[11px] font-semibold text-stone-600 hover:bg-stone-200 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                  >
+                    Cancel challenge
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
           <div ref={composerRef} className="max-w-3xl mx-auto">
             {replyingTo && (
               <div
@@ -1781,6 +1958,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           </div>
         </div>
       </div>
+      {unoOpen && unoState?.game && (
+        <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/70 p-0 sm:p-4">
+          <div className="h-full w-full overflow-hidden sm:h-[min(92dvh,760px)] sm:w-[min(100%,560px)] sm:rounded-2xl sm:border sm:border-stone-700 sm:shadow-2xl">
+            <UnoTable
+              state={unoState.game}
+              busy={unoBusy}
+              error={unoError || undefined}
+              onAction={(action) => void sendUnoAction(action)}
+              onLeave={() => void leaveUnoTable()}
+              onClose={() => {
+                setUnoOpen(false);
+                setUnoError('');
+              }}
+            />
+          </div>
+        </div>
+      )}
       {safetyOpen && roomId && (
         <SafetyDialog
           roomId={roomId}

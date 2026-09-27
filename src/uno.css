@@ -1,0 +1,374 @@
+/* UNO table — card geometry ported from the UNO prototype, scoped so it can
+   never leak into the rest of the app. Uses the site font, not Poppins. */
+
+.uno-table {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uno-felt {
+  background: radial-gradient(circle at 50% 50%, #1e4a38 0%, #0d281e 65%, #05140e 100%);
+}
+
+.uno-card {
+  position: relative;
+  width: 72px;
+  height: 108px;
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 3px #ffffff;
+  transform-style: preserve-3d;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .uno-card {
+    width: 86px;
+    height: 128px;
+    border-radius: 12px;
+    box-shadow:
+      0 6px 14px rgba(0, 0, 0, 0.45),
+      inset 0 0 0 4px #ffffff;
+  }
+}
+
+.uno-card.playable {
+  cursor: pointer;
+}
+.uno-card.playable:hover {
+  transform: translateY(-16px) scale(1.08) !important;
+  box-shadow:
+    0 12px 24px rgba(255, 230, 0, 0.65),
+    0 0 15px rgba(255, 255, 255, 0.8),
+    inset 0 0 0 3px #fff !important;
+  z-index: 40 !important;
+}
+.uno-card:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+
+.c-red {
+  background: linear-gradient(145deg, #ff334b, #d90429);
+}
+.c-blue {
+  background: linear-gradient(145deg, #0096ff, #0056b3);
+}
+.c-green {
+  background: linear-gradient(145deg, #2ecc71, #1b8a47);
+}
+.c-yellow {
+  background: linear-gradient(145deg, #f1c40f, #d4ac0d);
+}
+.c-black {
+  background: linear-gradient(145deg, #2c3e50, #111417);
+}
+
+.card-oval {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-25deg);
+  width: 78%;
+  height: 82%;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+.c-black .card-oval {
+  background: radial-gradient(circle, #2b2b2b, #111);
+}
+
+.corner-tag {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+.c-yellow .corner-tag {
+  color: #333;
+  text-shadow: none;
+}
+.c-black .corner-tag {
+  color: #fff;
+}
+.corner-tl {
+  top: 4px;
+  left: 5px;
+}
+.corner-br {
+  bottom: 4px;
+  right: 5px;
+  transform: rotate(180deg);
+}
+
+.card-back {
+  background: linear-gradient(135deg, #1f242d 0%, #0b0c10 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 3px #ffffff;
+  border-radius: 10px;
+}
+.card-back-oval {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  width: 76%;
+  height: 60%;
+  /* Deep red so the yellow UNO mark keeps a 4.5:1 contrast ratio. */
+  background: #a41321;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.uno-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px dashed rgba(16, 185, 129, 0.25);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.uno-ring-arrow {
+  position: absolute;
+  color: #34d399;
+  font-size: 16px;
+  line-height: 1;
+}
+.uno-ring-arrow.arrow-top {
+  top: -10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+.uno-ring-arrow.arrow-bottom {
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+.uno-ring-arrow.arrow-left {
+  left: -14px;
+  top: 50%;
+  margin-top: -8px;
+}
+.uno-ring-arrow.arrow-right {
+  right: -14px;
+  top: 50%;
+  margin-top: -8px;
+}
+
+@keyframes unoSpinClockwise {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+@keyframes unoSpinCounterClockwise {
+  0% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+.uno-dir-cw {
+  animation: unoSpinClockwise 12s linear infinite;
+}
+.uno-dir-ccw {
+  animation: unoSpinCounterClockwise 12s linear infinite;
+}
+
+.uno-pulse-glow {
+  animation: unoPulseGlow 1.8s infinite;
+}
+@keyframes unoPulseGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 10px rgba(239, 68, 68, 0.4),
+      inset 0 0 10px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 25px rgba(239, 68, 68, 0.9),
+      inset 0 0 15px rgba(239, 68, 68, 0.5);
+  }
+}
+
+.uno-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.uno-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uno-dir-cw,
+  .uno-dir-ccw,
+  .uno-pulse-glow {
+    animation: none;
+  }
+  .uno-card {
+    transition: none;
+  }
+}
+
+/* ---------- Touch devices ---------- */
+
+.uno-table button,
+.uno-card {
+  touch-action: manipulation;
+}
+.uno-table {
+  -webkit-touch-callout: none;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Without hover, playable cards must announce themselves by staying lifted. */
+@media (hover: none) {
+  .uno-card.playable {
+    transform: translateY(-12px) scale(1.04);
+    box-shadow:
+      0 10px 20px rgba(255, 230, 0, 0.5),
+      0 0 12px rgba(255, 255, 255, 0.55),
+      inset 0 0 0 3px #fff;
+  }
+  .uno-card.playable:active {
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* The pass/busy row only needs height when it actually holds a control. */
+.uno-turnrow {
+  height: auto;
+}
+
+/* Momentum hand swiping that never chains into the page behind the table.
+   Pinch zoom stays available: no touch-action override on the scroller. */
+.uno-hand {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- Short viewports (landscape phones, split screens) ----------
+   The stage is overflow-hidden, so compaction is what keeps the hand, the
+   discard pile and the opponent on screen instead of clipped. */
+@media (max-height: 620px) {
+  .uno-card {
+    width: 52px;
+    height: 78px;
+    border-radius: 8px;
+    box-shadow:
+      0 3px 8px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 2px #ffffff;
+  }
+  .uno-arena-bar {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .uno-stage {
+    padding: 4px;
+  }
+  .uno-bar {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .uno-opponent {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .uno-fan {
+    height: 2.25rem;
+    margin-top: 2px;
+  }
+  .uno-centre {
+    gap: 4px;
+  }
+  .uno-mine {
+    padding-bottom: 2px;
+  }
+  .uno-hand {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .uno-ring {
+    width: 11rem;
+    height: 11rem;
+  }
+  .uno-deck-shadow {
+    height: 78px;
+    width: 52px;
+  }
+}
+
+/* Very short landscape (phone rotated on a small screen). */
+@media (max-height: 430px) {
+  .uno-card {
+    width: 44px;
+    height: 66px;
+    border-radius: 7px;
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 2px #ffffff;
+  }
+  .uno-stage {
+    padding: 4px;
+    overflow-y: auto;
+  }
+  .uno-colour {
+    display: none;
+  }
+  .uno-fan {
+    display: none;
+  }
+  .uno-pile-label {
+    margin-top: 0;
+    font-size: 10px;
+  }
+  .uno-callrow {
+    margin-bottom: 2px;
+  }
+  .uno-ring {
+    width: 9rem;
+    height: 9rem;
+  }
+  .uno-pass {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: 11px;
+  }
+  .uno-call {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 12px;
+    padding-right: 12px;
+    font-size: 14px;
+  }
+  .uno-deck-shadow {
+    height: 66px;
+    width: 44px;
+  }
+}

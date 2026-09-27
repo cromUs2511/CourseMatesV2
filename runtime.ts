@@ -13,6 +13,21 @@ import { normalizeMusicSnippet, type MusicSnippet } from './src/data/musicSnippe
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { WindowLimiter, constantTimeEqual, metrics } from './serverSecurity';
 import { moderateText, type SafetyStore } from './safety';
+import {
+  createUnoChallenge,
+  joinArena,
+  leaveArena,
+  respondToChallenge,
+  unoCleanup,
+  unoDropSession,
+  unoGameForSession,
+  unoLeaveGame,
+  unoLeaveRoom,
+  unoReset,
+  unoStateFor,
+  unoStats,
+} from './uno';
+import type { UnoGame } from './uno';
 
 type Identity = StudentSession & { token: string; email: string; actor: string; expiresAt: number };
 type Participant = {
@@ -78,6 +93,7 @@ export function runtimeStats() {
     rooms: rooms.size,
     sockets: sockets.size,
     mediaBytes: totalMediaBytes,
+    uno: unoStats(),
     draining,
   };
 }
@@ -243,6 +259,12 @@ function notify(ws: WebSocket | undefined, data: unknown) {
     ws.send(JSON.stringify(data), () => {});
   }
 }
+function pushUno(sessionId: string) {
+  notify(sockets.get(sessionId), { type: 'uno_state', ...unoStateFor(sessionId) });
+}
+function pushUnoGame(game: UnoGame) {
+  for (const player of game.players) pushUno(player.id);
+}
 function matchResult(id: string) {
   const room = rooms.get(matches.get(id) || '');
   if (!room) return null;
@@ -253,6 +275,7 @@ function leave(id: string) {
   queue.delete(id);
   const roomId = matches.get(id);
   const room = rooms.get(roomId || '');
+  for (const game of unoLeaveRoom(id, roomId)) pushUnoGame(game);
   if (!room) {
     matches.delete(id);
     return;
@@ -572,7 +595,8 @@ export function attachRuntime(
   safety = options.safety;
   limits = { ...defaultLimits, ...options.limits };
   draining = false;
-  app.use(['/api/match', '/api/chat', '/api/ai', '/api/safety'], (req, res, next) => {
+  const unoLimiter = new WindowLimiter();
+  app.use(['/api/match', '/api/chat', '/api/ai', '/api/safety', '/api/uno'], (req, res, next) => {
     if (!authenticate(req))
       return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
     next();
@@ -610,6 +634,7 @@ export function attachRuntime(
     const session = authenticate(req);
     if (session) {
       leave(session.id);
+      for (const game of unoDropSession(session.id)) pushUnoGame(game);
       sockets.get(session.id)?.close();
       sessions.delete(session.token);
       identities.delete(session.id);
@@ -767,6 +792,99 @@ export function attachRuntime(
   app.post('/api/chat/leave', (req, res) => {
     const session = authenticate(req)!;
     if (requireRoom(session, req.body.roomId)) leave(session.id);
+    res.json({ success: true });
+  });
+
+  // --- UNO 1v1 tables (arena pairing before matching, or inside a chat room) ---
+  app.get('/api/uno/state', (req, res) => {
+    res.json(unoStateFor(authenticate(req)!.id));
+  });
+  app.post('/api/uno/arena', (req, res) => {
+    const session = authenticate(req)!;
+    if (!unoLimiter.take('uno-arena:' + session.id, 30, 60000))
+      return res.status(429).json({ error: 'You are joining too quickly. Try again shortly.' });
+    try {
+      const result = joinArena(session.id, session.sessionHandle);
+      const game = result.gameId ? unoGameForSession(session.id) : undefined;
+      if (game) pushUnoGame(game);
+      res.json(result);
+    } catch (error) {
+      res.status(409).json({ error: (error as Error).message });
+    }
+  });
+  app.post('/api/uno/arena/cancel', (req, res) => {
+    leaveArena(authenticate(req)!.id);
+    res.json({ success: true });
+  });
+  app.post('/api/uno/challenge', (req, res) => {
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body?.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    const peer = room.peers.find((p) => p.id !== session.id);
+    if (!peer) return res.status(404).json({ error: 'Your peer is no longer here.' });
+    if (!unoLimiter.take('uno-challenge:' + session.id, 20, 60000))
+      return res.status(429).json({ error: 'Too many challenges. Slow down.' });
+    try {
+      const challenge = createUnoChallenge(
+        { id: session.id, handle: session.sessionHandle },
+        { id: peer.id, handle: peer.handle },
+        room.id,
+      );
+      pushUno(challenge.toId);
+      res.json({
+        challenge: {
+          id: challenge.id,
+          direction: 'outgoing',
+          fromHandle: challenge.fromHandle,
+          roomId: challenge.roomId,
+        },
+      });
+    } catch (error) {
+      res.status(409).json({ error: (error as Error).message });
+    }
+  });
+  app.post('/api/uno/challenge/respond', (req, res) => {
+    const session = authenticate(req)!;
+    try {
+      const result = respondToChallenge(
+        String(req.body?.challengeId || ''),
+        session.id,
+        req.body?.accept === true,
+      );
+      if (result.game) pushUnoGame(result.game);
+      else {
+        pushUno(result.challenge.fromId);
+        pushUno(result.challenge.toId);
+      }
+      res.json({ started: !!result.game });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+  app.post('/api/uno/action', (req, res) => {
+    const session = authenticate(req)!;
+    if (!unoLimiter.take('uno:' + session.id, 240, 60000))
+      return res.status(429).json({ error: 'Too many moves. Take a breath.' });
+    const game = unoGameForSession(session.id);
+    if (!game || String(req.body?.gameId || '') !== game.id)
+      return res.status(404).json({ error: 'That table is no longer available.' });
+    try {
+      const action = req.body?.action;
+      if (action === 'play') game.play(session.id, String(req.body?.cardId || ''), req.body?.color);
+      else if (action === 'draw') game.draw(session.id);
+      else if (action === 'pass') game.pass(session.id);
+      else if (action === 'uno') game.callUno(session.id);
+      else throw new Error('Invalid game action.');
+      pushUnoGame(game);
+      res.json(unoStateFor(session.id));
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+  app.post('/api/uno/leave', (req, res) => {
+    const session = authenticate(req)!;
+    const game = unoLeaveGame(session.id);
+    if (game) pushUnoGame(game);
     res.json({ success: true });
   });
   app.get(['/api/health', '/api/health/live'], (_req, res) => res.json({ status: 'ok' }));
@@ -956,9 +1074,11 @@ export function attachRuntime(
     for (const [id, p] of queue) if (Date.now() - p.lastSeen > 30000) queue.delete(id);
     for (const room of rooms.values())
       if (room.peers.some((p) => Date.now() - p.lastSeen > 30000)) leave(room.peers[0].id);
+    for (const game of unoCleanup()) pushUnoGame(game);
     for (const [token, session] of sessions)
       if (session.expiresAt <= Date.now()) {
         leave(session.id);
+        for (const game of unoDropSession(session.id)) pushUnoGame(game);
         sockets.get(session.id)?.close();
         sessions.delete(token);
         identities.delete(session.id);
@@ -981,6 +1101,7 @@ export function attachRuntime(
     sessions.clear();
     identities.clear();
     sockets.clear();
+    unoReset();
     wss.close();
   };
 }

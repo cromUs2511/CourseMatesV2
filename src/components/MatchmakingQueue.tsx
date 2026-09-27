@@ -36,6 +36,7 @@ interface MatchmakingQueueProps {
   isDarkMode: boolean;
   autoSearch?: boolean;
   chatTheme: ChatTheme;
+  onOpenUno?: () => void;
 }
 
 export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
@@ -46,6 +47,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   isDarkMode,
   autoSearch = false,
   chatTheme,
+  onOpenUno,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -570,6 +572,34 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* UNO Arena — casual 1v1 before or instead of chat matching */}
+        <div
+          className={`ui-surface rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+            isDarkMode ? 'text-stone-100' : 'text-stone-800'
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 -rotate-6 items-center justify-center rounded-xl border-2 border-yellow-400 bg-red-600 shadow">
+              <span className="text-xs font-black italic tracking-tighter text-white">UNO</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-bold">UNO Arena</div>
+              <div className="text-xs text-stone-500 dark:text-stone-400">
+                Play a live 1v1 card duel against another student
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenUno}
+            disabled={isSearching}
+            id="open-uno-btn"
+            className="w-full sm:w-auto shrink-0 rounded-xl border border-stone-300 px-4 py-2 text-xs font-bold transition hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800"
+          >
+            Enter arena
+          </button>
         </div>
       </div>
     </div>
