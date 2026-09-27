@@ -16,7 +16,7 @@ before(async () => {
 });
 after(async () => {
   stop();
-  server.closeAllConnections();
+  server.closeIdleConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 const identity = (verified = false) => issueSession('test@gmail.com', {}, verified);
@@ -328,9 +328,9 @@ test('WebSocket rejects fake credentials', async () => {
   });
   const status = await new Promise<number>((resolve) => {
     ws.once('unexpected-response', (_req, res) => {
+      const statusCode = res.statusCode!;
+      res.once('end', () => resolve(statusCode));
       res.resume();
-      resolve(res.statusCode!);
-      ws.terminate();
     });
     ws.on('error', () => {});
   });
@@ -357,9 +357,9 @@ test('foreign-origin WebSocket upgrade fails even with a valid cookie', async ()
   });
   const status = await new Promise<number>((resolve) => {
     ws.once('unexpected-response', (_req, res) => {
+      const statusCode = res.statusCode!;
+      res.once('end', () => resolve(statusCode));
       res.resume();
-      resolve(res.statusCode!);
-      ws.terminate();
     });
     ws.on('error', () => {});
   });

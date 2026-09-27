@@ -33,7 +33,7 @@ import { reconcileMessageSnapshot } from '../utils/chatMessages';
 import { Header, type HeaderProps } from './Header';
 import { AmbientAurora } from './AmbientAurora';
 import { SpiderWebBackground } from './SpiderWebBackground';
-import { TopMusicBar } from './TopMusicBar';
+import { TopMusicBar, type TopMusicBarHandle } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
 import { ThemeToggle } from './ThemeToggle';
@@ -49,6 +49,7 @@ import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
+import { chatMediaRemainingSeconds, formatChatMediaCountdown } from '../data/chatMedia';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
@@ -131,6 +132,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [touchComposer, setTouchComposer] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const musicBarRef = useRef<TopMusicBarHandle>(null);
+  const [mediaRemainingSeconds, setMediaRemainingSeconds] = useState(() =>
+    chatMediaRemainingSeconds(peer.mediaUnlockAt),
+  );
   const [activeSnippetId, setActiveSnippetId] = useState<string | null>(null);
   const [snippetPlaying, setSnippetPlaying] = useState(false);
   const [starterPool, setStarterPool] = useState<string[]>(() =>
@@ -205,6 +211,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setAiSuggestions(nextSuggestions);
     setIsSuggestionsLoading(false);
   }, [starterPool, startersSent]);
+
+  useEffect(() => {
+    let timer = 0;
+    const update = () => {
+      const remaining = chatMediaRemainingSeconds(peer.mediaUnlockAt);
+      setMediaRemainingSeconds(remaining);
+      if (!remaining && timer) window.clearInterval(timer);
+    };
+    update();
+    if (chatMediaRemainingSeconds(peer.mediaUnlockAt) > 0) timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, [peer.mediaUnlockAt]);
 
   const receiveMessages = useCallback(
     (incoming: any[], replace = false) => {
@@ -1036,141 +1054,147 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           composerEngaged ? 'composer-engaged' : ''
         }`}
       >
-        <Header
-          {...headerProps}
-          showReroll={false}
-          conversation={
-            <div className="chat-header-conversation flex min-w-0 flex-1 items-center justify-center">
-              <div className="chat-header-peer flex min-w-0 w-full flex-col items-center justify-center gap-0.5 text-center">
-                <span
-                  title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                  className="chat-header-peer-name min-w-0 max-w-full line-clamp-2 break-words text-center text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-sm"
-                >
-                  {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
-                </span>
-                <span className="chat-header-status flex shrink-0 items-center justify-center gap-1 text-[10px] font-medium leading-3">
+        <div className="hidden min-[768px]:contents">
+          <Header
+            {...headerProps}
+            showReroll={false}
+            conversation={
+              <div className="chat-header-conversation flex min-w-0 flex-1 items-center justify-center">
+                <div className="chat-header-peer flex min-w-0 w-full flex-col items-center justify-center gap-0.5 text-center">
                   <span
-                    className="chat-presence-dot"
-                    data-status={peerPresence}
-                    aria-hidden="true"
-                  />
-                  <span className="chat-theme-accent-text shrink-0">
-                    {peer.isSimulated ? 'AI' : 'Peer'}
+                    title={peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
+                    className="chat-header-peer-name min-w-0 max-w-full line-clamp-2 break-words text-center text-[13px] font-bold leading-4 text-stone-900 dark:text-white sm:text-sm"
+                  >
+                    {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
                   </span>
-                  <span className="shrink-0 text-stone-400 dark:text-stone-500" aria-hidden="true">
-                    ·
+                  <span className="chat-header-status flex shrink-0 items-center justify-center gap-1 text-[10px] font-medium leading-3">
+                    <span
+                      className="chat-presence-dot"
+                      data-status={peerPresence}
+                      aria-hidden="true"
+                    />
+                    <span className="chat-theme-accent-text shrink-0">
+                      {peer.isSimulated ? 'AI' : 'Peer'}
+                    </span>
+                    <span
+                      className="shrink-0 text-stone-400 dark:text-stone-500"
+                      aria-hidden="true"
+                    >
+                      ·
+                    </span>
+                    <span className="chat-presence-label shrink-0" data-status={peerPresence}>
+                      {PRESENCE_LABELS[peerPresence]}
+                    </span>
                   </span>
-                  <span className="chat-presence-label shrink-0" data-status={peerPresence}>
-                    {PRESENCE_LABELS[peerPresence]}
-                  </span>
-                </span>
+                </div>
               </div>
-            </div>
-          }
-          displayActions={
-            <>
-              <ChatThemeMenu
-                theme={chatTheme}
-                onChange={onChatThemeChange}
-                isDarkMode={isDarkMode}
-                compact
-              />
-              {!peerDisconnected && (
-                <TopMusicBar
-                  compact
+            }
+            displayActions={
+              <>
+                <ChatThemeMenu
+                  theme={chatTheme}
+                  onChange={onChatThemeChange}
                   isDarkMode={isDarkMode}
-                  roomId={roomId}
-                  ws={ws}
-                  remoteMusic={roomMusic}
-                  isSimulated={peer.isSimulated}
-                  onAmbientChange={handleAmbientChange}
-                  accent={chatTheme.accent}
-                  accentHover={chatTheme.accentHover}
+                  compact
                 />
-              )}
-              <button
-                id="chat-fullscreen-btn"
-                onClick={toggleFullscreen}
-                aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                className="chat-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
+                {!peerDisconnected && (
+                  <TopMusicBar
+                    ref={musicBarRef}
+                    compact
+                    isDarkMode={isDarkMode}
+                    roomId={roomId}
+                    ws={ws}
+                    remoteMusic={roomMusic}
+                    isSimulated={peer.isSimulated}
+                    onAmbientChange={handleAmbientChange}
+                    accent={chatTheme.accent}
+                    accentHover={chatTheme.accentHover}
+                  />
                 )}
-              </button>
-            </>
-          }
-          chatActions={
-            <>
-              {!peer.isSimulated && !peerDisconnected && roomId && (
                 <button
-                  type="button"
-                  onClick={() => setSafetyOpen(true)}
-                  aria-label="Report or block peer"
-                  title="Report or block peer"
-                  className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
+                  id="chat-fullscreen-btn"
+                  onClick={toggleFullscreen}
+                  aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                  title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                  className="chat-display-control flex h-8 w-8 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10 cursor-pointer"
                 >
-                  <Shield className="h-4 w-4" />
-                </button>
-              )}
-              {!peer.isSimulated && !peerDisconnected && roomId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (unoState?.game) {
-                      setUnoOpen(true);
-                      setUnoError('');
-                    } else if (!unoState?.challenge) void challengePeer();
-                  }}
-                  aria-label={
-                    unoState?.game
-                      ? 'Open the UNO table'
-                      : unoState?.challenge
-                        ? 'A UNO challenge is pending'
-                        : 'Challenge this peer to a UNO duel'
-                  }
-                  title={
-                    unoState?.game
-                      ? 'Open UNO table'
-                      : unoState?.challenge
-                        ? 'UNO challenge pending'
-                        : 'Challenge peer to UNO'
-                  }
-                  className={`chat-display-control relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10 ${
-                    unoState?.game ? 'text-yellow-400' : 'text-[#c8bb8d]'
-                  }`}
-                >
-                  <Gamepad2 className="h-4 w-4" />
-                  {unoState?.challenge?.direction === 'incoming' && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse motion-reduce:animate-none rounded-full bg-red-500" />
+                  {isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
                   )}
                 </button>
-              )}
-              <ThemeToggle
-                id="mobile-dark-mode-toggle-btn"
-                isDarkMode={headerProps.isDarkMode}
-                onToggle={headerProps.onToggleDarkMode}
-                compact
-                className="chat-theme-toggle min-[900px]:hidden"
-              />
-              {!peerDisconnected && (
-                <button
-                  id="leave-chat-btn"
-                  type="button"
-                  onClick={requestLeave}
-                  aria-label="Disconnect and leave chat"
-                  title="Disconnect and leave chat"
-                  className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
-            </>
-          }
-        />
+              </>
+            }
+            chatActions={
+              <>
+                {!peer.isSimulated && !peerDisconnected && roomId && (
+                  <button
+                    type="button"
+                    onClick={() => setSafetyOpen(true)}
+                    aria-label="Report or block peer"
+                    title="Report or block peer"
+                    className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
+                  >
+                    <Shield className="h-4 w-4" />
+                  </button>
+                )}
+                {!peer.isSimulated && !peerDisconnected && roomId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (unoState?.game) {
+                        setUnoOpen(true);
+                        setUnoError('');
+                      } else if (!unoState?.challenge) void challengePeer();
+                    }}
+                    aria-label={
+                      unoState?.game
+                        ? 'Open the UNO table'
+                        : unoState?.challenge
+                          ? 'A UNO challenge is pending'
+                          : 'Challenge this peer to a UNO duel'
+                    }
+                    title={
+                      unoState?.game
+                        ? 'Open UNO table'
+                        : unoState?.challenge
+                          ? 'UNO challenge pending'
+                          : 'Challenge peer to UNO'
+                    }
+                    className={`chat-display-control relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10 ${
+                      unoState?.game ? 'text-yellow-400' : 'text-[#c8bb8d]'
+                    }`}
+                  >
+                    <Gamepad2 className="h-4 w-4" />
+                    {unoState?.challenge?.direction === 'incoming' && (
+                      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse motion-reduce:animate-none rounded-full bg-red-500" />
+                    )}
+                  </button>
+                )}
+                <ThemeToggle
+                  id="mobile-dark-mode-toggle-btn"
+                  isDarkMode={headerProps.isDarkMode}
+                  onToggle={headerProps.onToggleDarkMode}
+                  compact
+                  className="chat-theme-toggle min-[900px]:hidden"
+                />
+                {!peerDisconnected && (
+                  <button
+                    id="leave-chat-btn"
+                    type="button"
+                    onClick={requestLeave}
+                    aria-label="Disconnect and leave chat"
+                    title="Disconnect and leave chat"
+                    className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+              </>
+            }
+          />
+        </div>
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -1729,6 +1753,122 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </div>
           )}
           <div ref={composerRef} className="max-w-3xl mx-auto">
+            {mediaRemainingSeconds > 0 && (
+              <p
+                role="status"
+                aria-label="Media unlock timer"
+                className="mb-1.5 hidden text-xs font-semibold text-stone-500 dark:text-stone-400 min-[768px]:block"
+              >
+                Photos &amp; voice unlock in {formatChatMediaCountdown(mediaRemainingSeconds)}
+              </p>
+            )}
+            <div className="relative mb-1.5 flex min-h-8 items-center justify-between gap-2 min-[768px]:hidden">
+              {mediaRemainingSeconds > 0 ? (
+                <p
+                  role="status"
+                  aria-label="Media unlock timer"
+                  className="truncate text-[11px] font-semibold text-stone-500 dark:text-stone-400"
+                >
+                  Photos &amp; voice in {formatChatMediaCountdown(mediaRemainingSeconds)}
+                </p>
+              ) : (
+                <span />
+              )}
+              <button
+                type="button"
+                aria-label="Chat actions"
+                aria-expanded={mobileActionsOpen}
+                onClick={() => setMobileActionsOpen((open) => !open)}
+                className="chat-theme-outline flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-white/90 text-stone-600 dark:border-stone-700 dark:bg-stone-900/90 dark:text-stone-300"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+              {mobileActionsOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Chat actions menu"
+                  className="absolute bottom-10 right-0 z-50 w-64 rounded-2xl border border-stone-200 bg-white p-3 shadow-2xl dark:border-stone-700 dark:bg-stone-900"
+                >
+                  <p className="mb-2 truncate text-xs font-bold text-stone-800 dark:text-stone-100">
+                    {peer.isSimulated ? STUDENT_CHATBOT_NAME : peer.handle}
+                  </p>
+                  <div className="flex items-center justify-between gap-2 border-y border-stone-200 py-2 dark:border-stone-700">
+                    <span className="text-xs text-stone-500 dark:text-stone-400">Appearance</span>
+                    <div className="flex items-center gap-2">
+                      <ChatThemeMenu
+                        theme={chatTheme}
+                        onChange={onChatThemeChange}
+                        isDarkMode={isDarkMode}
+                        compact
+                      />
+                      <ThemeToggle
+                        id="mobile-chat-dark-mode-toggle-btn"
+                        isDarkMode={headerProps.isDarkMode}
+                        onToggle={headerProps.onToggleDarkMode}
+                        compact
+                        className="chat-theme-toggle"
+                      />
+                    </div>
+                  </div>
+                  {!peerDisconnected && (
+                    <div className="flex items-center justify-between gap-2 border-b border-stone-200 py-2 dark:border-stone-700">
+                      <span className="text-xs text-stone-500 dark:text-stone-400">Room music</span>
+                      <button
+                        type="button"
+                        aria-label="Open music controls"
+                        onClick={() => {
+                          setMobileActionsOpen(false);
+                          musicBarRef.current?.openMenu();
+                        }}
+                        className="chat-display-control flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-semibold"
+                        style={{ color: chatTheme.accent }}
+                      >
+                        <Music2 className="h-4 w-4" /> Open
+                      </button>
+                    </div>
+                  )}
+                  <div className="mt-2 grid gap-1">
+                    {unoState?.game && !unoOpen && (
+                      <button
+                        type="button"
+                        aria-label="Resume UNO game"
+                        onClick={() => {
+                          setMobileActionsOpen(false);
+                          setUnoOpen(true);
+                        }}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800"
+                      >
+                        <Gamepad2 className="h-4 w-4" /> Resume UNO game
+                      </button>
+                    )}
+                    {!peer.isSimulated && !peerDisconnected && roomId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileActionsOpen(false);
+                          setSafetyOpen(true);
+                        }}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800"
+                      >
+                        <Shield className="h-4 w-4" /> Report or block peer
+                      </button>
+                    )}
+                    {!peerDisconnected && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileActionsOpen(false);
+                          requestLeave();
+                        }}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                      >
+                        <LogOut className="h-4 w-4" /> End chat
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             {replyingTo && (
               <div
                 className="mb-2 flex min-w-0 items-center gap-3 rounded-xl border-l-[3px] bg-stone-100 px-3 py-2 text-left text-xs dark:bg-stone-900"
@@ -1853,6 +1993,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   onChange={setPendingImages}
                   disabled={
                     peerDisconnected ||
+                    mediaRemainingSeconds > 0 ||
                     isSending ||
                     isRecordingVoice ||
                     !!editingMessageId ||
@@ -1866,7 +2007,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 {!editingMessageId && (
                   <VoiceRecorder
                     disabled={
-                      peerDisconnected || isSending || preparingImages || pendingImages.length > 0
+                      peerDisconnected ||
+                      mediaRemainingSeconds > 0 ||
+                      isSending ||
+                      preparingImages ||
+                      pendingImages.length > 0
                     }
                     hasVoice={!!pendingVoice}
                     onChange={setPendingVoice}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Play, Pause, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
@@ -42,17 +42,27 @@ interface TopMusicBarProps {
   accentHover?: string;
 }
 
-export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = ({
-  isDarkMode,
-  roomId,
-  ws,
-  isSimulated,
-  remoteMusic,
-  onAmbientChange,
-  accent = '#991B1B',
-  accentHover = '#7F1D1D',
-  compact = false,
-}) => {
+export type TopMusicBarHandle = {
+  openMenu: () => void;
+};
+
+export const TopMusicBar = React.forwardRef<
+  TopMusicBarHandle,
+  TopMusicBarProps & { compact?: boolean }
+>(function TopMusicBar(
+  {
+    isDarkMode,
+    roomId,
+    ws,
+    isSimulated,
+    remoteMusic,
+    onAmbientChange,
+    accent = '#991B1B',
+    accentHover = '#7F1D1D',
+    compact = false,
+  },
+  ref,
+) {
   const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -83,6 +93,8 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchRequestRef = useRef<AbortController | null>(null);
+
+  useImperativeHandle(ref, () => ({ openMenu: () => setIsMenuOpen(true) }), []);
 
   useEffect(() => () => searchRequestRef.current?.abort(), []);
   useEffect(() => {
@@ -916,4 +928,4 @@ export const TopMusicBar: React.FC<TopMusicBarProps & { compact?: boolean }> = (
       )}
     </div>
   );
-};
+});

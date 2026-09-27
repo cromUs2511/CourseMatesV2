@@ -14,6 +14,7 @@ test('long mobile history stays visible while backreading with aurora and incomi
   const other = await browser.newContext();
   try {
     await context.addInitScript(() => {
+      (window as any).musicPlayerDestroyCount = 0;
       (window as any).YT = {
         Player: class {
           constructor(
@@ -35,7 +36,9 @@ test('long mobile history stays visible while backreading with aurora and incomi
           setVolume() {}
           mute() {}
           unMute() {}
-          destroy() {}
+          destroy() {
+            (window as any).musicPlayerDestroyCount += 1;
+          }
         },
       };
     });
@@ -82,11 +85,13 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await expect
       .poll(() => scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight))
       .toBeLessThanOrEqual(1);
-    await page.getByRole('button', { name: 'Account and display settings' }).click();
+    await page.getByRole('button', { name: 'Chat actions' }).click();
     await page.getByRole('button', { name: 'Open music controls' }).click();
     await page.getByRole('button', { name: 'Play Study Music' }).click();
     await page.keyboard.press('Escape');
     await expect(page.locator('.ambient-aurora')).toBeVisible();
+    await expect(page.getByTestId('music-engine')).toHaveCount(1);
+    expect(await page.evaluate(() => (window as any).musicPlayerDestroyCount)).toBe(0);
     const cdp = await context.newCDPSession(page);
     await cdp.send('Performance.enable');
     await cdp.send('LayerTree.enable');

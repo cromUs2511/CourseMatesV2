@@ -13,6 +13,9 @@ const webServerEnv = {
   GEMINI_API_KEY: '',
   GROQ_API_KEY: '',
   YOUTUBE_API_KEY: '',
+  // Media timing is covered by focused runtime and browser-clock tests. Keep
+  // the existing photo delivery suite fast while retaining production's 90s gate.
+  CHAT_MEDIA_LOCK_MS: '0',
 };
 
 const channel = process.env.PW_CHANNEL || 'chrome';

@@ -320,12 +320,18 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 </span>
               )}
             </div>
-            {yourTurn && (
+            {!gameOver && (
               <p
+                key={state.turn}
                 role="status"
-                className="uno-turn-indicator rounded-full border-2 border-slate-950/60 bg-amber-400 px-4 py-1.5 text-sm font-black uppercase tracking-wide text-slate-950 shadow-lg"
+                aria-live="polite"
+                className={`uno-turn-indicator rounded-full border-2 px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-lg ${
+                  yourTurn
+                    ? 'is-yours border-slate-950/60 bg-amber-400 text-slate-950'
+                    : 'border-slate-500/60 bg-slate-800 text-slate-200'
+                }`}
               >
-                Your turn!
+                {yourTurn ? 'Your turn!' : "Opponent's turn"}
               </p>
             )}
           </div>

@@ -127,7 +127,8 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       sessionId: data.peer.sessionId,
       interests: data.peer.interests || [],
       topic: data.topic || 'General Peer Discovery',
-      matchedAt: Date.now(),
+      matchedAt: data.matchedAt || Date.now(),
+      mediaUnlockAt: data.mediaUnlockAt || Date.now() + 90_000,
     };
     const socket = wsRef.current;
     if (socket) {
@@ -332,6 +333,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         sessionId: 'sim_' + Date.now(),
         topic: primaryTopic,
         matchedAt: Date.now(),
+        mediaUnlockAt: Date.now() + 90_000,
         isSimulated: true,
       },
       primaryTopic,

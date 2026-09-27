@@ -14,12 +14,33 @@ async function signIn(page: Page, _name: string) {
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
   await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 }
-async function demo(page: Page, name: string) {
+async function demo(page: Page, name: string, keepMediaLocked = false) {
   await signIn(page, name);
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.locator('#chat-header')).toBeVisible();
+  if ((page.viewportSize()?.width || 1280) < 768)
+    await expect(page.locator('#chat-header')).toBeHidden();
+  else await expect(page.locator('#chat-header')).toBeVisible();
+  if (!keepMediaLocked) {
+    await page.evaluate(() => {
+      const browserNow = Date.now.bind(Date);
+      Date.now = () => browserNow() + 91_000;
+    });
+    await page.waitForTimeout(300);
+  }
 }
+
+test('photo and voice controls show a 1:30 unlock timer without locking music', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await demo(page, 'media-timer', true);
+  await page.getByRole('textbox', { name: 'Chat message' }).focus();
+  await expect(page.getByRole('status', { name: 'Media unlock timer' })).toContainText('1:30');
+  await expect(page.getByRole('button', { name: 'Attach photos' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Send music snippet' })).toBeEnabled();
+});
 async function attach(page: Page, files = [photo]) {
   await page.getByRole('textbox', { name: 'Chat message' }).focus();
   await page.getByRole('button', { name: 'Attach photos', exact: true }).click();

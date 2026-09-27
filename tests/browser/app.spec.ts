@@ -8,7 +8,13 @@ async function signIn(page: Page, _name: string) {
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible())
     await page.keyboard.press('Escape');
-  if (await page.locator('#chat-header').isVisible()) {
+  if (await page.getByRole('button', { name: 'Chat actions' }).isVisible()) {
+    await page.getByRole('button', { name: 'Chat actions' }).click();
+    await page.getByRole('button', { name: 'End chat' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
+    if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Quit', exact: true }).click();
+  } else if (await page.locator('#chat-header').isVisible()) {
     if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
       await page.getByRole('button', { name: 'Quit', exact: true }).click();
     } else {
@@ -23,7 +29,9 @@ async function logout(page: Page) {
 async function openMusic(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible()) return;
   if (!(await page.getByRole('button', { name: 'Open music controls' }).isVisible())) {
-    await page.getByRole('button', { name: 'Account and display settings' }).click();
+    const mobileActions = page.getByRole('button', { name: 'Chat actions' });
+    if (await mobileActions.isVisible()) await mobileActions.click();
+    else await page.getByRole('button', { name: 'Account and display settings' }).click();
   }
   await page.getByRole('button', { name: 'Open music controls' }).click();
 }
@@ -164,7 +172,8 @@ test('mobile layout, theme persistence, demo chat and music controls', async ({ 
   await signIn(page, 'mobile');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await expect(page.getByText('Conversation with the Student Chatbot Assistant.')).toBeVisible();
+  await expect(page.locator('#chat-header')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Chat actions' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeInViewport();
   const overflow = await page.evaluate(
     () =>
@@ -248,11 +257,16 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
   await signIn(page, 'voice-message');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
+  await page.evaluate(() => {
+    const browserNow = Date.now.bind(Date);
+    Date.now = () => browserNow() + 91_000;
+  });
+  await page.waitForTimeout(300);
   await expect(
     page.getByRole('button', { name: 'Choose audio or use phone recorder' }),
   ).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Chat message' }).focus();
-  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeEnabled();
   await expect(page.getByLabel('Choose an audio recording')).toHaveCount(0);
   await page.getByRole('button', { name: 'Record with microphone' }).click();
   await expect(page.getByRole('button', { name: 'Stop voice recording' })).toBeVisible();

@@ -51,10 +51,13 @@ test('aurora follows music and glow preferences and respects reduced motion', as
     await page.setViewportSize({ width, height: 800 });
     for (const mode of ['dark', 'light']) {
       const settings = page.getByRole('button', { name: 'Account and display settings' });
-      if (await settings.isVisible()) await settings.click();
+      const mobileActions = page.getByRole('button', { name: 'Chat actions' });
+      if (await mobileActions.isVisible()) await mobileActions.click();
+      else if (await settings.isVisible()) await settings.click();
       const toggle = page.getByRole('button', { name: `Switch to ${mode} mode` });
       if (await toggle.isVisible()) await toggle.click();
-      if (await settings.isVisible()) await page.keyboard.press('Escape');
+      if (await mobileActions.isVisible()) await mobileActions.click();
+      else if (await settings.isVisible()) await page.keyboard.press('Escape');
       // Capture settled colors and a repeatable point in the slow curtain motion.
       await aurora.evaluate((el) =>
         el.getAnimations({ subtree: true }).forEach((animation) => {

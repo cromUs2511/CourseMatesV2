@@ -19,6 +19,13 @@ const gif = {
 };
 const voiceBytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02, 0x03]);
 const voice = { dataUrl: 'data:audio/webm;base64,' + voiceBytes.toString('base64'), duration: 12 };
+const setNow = (now: number) => {
+  const original = Date.now;
+  Date.now = () => now;
+  return () => {
+    Date.now = original;
+  };
+};
 const app = express();
 app.use(express.json({ limit: CHAT_SEND_BODY_LIMIT }));
 const server = http.createServer(app);
@@ -75,12 +82,31 @@ test('voice validation enforces supported audio and the three-minute limit', () 
     assert.throws(() => parseVoice(invalid));
 });
 
+test('photos and recorded voice stay locked for 90 seconds while text remains available', async () => {
+  const a = identity(),
+    b = identity();
+  await request('/api/match/join', a, {});
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  try {
+    assert.equal(typeof mediaUnlockAt, 'number');
+    assert.equal((await request('/api/chat/send', a, { roomId, text: 'hello' })).status, 200);
+    for (const media of [{ images: [photo] }, { voice }]) {
+      const response = await request('/api/chat/send', a, { roomId, text: '', ...media });
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /available in/);
+    }
+  } finally {
+    await request('/api/match/cancel', a, {});
+  }
+});
+
 test('voice messages are private, playable by both peers, and purged with the message', async () => {
   const a = identity(),
     b = identity(),
     outsider = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
     const response = await request('/api/chat/send', a, {
       roomId,
@@ -103,6 +129,7 @@ test('voice messages are private, playable by both peers, and purged with the me
     await request('/api/chat/delete', a, { roomId, messageId: message.id });
     assert.equal((await request(message.voice.url, b)).status, 404);
   } finally {
+    restoreNow();
     await request('/api/match/cancel', a, {});
   }
 });
@@ -112,7 +139,8 @@ test('photo-only messages are private, retry-safe, available to both peers and p
     b = identity(),
     outsider = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
     const payload = {
       roomId,
@@ -158,6 +186,7 @@ test('photo-only messages are private, retry-safe, available to both peers and p
     await request('/api/chat/leave', a, { roomId });
     assert.equal((await request(next.message.images[0].url, b)).status, 404);
   } finally {
+    restoreNow();
     await request('/api/match/cancel', a, {});
   }
 });
@@ -166,8 +195,10 @@ test('evicting an old message also removes its photo', async () => {
   const a = identity(),
     b = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
+    await request('/api/chat/messages?roomId=' + roomId, b);
     const { message } = await (
       await request('/api/chat/send', a, { roomId, text: '', images: [photo] })
     ).json();
@@ -179,6 +210,7 @@ test('evicting an old message also removes its photo', async () => {
       500,
     );
   } finally {
+    restoreNow();
     await request('/api/match/cancel', a, {});
   }
 });

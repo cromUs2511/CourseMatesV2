@@ -5,6 +5,11 @@ import type { Server } from 'node:http';
 import { normalizeSharedTrack } from './src/data/musicDirectory';
 import type { PeerPresence, RoomMusicState, StudentSession } from './src/types';
 import { MESSAGE_REACTIONS } from './src/data/reactions';
+import {
+  CHAT_MEDIA_LOCK_MS,
+  chatMediaRemainingSeconds,
+  formatChatMediaCountdown,
+} from './src/data/chatMedia';
 import { MAX_ROOM_IMAGE_BYTES, parseImages, type StoredImage } from './chatImages';
 import type { ChatImage } from './src/data/chatImages';
 import { parseVoice, type StoredVoice } from './voiceMessages';
@@ -59,6 +64,7 @@ type Message = {
 type RoomMusic = RoomMusicState;
 type Room = {
   id: string;
+  mediaUnlockAt: number;
   peers: [Participant, Participant];
   topic: string;
   messages: Message[];
@@ -83,6 +89,10 @@ const defaultLimits = {
   sockets: 2000,
   mediaBytes: 128 * 1024 * 1024,
 };
+const chatMediaLockMs =
+  process.env.NODE_ENV === 'test' && process.env.CHAT_MEDIA_LOCK_MS === '0'
+    ? 0
+    : CHAT_MEDIA_LOCK_MS;
 let limits = { ...defaultLimits };
 let totalMediaBytes = 0;
 let draining = false;
@@ -269,7 +279,13 @@ function matchResult(id: string) {
   const room = rooms.get(matches.get(id) || '');
   if (!room) return null;
   const peer = room.peers.find((p) => p.id !== id)!;
-  return { status: 'matched', roomId: room.id, peer: publicPeer(peer), topic: room.topic };
+  return {
+    status: 'matched',
+    roomId: room.id,
+    peer: publicPeer(peer),
+    topic: room.topic,
+    mediaUnlockAt: room.mediaUnlockAt,
+  };
 }
 function leave(id: string) {
   queue.delete(id);
@@ -385,6 +401,7 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   queue.delete(peer.id);
   const room: Room = {
     id: crypto.randomUUID(),
+    mediaUnlockAt: Date.now() + chatMediaLockMs,
     peers: [peer, participant],
     topic: interestMatch?.match.topic || 'General Peer Discovery',
     messages: [],
@@ -418,6 +435,11 @@ function send(session: Identity, room: Room, data: any) {
   if (duplicate) return duplicate;
   const images = parseImages(data.images);
   const voice = parseVoice(data.voice);
+  const mediaRemaining = chatMediaRemainingSeconds(room.mediaUnlockAt);
+  if ((images.length || voice) && mediaRemaining > 0)
+    throw new Error(
+      `Photos and voice messages are available in ${formatChatMediaCountdown(mediaRemaining)}.`,
+    );
   const musicSnippet =
     data.musicSnippet === undefined ? undefined : normalizeMusicSnippet(data.musicSnippet);
   if (data.musicSnippet !== undefined && !musicSnippet)

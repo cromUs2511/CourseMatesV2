@@ -59,6 +59,7 @@ export interface ActivePeerInfo {
   interests: string[];
   topic: string;
   matchedAt: number;
+  mediaUnlockAt: number;
   isSimulated?: boolean;
 }
 
