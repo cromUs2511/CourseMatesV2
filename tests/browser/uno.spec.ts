@@ -114,7 +114,7 @@ test('chat peers can challenge each other, accept and open the table over WebSoc
   await b.locator('#start-chat-btn').click();
   await expect(a.locator('#chat-header')).toBeVisible();
   await expect(b.locator('#chat-header')).toBeHidden();
-  await expect(b.getByRole('group', { name: 'Study music controls' })).toHaveCount(1);
+  await expect(b.locator('[aria-label="Study music controls"]')).toHaveCount(1);
 
   await a.getByRole('button', { name: 'Challenge this peer to a UNO duel' }).click();
   await expect(a.getByText(/Challenge sent to/)).toBeVisible();

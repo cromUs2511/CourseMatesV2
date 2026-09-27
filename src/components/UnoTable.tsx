@@ -336,7 +336,11 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             )}
           </div>
 
-          <div className="uno-hand uno-no-scrollbar flex w-full max-w-5xl justify-center overflow-x-auto px-4 py-2">
+          <div
+            className="uno-hand uno-no-scrollbar flex w-full max-w-5xl justify-center overflow-x-auto px-4 py-2"
+            tabIndex={0}
+            aria-label="Your UNO hand"
+          >
             <div className="flex min-w-max items-center justify-start -space-x-5 px-6 md:-space-x-7 md:justify-center">
               {state.you.hand.map((card, index) => {
                 const playable = yourTurn && state.playable.includes(card.id) && !busy;

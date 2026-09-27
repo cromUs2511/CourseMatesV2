@@ -8,19 +8,26 @@ async function signIn(page: Page, _name: string) {
 async function logout(page: Page) {
   if (await page.getByRole('region', { name: 'Choose music' }).isVisible())
     await page.keyboard.press('Escape');
-  if (await page.getByRole('button', { name: 'Chat actions' }).isVisible()) {
-    await page.getByRole('button', { name: 'Chat actions' }).click();
-    await page.getByRole('button', { name: 'End chat' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
-    if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible())
-      await page.getByRole('button', { name: 'Quit', exact: true }).click();
-  } else if (await page.locator('#chat-header').isVisible()) {
-    if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
-      await page.getByRole('button', { name: 'Quit', exact: true }).click();
-    } else {
-      await page.locator('#leave-chat-btn').click();
+  const quit = page.getByRole('button', { name: 'Quit', exact: true });
+  if (await quit.isVisible()) {
+    await quit.click();
+  } else {
+    const mobileActions = page.getByRole('button', { name: 'Chat actions' });
+    if (await mobileActions.isVisible()) {
+      if ((await mobileActions.getAttribute('aria-expanded')) !== 'true')
+        await mobileActions.click();
+      await page.getByRole('button', { name: 'End chat' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
-      await page.getByRole('button', { name: 'Quit', exact: true }).click();
+      if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible())
+        await page.getByRole('button', { name: 'Quit', exact: true }).click();
+    } else if (await page.locator('#chat-header').isVisible()) {
+      if (await page.getByRole('button', { name: 'Quit', exact: true }).isVisible()) {
+        await page.getByRole('button', { name: 'Quit', exact: true }).click();
+      } else {
+        await page.locator('#leave-chat-btn').click();
+        await page.getByRole('dialog').getByRole('button', { name: 'End chat' }).click();
+        await page.getByRole('button', { name: 'Quit', exact: true }).click();
+      }
     }
   }
   await page.locator('#logout-btn').click();
@@ -251,17 +258,15 @@ test('records, previews, and sends a voice message', async ({ browser }) => {
     });
   });
   const page = await context.newPage();
+  await page.clock.install();
   await page.route('**/api/ai/chatbot', (route) =>
     route.fulfill({ json: { reply: 'I received your voice message.', source: 'test-model' } }),
   );
   await signIn(page, 'voice-message');
   await page.locator('#start-chat-btn').click();
   await page.locator('#simulate-peer-btn').click();
-  await page.evaluate(() => {
-    const browserNow = Date.now.bind(Date);
-    Date.now = () => browserNow() + 91_000;
-  });
-  await page.waitForTimeout(300);
+  await page.clock.runFor(91_000);
+  await page.clock.resume();
   await expect(
     page.getByRole('button', { name: 'Choose audio or use phone recorder' }),
   ).toHaveCount(0);
@@ -435,8 +440,9 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
       await signIn(b, 'music-b');
       await a.locator('#start-chat-btn').click();
       await b.locator('#start-chat-btn').click();
-      await expect(a.locator('#chat-header')).toBeVisible();
-      await expect(b.locator('#chat-header')).toBeVisible();
+      for (const page of [a, b])
+        if (source.includes('mobile')) await expect(page.locator('#chat-header')).toBeHidden();
+        else await expect(page.locator('#chat-header')).toBeVisible();
       await openMusic(a);
       await a.getByRole('slider', { name: 'Music volume' }).fill('45');
       await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
