@@ -85,7 +85,7 @@ test('the arena pairs two real sessions, plays a full turn and never shows the o
   await expect(drawButton(other)).toBeEnabled({ timeout: 15_000 });
 
   // Walking away forfeits the table and returns to the lobby panel.
-  await actor.getByRole('button', { name: 'Leave the UNO table' }).click();
+  await actor.getByRole('button', { name: 'Quit the UNO game' }).click();
   const leaveDialog = actor.getByRole('dialog', { name: 'Leave the game?' });
   await expect(leaveDialog).toBeVisible();
   await leaveDialog.getByRole('button', { name: 'Leave table' }).click();
@@ -120,10 +120,10 @@ test('the main-menu arena drops the app header for as long as a game is live', a
   await expect(a.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
   await expect(a.locator('#main-header')).toHaveCount(0);
   await expect(a.getByRole('button', { name: 'Back to menu' })).toHaveCount(0);
-  await expect(a.getByRole('button', { name: 'Leave the UNO table' })).toBeVisible();
+  await expect(a.getByRole('button', { name: 'Quit the UNO game' })).toBeVisible();
 
   // Leaving the table brings the menu chrome back.
-  await a.getByRole('button', { name: 'Leave the UNO table' }).click();
+  await a.getByRole('button', { name: 'Quit the UNO game' }).click();
   const leaveDialog = a.getByRole('dialog', { name: 'Leave the game?' });
   await expect(leaveDialog).toBeVisible();
   await leaveDialog.getByRole('button', { name: 'Leave table' }).click();
@@ -179,6 +179,17 @@ test('chat peers can challenge each other, accept and open the table over WebSoc
   await expect(a.locator('.uno-table')).toHaveCount(0);
   await a.getByRole('button', { name: 'Open the UNO table' }).click();
   await expect(a.locator('.uno-table')).toBeVisible();
+
+  // Quitting from the chat table forfeits the duel and drops straight back
+  // into a working chat.
+  await a.getByRole('button', { name: 'Quit the UNO game' }).click();
+  const quitDialog = a.getByRole('dialog', { name: 'Leave the game?' });
+  await expect(quitDialog).toBeVisible();
+  await quitDialog.getByRole('button', { name: 'Leave table' }).click();
+  await expect(a.locator('.uno-table')).toHaveCount(0);
+  await expect(a.getByRole('button', { name: 'Open the UNO table' })).toHaveCount(0);
+  await expect(a.getByRole('textbox', { name: 'Chat message' })).toBeVisible();
+  await expect(b.getByRole('heading', { name: 'Victory!' })).toBeVisible({ timeout: 10_000 });
 
   expect(errors).toEqual([]);
   await first.close();
@@ -303,7 +314,7 @@ test('the arena table plays with touch on a phone and still fits when rotated', 
   );
 
   // Leaving works with the 40px header target.
-  await a.getByRole('button', { name: 'Leave the UNO table' }).tap();
+  await a.getByRole('button', { name: 'Quit the UNO game' }).tap();
   await a
     .getByRole('dialog', { name: 'Leave the game?' })
     .getByRole('button', { name: 'Leave table' })

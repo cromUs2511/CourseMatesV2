@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Ban, BookOpen, Crown, Loader2, Minimize2, RotateCw, X } from 'lucide-react';
+import { Ban, BookOpen, Crown, Loader2, LogOut, Minimize2, RotateCw, X } from 'lucide-react';
 import type { UnoAction, UnoCard, UnoColor, UnoValue, UnoViewerState } from '../../unoTypes';
 import { UNO_COLORS } from '../../unoTypes';
 import { playChime } from '../utils/sound';
@@ -181,7 +181,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           >
             <BookOpen className="h-4 w-4" />
           </button>
-          {onClose ? (
+          {onClose && (
             <button
               type="button"
               onClick={() => onClose()}
@@ -191,17 +191,16 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             >
               <Minimize2 className="h-4 w-4" />
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmLeave(true)}
-              aria-label="Leave the UNO table"
-              title="Leave the table"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-slate-700 md:h-8 md:w-8"
-            >
-              <X className="h-4 w-4" />
-            </button>
           )}
+          <button
+            type="button"
+            onClick={() => setConfirmLeave(true)}
+            aria-label="Quit the UNO game"
+            title="Quit the UNO game"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-red-900/70 hover:text-red-200 md:h-8 md:w-8"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </header>
 
