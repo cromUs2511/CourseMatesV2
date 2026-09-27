@@ -123,22 +123,28 @@ test('you may draw once per turn, then you must play or pass', () => {
   assert.equal(game.turn, 1);
 });
 
-test('forgetting the UNO call at one card costs two cards', () => {
+test('playing down to the last card calls UNO automatically', () => {
   const second = card('a2', 'red', '7');
   const game = rigged([[card('a1', 'red', '5'), second], [card('b1', 'blue', '9')]]);
-  game.play('p0', second.id);
-  assert.equal(game.players[0].hand.length, 3);
-  assert.match(game.notice, /forgot to call UNO/);
-});
-
-test('calling UNO first protects the last card', () => {
-  const second = card('a2', 'red', '7');
-  const game = rigged([[card('a1', 'red', '5'), second], [card('b1', 'blue', '9')]]);
-  game.callUno('p0');
   game.play('p0', second.id);
   assert.equal(game.players[0].hand.length, 1);
   assert.equal(game.players[0].calledUno, true);
   assert.equal(game.turn, 1);
+  assert.match(game.notice, /UNO!/);
+  assert.equal(game.stateFor('p1')?.opponent.calledUno, true, 'the other seat sees the call');
+});
+
+test('a lost UNO call still costs two cards', () => {
+  const second = card('a2', 'red', '7');
+  const game = rigged([[card('a1', 'red', '5'), second], [card('b1', 'blue', '9')]]);
+  game.play('p0', second.id);
+  // The call is automatic now, but the penalty stays as the safety net.
+  game.players[0].calledUno = false;
+  game.turn = 0;
+  game.hasDrawn = [true, false];
+  game.pass('p0');
+  assert.equal(game.players[0].hand.length, 3);
+  assert.match(game.notice, /forgot to call UNO/);
 });
 
 test('emptying your hand ends the game in your favour', () => {

@@ -98,7 +98,7 @@ function OpponentBox({ state, variant }: { state: UnoViewerState; variant: 'top'
           {state.opponent.handCount} card{state.opponent.handCount === 1 ? '' : 's'}
         </span>
         {state.opponent.calledUno && state.opponent.handCount === 1 && (
-          <span className="animate-bounce motion-reduce:animate-none rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
+          <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
             UNO!
           </span>
         )}
@@ -271,8 +271,9 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             <div className="flex flex-col items-center">
               <div className="relative flex items-center justify-center">
                 <UnoCardFace
+                  key={state.top.id}
                   card={state.top}
-                  className="pointer-events-none scale-105 shadow-2xl"
+                  className="uno-deal-in pointer-events-none scale-105 shadow-2xl"
                   label={`Discard pile: ${state.top.color} ${state.top.value}`}
                 />
               </div>
@@ -287,7 +288,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
               <button
                 type="button"
                 onClick={() => onAction({ action: 'pass', gameId: state.gameId })}
-                className="uno-pass animate-pulse motion-reduce:animate-none rounded-full border border-amber-500/40 bg-amber-600 px-5 py-2.5 text-sm font-black uppercase tracking-wider text-white shadow-lg transition hover:bg-amber-500 md:px-4 md:py-1 md:text-xs"
+                className="uno-pass rounded-full border border-amber-500/50 bg-amber-600 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-amber-500 md:px-4 md:py-1 md:text-xs"
               >
                 Pass turn
               </button>
@@ -303,14 +304,10 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
 
         {/* Your side */}
         <div className="uno-mine relative z-20 flex w-full flex-col items-center pb-2">
-          <div className="uno-callrow mb-1.5 flex w-full max-w-4xl items-center justify-between px-3">
+          <div className="uno-callrow mb-1.5 flex w-full max-w-4xl items-center justify-between gap-3 px-3">
             <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-slate-900/80 px-3 py-1">
               <span
-                className={`h-3 w-3 rounded-full ${
-                  yourTurn
-                    ? 'animate-ping motion-reduce:animate-none bg-emerald-400'
-                    : 'bg-slate-600'
-                }`}
+                className={`h-3 w-3 rounded-full ${yourTurn ? 'bg-emerald-400' : 'bg-slate-600'}`}
                 aria-hidden="true"
               />
               <span className="text-xs font-bold text-slate-100">You</span>
@@ -323,20 +320,14 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                playChime('message');
-                onAction({ action: 'uno', gameId: state.gameId });
-              }}
-              disabled={gameOver || busy}
-              aria-label="Call UNO"
-              className={`uno-call rounded-full border-2 border-yellow-400 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-5 py-2 text-base font-black italic tracking-wider text-yellow-300 shadow-xl transition-all active:scale-95 disabled:opacity-50 md:text-lg ${
-                state.you.hand.length === 2 && yourTurn ? 'uno-pulse-glow' : ''
-              }`}
-            >
-              UNO!
-            </button>
+            {yourTurn && (
+              <p
+                role="status"
+                className="uno-turn-indicator rounded-full border-2 border-slate-950/60 bg-amber-400 px-4 py-1.5 text-sm font-black uppercase tracking-wide text-slate-950 shadow-lg"
+              >
+                Your turn!
+              </p>
+            )}
           </div>
 
           <div className="uno-hand uno-no-scrollbar flex w-full max-w-5xl justify-center overflow-x-auto px-4 py-2">
@@ -346,8 +337,8 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 return (
                   <div
                     key={card.id}
-                    className="transition-transform duration-200"
-                    style={{ zIndex: index }}
+                    className="uno-hand-card transition-transform duration-200"
+                    style={{ zIndex: index, animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
                     <UnoCardFace
                       card={card}
@@ -448,8 +439,8 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 </li>
               </ul>
               <p>
-                <strong>UNO call:</strong> press the UNO! button when you are down to your last
-                card, or you draw 2 as a penalty.
+                <strong>UNO:</strong> the call is automatic — playing your second-to-last card
+                announces it for you.
               </p>
               <p>
                 <strong>Draw:</strong> once per turn you may draw; then play a card or pass.
@@ -503,17 +494,17 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           aria-label="Game result"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
         >
-          <div className="w-full max-w-sm rounded-3xl border-2 border-yellow-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-8 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-8 text-center shadow-2xl">
             <div
               className={`mb-3 flex justify-center ${
-                state.winner === 'you' ? 'text-yellow-400' : 'text-red-400'
+                state.winner === 'you' ? 'text-amber-400' : 'text-red-400'
               }`}
             >
-              <Crown className="h-12 w-12" />
+              <Crown className="h-10 w-10" />
             </div>
             <h2
-              className={`mb-2 text-3xl font-black uppercase tracking-wider ${
-                state.winner === 'you' ? 'text-yellow-400' : 'text-red-500'
+              className={`mb-2 text-2xl font-black tracking-wide ${
+                state.winner === 'you' ? 'text-amber-400' : 'text-red-400'
               }`}
             >
               {state.winner === 'you'
@@ -528,7 +519,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 type="button"
                 onClick={onLeave}
                 autoFocus
-                className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-3 font-black text-white shadow-lg transition hover:from-emerald-500 hover:to-emerald-400"
+                className="w-full rounded-xl bg-emerald-600 py-3 font-bold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 Leave table
               </button>

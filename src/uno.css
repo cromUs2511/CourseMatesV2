@@ -16,7 +16,11 @@
   width: 72px;
   height: 108px;
   border-radius: 10px;
-  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* Only the properties that actually change: `transition: all` was waking up
+     gradients and text on every state flip. */
+  transition:
+    transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    box-shadow 0.25s ease;
   box-shadow:
     0 4px 10px rgba(0, 0, 0, 0.35),
     inset 0 0 0 3px #ffffff;
@@ -198,23 +202,6 @@
   animation: unoSpinCounterClockwise 12s linear infinite;
 }
 
-.uno-pulse-glow {
-  animation: unoPulseGlow 1.8s infinite;
-}
-@keyframes unoPulseGlow {
-  0%,
-  100% {
-    box-shadow:
-      0 0 10px rgba(239, 68, 68, 0.4),
-      inset 0 0 10px rgba(239, 68, 68, 0.2);
-  }
-  50% {
-    box-shadow:
-      0 0 25px rgba(239, 68, 68, 0.9),
-      inset 0 0 15px rgba(239, 68, 68, 0.5);
-  }
-}
-
 .uno-no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -223,10 +210,68 @@
   scrollbar-width: none;
 }
 
+/* ---------- Motion ----------
+   One entrance per event: a dealt card lands, a new hand fans in, the turn
+   banner pops. Nothing loops forever, and every animation is listed in the
+   reduced-motion block below. Uses `translate`/`rotate` so it composes with
+   the Tailwind transform utilities instead of fighting them. */
+
+@keyframes unoDealIn {
+  from {
+    opacity: 0;
+    translate: 0 -26px;
+    rotate: -14deg;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+.uno-deal-in {
+  animation: unoDealIn 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes unoHandIn {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.uno-hand-card {
+  animation: unoHandIn 200ms ease-out backwards;
+}
+
+@keyframes unoTurnIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.uno-turn-indicator {
+  animation: unoTurnIn 300ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .uno-dir-cw,
-  .uno-dir-ccw,
-  .uno-pulse-glow {
+  .uno-dir-ccw {
+    animation: none;
+  }
+  .uno-deal-in,
+  .uno-hand-card,
+  .uno-turn-indicator {
     animation: none;
   }
   .uno-card {
@@ -360,12 +405,10 @@
     padding-bottom: 4px;
     font-size: 11px;
   }
-  .uno-call {
-    padding-top: 5px;
-    padding-bottom: 5px;
-    padding-left: 12px;
-    padding-right: 12px;
-    font-size: 14px;
+  .uno-turn-indicator {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 11px;
   }
   .uno-deck-shadow {
     height: 66px;

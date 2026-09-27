@@ -9,6 +9,11 @@ async function signIn(page: Page, _name: string) {
 
 const drawButton = (page: Page) => page.getByRole('button', { name: 'Draw a card from the deck' });
 
+/** Exactly one seat holds the turn, and only that seat is told "Your turn!". */
+const turnBannerCount = async (a: Page, b: Page) =>
+  (await a.locator('.uno-turn-indicator').count()) +
+  (await b.locator('.uno-turn-indicator').count());
+
 async function openArena(page: Page, expectWaiting: boolean) {
   await page.locator('#open-uno-btn').click();
   await expect(page.getByRole('heading', { name: 'UNO Arena', exact: true })).toBeVisible();
@@ -34,7 +39,9 @@ test('the arena pairs two real sessions, plays a full turn and never shows the o
   await expect(a.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
   await expect(b.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
 
-  await expect(a.getByRole('button', { name: 'Call UNO' })).toBeVisible();
+  await expect.poll(() => turnBannerCount(a, b)).toBe(1);
+  // The UNO call is automatic now - there is no button to press.
+  await expect(a.getByRole('button', { name: 'Call UNO' })).toHaveCount(0);
   await expect(a.getByRole('button', { name: 'UNO rules' })).toBeVisible();
   await expect(a.getByText('Discard pile')).toBeVisible();
   await expect(b.getByText('Discard pile')).toBeVisible();
@@ -230,7 +237,7 @@ test('the arena table plays with touch on a phone and still fits when rotated', 
   const landscapeBox = await a.locator('.uno-table').boundingBox();
   expect(landscapeBox!.height).toBeLessThanOrEqual(390);
   await expect(a.locator('.uno-hand')).toBeVisible();
-  await expect(a.getByRole('button', { name: 'Call UNO' })).toBeVisible();
+  await expect.poll(() => turnBannerCount(a, b)).toBe(1);
   await expect
     .poll(
       () => a.locator('.uno-stage').evaluate((stage) => stage.scrollHeight - stage.clientHeight),

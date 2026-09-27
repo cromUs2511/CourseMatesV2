@@ -177,6 +177,8 @@ export class UnoGame {
     player.hand.splice(index, 1);
     this.discard.push(card);
     this.hasDrawn[actor] = false;
+    // UNO is called for the player: one card left means the call already stands.
+    if (player.hand.length === 1) player.calledUno = true;
     const top = card;
     if (card.color === 'black') this.activeColor = color!;
     else this.activeColor = card.color;
@@ -212,6 +214,7 @@ export class UnoGame {
     } else {
       this.notice = `${player.handle} played ${card.color.toUpperCase()} ${top.value.toUpperCase()}.`;
     }
+    if (player.hand.length === 1) this.notice += ' — UNO!';
 
     if (penalty > 0) {
       const victimIndex = this.nextIndex();
