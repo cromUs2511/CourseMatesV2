@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Ban, BookOpen, Crown, Loader2, LogOut, Minimize2, RotateCw, X } from 'lucide-react';
-import type { UnoAction, UnoCard, UnoColor, UnoValue, UnoViewerState } from '../../unoTypes';
+import type {
+  UnoAction,
+  UnoCard,
+  UnoColor,
+  UnoOpponentView,
+  UnoValue,
+  UnoViewerState,
+} from '../../unoTypes';
 import { UNO_COLORS } from '../../unoTypes';
 import { playChime } from '../utils/sound';
 import '../uno.css';
@@ -75,39 +82,54 @@ export function UnoCardFace({
   );
 }
 
-function OpponentBox({ state, variant }: { state: UnoViewerState; variant: 'top' }) {
+function OpponentBox({
+  state,
+  opponent,
+  dense = false,
+}: {
+  state: UnoViewerState;
+  opponent: UnoOpponentView;
+  dense?: boolean;
+}) {
   const yourTurn = state.turn === 'you' && state.status === 'playing';
-  const fanCount = Math.min(state.opponent.handCount, 6);
+  const lit = dense ? opponent.active : !yourTurn;
+  const fanCount = Math.min(opponent.handCount, dense ? 4 : 6);
   return (
     <div
-      className={`uno-opponent flex flex-col items-center rounded-xl border bg-slate-900/70 px-4 py-1.5 shadow-lg backdrop-blur transition-all ${
-        yourTurn ? 'border-slate-600' : 'border-emerald-500/60 bg-emerald-950/40'
-      } ${variant === 'top' ? '' : ''}`}
+      className={`uno-opponent flex flex-col items-center rounded-xl border bg-slate-900/70 shadow-lg backdrop-blur transition-all ${
+        dense ? 'px-2.5 py-1' : 'px-4 py-1.5'
+      } ${lit ? 'border-emerald-500/60 bg-emerald-950/40' : 'border-slate-600'}`}
     >
       <div className="flex items-center gap-2">
         <span
           className={`h-2.5 w-2.5 rounded-full ${
-            yourTurn ? 'bg-slate-500' : 'animate-ping motion-reduce:animate-none bg-emerald-400'
+            lit ? 'animate-ping motion-reduce:animate-none bg-emerald-400' : 'bg-slate-500'
           }`}
           aria-hidden="true"
         />
         <span className="max-w-[140px] truncate text-xs font-bold text-slate-200 md:text-sm">
-          {state.opponent.handle}
+          {opponent.handle}
         </span>
         <span className="rounded-full border border-red-500/30 bg-red-900/60 px-2 py-0.5 text-xs font-black text-red-300">
-          {state.opponent.handCount} card{state.opponent.handCount === 1 ? '' : 's'}
+          {opponent.handCount} card{opponent.handCount === 1 ? '' : 's'}
         </span>
-        {state.opponent.calledUno && state.opponent.handCount === 1 && (
+        {opponent.calledUno && opponent.handCount === 1 && (
           <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
             UNO!
           </span>
         )}
       </div>
-      <div className="uno-fan mt-1.5 flex h-12 items-center justify-center -space-x-4 overflow-hidden md:h-14">
+      <div
+        className={`uno-fan mt-1.5 flex items-center justify-center overflow-hidden ${
+          dense ? 'h-7 -space-x-3' : 'h-12 -space-x-4 md:h-14'
+        }`}
+      >
         {Array.from({ length: fanCount }, (_, index) => (
           <div
             key={index}
-            className="card-back h-9 w-6 flex-shrink-0 rounded border border-white/30 shadow md:h-12 md:w-8"
+            className={`card-back flex-shrink-0 rounded border border-white/30 shadow ${
+              dense ? 'h-6 w-4' : 'h-9 w-6 md:h-12 md:w-8'
+            }`}
           />
         ))}
       </div>
@@ -161,7 +183,11 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             UNO!
           </span>
           <span className="hidden text-xs font-semibold uppercase tracking-widest text-emerald-300 sm:inline">
-            {state.source === 'arena' ? 'Arena 1v1' : 'Chat 1v1'}
+            {state.source === 'arena'
+              ? state.size === 4
+                ? 'Arena 4 players'
+                : 'Arena 1v1'
+              : 'Chat 1v1'}
           </span>
         </div>
         <p
@@ -218,9 +244,20 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           <span className="uno-ring-arrow arrow-right">▶</span>
         </div>
 
-        {/* Opponent */}
-        <div className="relative z-10 flex w-full justify-center">
-          <OpponentBox state={state} variant="top" />
+        {/* Other seats */}
+        <div
+          className={`relative z-10 flex w-full justify-center ${
+            state.opponents.length > 1 ? 'flex-wrap gap-2 px-2' : ''
+          }`}
+        >
+          {state.opponents.map((opponent) => (
+            <OpponentBox
+              key={opponent.seat}
+              state={state}
+              opponent={opponent}
+              dense={state.opponents.length > 1}
+            />
+          ))}
         </div>
 
         {/* Arena centre */}
@@ -330,7 +367,11 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                     : 'border-slate-500/60 bg-slate-800 text-slate-200'
                 }`}
               >
-                {yourTurn ? 'Your turn!' : "Opponent's turn"}
+                {yourTurn
+                  ? 'Your turn!'
+                  : state.opponents.length > 1
+                    ? `${state.turnHandle}'s turn`
+                    : "Opponent's turn"}
               </p>
             )}
           </div>

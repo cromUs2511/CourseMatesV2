@@ -76,6 +76,16 @@ test('UNO arena, table and rules meet WCAG A/AA without serious violations', asy
   }
 });
 
+test('tic tac toe meets WCAG A/AA without serious or critical violations', async ({ page }) => {
+  await enter(page);
+  await page.locator('#open-tictactoe-btn').click();
+  await expect(page.getByRole('heading', { name: 'Tic Tac Toe' })).toBeVisible();
+  expect(await audit(page)).toEqual([]);
+  await page.locator('#ttt-play-bot-btn').click();
+  await expect(page.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
+  expect(await audit(page)).toEqual([]);
+});
+
 test('the access gate can be completed with the keyboard alone', async ({ page }) => {
   await page.goto('/');
   const checkbox = page.getByRole('checkbox', { name: /at least 18 years old/i });

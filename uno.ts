@@ -3,17 +3,50 @@ import {
   UNO_COLORS,
   type UnoCard,
   type UnoColor,
+  type UnoOpponentView,
   type UnoSource,
+  type UnoTableSize,
   type UnoValue,
   type UnoViewerState,
 } from './unoTypes';
 
-export type { UnoCard, UnoColor, UnoSource, UnoValue, UnoViewerState } from './unoTypes';
+export type {
+  UnoCard,
+  UnoColor,
+  UnoSource,
+  UnoTableSize,
+  UnoValue,
+  UnoViewerState,
+} from './unoTypes';
 export { UNO_COLORS } from './unoTypes';
 
-type UnoPlayer = { id: string; handle: string; hand: UnoCard[]; calledUno: boolean };
+/** One seat at a table. A bot seat is played by the server, never by a client. */
+export type UnoSeat = { id: string; handle: string; bot?: boolean };
+
+type UnoPlayer = {
+  id: string;
+  handle: string;
+  hand: UnoCard[];
+  calledUno: boolean;
+  bot: boolean;
+};
+
+/** A table always has its first two seats; a four player table adds two more. */
+export type UnoPlayers = UnoPlayer[] & { 0: UnoPlayer; 1: UnoPlayer };
 
 const NUMBER_VALUES: UnoValue[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const BOT_NAMES = [
+  'Nova',
+  'Pixel',
+  'Echo',
+  'Orbit',
+  'Quartz',
+  'Juno',
+  'Volt',
+  'Ripple',
+  'Comet',
+  'Piper',
+];
 
 function shuffle<T>(items: T[]): T[] {
   for (let i = items.length - 1; i > 0; i--) {
@@ -55,32 +88,45 @@ export class UnoGame {
   readonly id = crypto.randomUUID();
   readonly source: UnoSource;
   readonly roomId?: string;
-  readonly players: [UnoPlayer, UnoPlayer];
+  readonly players: UnoPlayers;
+  readonly size: UnoTableSize;
   deck: UnoCard[] = [];
   discard: UnoCard[] = [];
-  turn: 0 | 1 = 0;
+  turn = 0;
   direction: 1 | -1 = 1;
   activeColor: UnoColor = 'red';
-  hasDrawn: [boolean, boolean] = [false, false];
+  hasDrawn: boolean[] = [false, false];
   status: 'playing' | 'over' = 'playing';
-  winner: 0 | 1 | null = null;
+  winner: number | null = null;
   notice = '';
   createdAt = Date.now();
   lastSeen = Date.now();
 
   constructor(
-    first: { id: string; handle: string },
-    second: { id: string; handle: string },
+    first: UnoSeat,
+    second: UnoSeat,
     source: UnoSource,
     roomId?: string,
+    extraSeats: UnoSeat[] = [],
   ) {
+    const seats = [first, second, ...extraSeats];
+    if (seats.length !== 2 && seats.length !== 4)
+      throw new Error('A UNO table seats two or four players.');
     this.source = source;
     this.roomId = roomId;
-    this.players = [
-      { id: first.id, handle: first.handle, hand: [], calledUno: false },
-      { id: second.id, handle: second.handle, hand: [], calledUno: false },
-    ];
+    this.size = seats.length;
+    this.players = seats.map((seat) => ({
+      id: seat.id,
+      handle: seat.handle,
+      hand: [],
+      calledUno: false,
+      bot: seat.bot === true,
+    })) as unknown as UnoPlayers;
     this.start();
+  }
+
+  get hasBots(): boolean {
+    return this.players.some((player) => player.bot);
   }
 
   private drawFromDeck(): UnoCard {
@@ -99,8 +145,8 @@ export class UnoGame {
     this.deck = buildUnoDeck();
     this.discard = [];
     this.direction = 1;
-    this.turn = crypto.randomInt(2) as 0 | 1;
-    this.hasDrawn = [false, false];
+    this.turn = crypto.randomInt(this.players.length);
+    this.hasDrawn = this.players.map(() => false);
     this.status = 'playing';
     this.winner = null;
     for (const player of this.players) {
@@ -133,9 +179,14 @@ export class UnoGame {
     }
   }
 
-  private nextIndex(step = 1): 0 | 1 {
-    const raw = this.turn + this.direction * step;
-    return (((raw % 2) + 2) % 2) as 0 | 1;
+  private seatAfter(index: number, step = 1): number {
+    const seats = this.players.length;
+    const raw = index + this.direction * step;
+    return ((raw % seats) + seats) % seats;
+  }
+
+  private nextIndex(step = 1): number {
+    return this.seatAfter(this.turn, step);
   }
 
   private top(): UnoCard {
@@ -155,7 +206,7 @@ export class UnoGame {
     this.applyUnoPenalty(actor);
     const player = this.players[actor]!;
     if (player.hand.length > 1) player.calledUno = false;
-    this.hasDrawn = [false, false];
+    this.hasDrawn = this.players.map(() => false);
     this.turn = this.nextIndex();
     if (this.status === 'playing') this.notice += ` Waiting on ${this.players[this.turn]!.handle}.`;
   }
@@ -225,7 +276,7 @@ export class UnoGame {
     }
 
     this.applyUnoPenalty(actor);
-    this.hasDrawn = [false, false];
+    this.hasDrawn = this.players.map(() => false);
     this.turn = this.nextIndex(skipVictim || penalty > 0 ? 2 : 1);
     const played = this.players[actor]!;
     if (played.hand.length > 1) played.calledUno = false;
@@ -275,8 +326,88 @@ export class UnoGame {
     return index;
   }
 
+  /** The colour the bot holds the most of — wilds are resolved with it. */
+  private bestColor(player: UnoPlayer): UnoColor {
+    const counts = new Map<UnoColor, number>();
+    for (const card of player.hand)
+      if (card.color !== 'black') counts.set(card.color, (counts.get(card.color) ?? 0) + 1);
+    let best: UnoColor = UNO_COLORS[crypto.randomInt(UNO_COLORS.length)]!;
+    for (const color of UNO_COLORS)
+      if ((counts.get(color) ?? 0) > (counts.get(best) ?? 0)) best = color;
+    return best;
+  }
+
+  /** Keeps its own colour, punishes a leader, and saves wilds for later. */
+  private chooseBotCard(playable: UnoCard[], player: UnoPlayer, actor: number): UnoCard {
+    const held = new Map<UnoColor, number>();
+    for (const card of player.hand)
+      if (card.color !== 'black') held.set(card.color, (held.get(card.color) ?? 0) + 1);
+    const rivals = this.players.filter(
+      (other, index) => index !== actor && other.hand.length <= 2,
+    ).length;
+    const scored = playable.map((card) => {
+      let score = 0;
+      if (card.color !== 'black') score += 4 + (held.get(card.color) ?? 0);
+      if (card.value === '+2' || card.value === 'wild+4') score += 2 + rivals;
+      if (card.value === 'skip' || card.value === 'reverse') score += 1 + rivals;
+      if (card.color === 'black') score -= 2;
+      if (player.hand.length === 2 && card.color !== 'black') score += 6;
+      return { card, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0]!.score;
+    const top = scored.filter((entry) => entry.score === best);
+    return top[crypto.randomInt(top.length)]!.card;
+  }
+
+  /** One bot decision: play the best legal card, else draw, else pass. */
+  private botTurn(): void {
+    const actor = this.turn;
+    const player = this.players[actor]!;
+    const playable = player.hand.filter((card) =>
+      unoCardIsPlayable(card, this.top(), this.activeColor),
+    );
+    if (playable.length > 0) {
+      const card = this.chooseBotCard(playable, player, actor);
+      this.play(player.id, card.id, card.color === 'black' ? this.bestColor(player) : undefined);
+      return;
+    }
+    if (!this.hasDrawn[actor]) {
+      this.draw(player.id);
+      return;
+    }
+    this.pass(player.id);
+  }
+
+  /**
+   * Play every bot seat in turn until a human is up. Called while building a
+   * view, so a table with bots always answers "whose turn is it" honestly.
+   */
+  advanceBots(): void {
+    if (this.status !== 'playing' || !this.hasBots) return;
+    let budget = this.players.length * 4;
+    try {
+      while (budget-- > 0 && this.status === 'playing' && this.players[this.turn]?.bot)
+        this.botTurn();
+    } catch {
+      // A table never fails a read because a bot quirk; the timeout still ends it.
+      this.lastSeen = Date.now();
+    }
+  }
+
   touch(): void {
     this.lastSeen = Date.now();
+  }
+
+  /** The seat that deserves the table when another one walks away. */
+  private crownWithout(leaver: number): number {
+    let best = -1;
+    for (let index = 0; index < this.players.length; index++) {
+      if (index === leaver) continue;
+      if (best === -1 || this.players[index]!.hand.length < this.players[best]!.hand.length)
+        best = index;
+    }
+    return best === -1 ? leaver : best;
   }
 
   forfeit(sessionId: string): void {
@@ -284,7 +415,7 @@ export class UnoGame {
     const loser = this.players.findIndex((player) => player.id === sessionId);
     if (loser === -1) return;
     this.status = 'over';
-    this.winner = loser === 0 ? 1 : 0;
+    this.winner = this.crownWithout(loser);
     this.notice = `${this.players[loser]!.handle} left the table.`;
   }
 
@@ -298,9 +429,21 @@ export class UnoGame {
   stateFor(sessionId: string): UnoViewerState | null {
     const youIndex = this.players.findIndex((player) => player.id === sessionId);
     if (youIndex === -1) return null;
-    const opponentIndex = youIndex === 0 ? 1 : 0;
     const you = this.players[youIndex]!;
-    const opponent = this.players[opponentIndex]!;
+    const opponents: UnoOpponentView[] = [];
+    for (let index = 0; index < this.players.length; index++) {
+      if (index === youIndex) continue;
+      const seat = this.players[index]!;
+      opponents.push({
+        handle: seat.handle,
+        handCount: seat.hand.length,
+        calledUno: seat.calledUno,
+        seat: index,
+        bot: seat.bot,
+        active: this.status === 'playing' && this.turn === index,
+      });
+    }
+    const rival = this.players[this.seatAfter(youIndex)]!;
     const playable =
       this.status === 'playing' && this.turn === youIndex
         ? you.hand
@@ -311,16 +454,20 @@ export class UnoGame {
       gameId: this.id,
       source: this.source,
       roomId: this.roomId,
-      you: { handle: you.handle, hand: you.hand, calledUno: you.calledUno },
+      size: this.size,
+      you: { handle: you.handle, hand: you.hand, calledUno: you.calledUno, seat: youIndex },
       opponent: {
-        handle: opponent.handle,
-        handCount: opponent.hand.length,
-        calledUno: opponent.calledUno,
+        handle: rival.handle,
+        handCount: rival.hand.length,
+        calledUno: rival.calledUno,
       },
+      opponents,
       top: this.top(),
       activeColor: this.activeColor,
       direction: this.direction,
       turn: this.turn === youIndex ? 'you' : 'opponent',
+      turnHandle: this.players[this.turn]!.handle,
+      turnSeat: this.turn,
       deckCount: this.deck.length,
       hasDrawn: this.hasDrawn[youIndex] === true,
       playable,
@@ -333,6 +480,8 @@ export class UnoGame {
               ? 'you'
               : 'opponent'
           : null,
+      winnerHandle:
+        this.status === 'over' && this.winner !== null ? this.players[this.winner]!.handle : null,
       notice: this.notice,
     };
   }
@@ -349,7 +498,13 @@ export type UnoChallenge = {
   lastSeen: number;
 };
 
-type ArenaEntry = { id: string; handle: string; joinedAt: number; lastSeen: number };
+type ArenaEntry = {
+  id: string;
+  handle: string;
+  size: UnoTableSize;
+  joinedAt: number;
+  lastSeen: number;
+};
 
 const arena = new Map<string, ArenaEntry>();
 const games = new Map<string, UnoGame>();
@@ -388,8 +543,7 @@ export function unoChallengeForSession(sessionId: string): UnoChallenge | undefi
 
 function registerGame(game: UnoGame): UnoGame {
   games.set(game.id, game);
-  gameBySession.set(game.players[0].id, game.id);
-  gameBySession.set(game.players[1].id, game.id);
+  for (const player of game.players) gameBySession.set(player.id, game.id);
   return game;
 }
 
@@ -399,10 +553,17 @@ function dropSession(sessionId: string): void {
   arena.delete(sessionId);
 }
 
-/** Pair with the longest-waiting opponent, or take a seat in the arena lobby. */
+function seatGame(seats: UnoSeat[], source: UnoSource, roomId?: string): UnoGame {
+  return registerGame(
+    new UnoGame(seats[0]!, seats[1]!, source, roomId, seats.slice(2).length ? seats.slice(2) : []),
+  );
+}
+
+/** Pair with the longest-waiting opponent of the same table size. */
 export function joinArena(
   sessionId: string,
   handle: string,
+  size: UnoTableSize = 2,
 ): { status: 'waiting' | 'matched'; gameId?: string } {
   const active = unoGameForSession(sessionId);
   if (active) return { status: 'matched', gameId: active.id };
@@ -411,23 +572,46 @@ export function joinArena(
   if (existing) {
     existing.lastSeen = Date.now();
     existing.handle = handle;
+    existing.size = size;
     return { status: 'waiting' };
   }
-  const waiting = [...arena.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0];
-  if (waiting && waiting.id !== sessionId) {
-    arena.delete(waiting.id);
-    const game = registerGame(
-      new UnoGame({ id: waiting.id, handle: waiting.handle }, { id: sessionId, handle }, 'arena'),
-    );
+  const waiting = [...arena.values()]
+    .filter((entry) => entry.size === size && entry.id !== sessionId)
+    .sort((a, b) => a.joinedAt - b.joinedAt);
+  const needed = size - 1;
+  if (waiting.length >= needed) {
+    const partners = waiting.slice(0, needed);
+    for (const partner of partners) arena.delete(partner.id);
+    const seats: UnoSeat[] = [...partners, { id: sessionId, handle }];
+    const game = seatGame(seats, 'arena');
     return { status: 'matched', gameId: game.id };
   }
   if (arena.size >= UNO_LIMITS.arena) throw new Error('The UNO arena is full right now.');
-  arena.set(sessionId, { id: sessionId, handle, joinedAt: Date.now(), lastSeen: Date.now() });
+  arena.set(sessionId, { id: sessionId, handle, size, joinedAt: Date.now(), lastSeen: Date.now() });
   return { status: 'waiting' };
 }
 
 export function leaveArena(sessionId: string): void {
   arena.delete(sessionId);
+}
+
+/**
+ * Fill the empty seats with bots so nobody has to wait: one human, the rest
+ * played by the server with the same rules as everybody else.
+ */
+export function startBotGame(sessionId: string, handle: string, size: UnoTableSize = 2): UnoGame {
+  const active = unoGameForSession(sessionId);
+  if (active) return active;
+  if (unoChallengeForSession(sessionId)) throw new Error('Answer the UNO challenge first.');
+  arena.delete(sessionId);
+  if (games.size >= UNO_LIMITS.games) throw new Error('The UNO arena is full right now.');
+  const names = [...BOT_NAMES];
+  const seats: UnoSeat[] = [{ id: sessionId, handle }];
+  for (let index = 1; index < size; index++) {
+    const pick = names.splice(crypto.randomInt(names.length), 1)[0] ?? `Bot ${index}`;
+    seats.push({ id: `bot_${crypto.randomUUID()}`, handle: `Bot ${pick}`, bot: true });
+  }
+  return seatGame(seats, 'arena');
 }
 
 /** Open a 1v1 challenge against the other player in a chat room. */
@@ -477,13 +661,13 @@ export function respondToChallenge(
   if (!accept) return { challenge };
   dropSession(challenge.fromId);
   dropSession(challenge.toId);
-  const game = registerGame(
-    new UnoGame(
+  const game = seatGame(
+    [
       { id: challenge.fromId, handle: challenge.fromHandle },
       { id: challenge.toId, handle: challenge.toHandle },
-      'room',
-      challenge.roomId,
-    ),
+    ],
+    'room',
+    challenge.roomId,
   );
   return { challenge, game };
 }
@@ -491,7 +675,7 @@ export function respondToChallenge(
 export function cancelChallenge(challengeId: string, sessionId: string): UnoChallenge {
   const challenge = challenges.get(challengeId);
   if (!challenge) throw new Error('That challenge is no longer available.');
-  if (challenge.fromId !== sessionId && challenge.toId !== sessionId)
+  if (challenge.toId !== sessionId && challenge.fromId !== sessionId)
     throw new Error('That challenge is not for you.');
   challenges.delete(challengeId);
   return challenge;
@@ -508,9 +692,15 @@ export function unoStateFor(sessionId: string): {
   queued: boolean;
 } {
   const game = unoGameForSession(sessionId);
-  if (game) game.touch();
+  if (game) {
+    game.advanceBots();
+    game.touch();
+  }
   const challenge = unoChallengeForSession(sessionId);
   if (challenge) challenge.lastSeen = Date.now();
+  // A lobby seat lives as long as its holder keeps asking for the state.
+  const seat = arena.get(sessionId);
+  if (seat) seat.lastSeen = Date.now();
   return {
     game: game ? game.stateFor(sessionId) : null,
     challenge: challenge
@@ -552,7 +742,7 @@ export function unoLeaveRoom(sessionId: string, roomId?: string): UnoGame[] {
 }
 
 /**
- * A player walks away from their own table: they lose, the opponent keeps the
+ * A player walks away from their own table: they lose, the table keeps its
  * result, and only the leaver stops seeing the game.
  */
 export function unoLeaveGame(sessionId: string): UnoGame | undefined {

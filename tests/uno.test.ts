@@ -7,6 +7,7 @@ import {
   joinArena,
   leaveArena,
   respondToChallenge,
+  startBotGame,
   unoChallengeForSession,
   unoGameForSession,
   unoLeaveGame,
@@ -255,4 +256,91 @@ test('leaving a chat room ends the room table but keeps an arena table', () => {
 test('colours are one of the four standard UNO colours', () => {
   assert.deepEqual([...UNO_COLORS].sort(), ['blue', 'green', 'red', 'yellow']);
   for (const colour of UNO_COLORS) assert.ok(['red', 'blue', 'green', 'yellow'].includes(colour));
+});
+
+test('a four player table fills with the earliest waiting seats and never mixes sizes', () => {
+  assert.deepEqual(joinArena('s1', 'Alpha', 4), { status: 'waiting' });
+  joinArena('s2', 'Bravo', 4);
+  joinArena('s3', 'Cara', 4);
+  // A classic 1v1 seat waits in its own queue.
+  assert.deepEqual(joinArena('s4', 'Dana', 2), { status: 'waiting' });
+  assert.equal(unoStateFor('s4').queued, true);
+
+  const matched = joinArena('s5', 'Eli', 4);
+  assert.equal(matched.status, 'matched');
+  const game = unoGameForSession('s5');
+  assert.ok(game);
+  assert.equal(game.size, 4);
+  assert.deepEqual(
+    game.players.map((player) => player.handle),
+    ['Alpha', 'Bravo', 'Cara', 'Eli'],
+  );
+  assert.equal(unoGameForSession('s4'), undefined, 'the 1v1 seat stayed queued');
+  assert.equal(unoStateFor('s1').game?.opponents.length, 3);
+  assert.equal(unoStateFor('s1').game?.size, 4);
+});
+
+test('a four player viewer receives hand counts only, never another seat hand', () => {
+  const game = new UnoGame(
+    { id: 'p0', handle: 'Alpha' },
+    { id: 'p1', handle: 'Bravo' },
+    'arena',
+    undefined,
+    [
+      { id: 'p2', handle: 'Cara' },
+      { id: 'p3', handle: 'Dana' },
+    ],
+  );
+  const hands = [
+    [card('own-hand-card', 'red', '7')],
+    [card('rival-one', 'blue', '2')],
+    [card('rival-two', 'green', '9')],
+    [card('rival-three', 'yellow', '1')],
+  ];
+  game.players.forEach((player, index) => {
+    player.hand = [...hands[index]!];
+  });
+  const state = game.stateFor('p0');
+  assert.ok(state);
+  assert.equal(state.size, 4);
+  assert.equal(state.opponents.length, 3);
+  assert.equal(state.opponent.handCount, 1, 'the closest rival stays available for 1v1 clients');
+  const serialised = JSON.stringify(state);
+  for (const id of ['rival-one', 'rival-two', 'rival-three']) assert.ok(!serialised.includes(id));
+  assert.equal(game.stateFor('stranger'), null);
+});
+
+test('bots fill every free seat and only move while you are not at the table', () => {
+  const game = startBotGame('s1', 'Alpha', 4);
+  assert.equal(game.size, 4);
+  assert.equal(
+    game.players.filter((player) => player.bot).length,
+    3,
+    'three seats are played by the server',
+  );
+
+  const first = unoStateFor('s1').game;
+  assert.ok(first);
+  assert.equal(first.size, 4);
+  assert.equal(first.opponents.length, 3);
+  assert.ok(first.opponents.every((opponent) => opponent.bot));
+  assert.equal(first.turn, 'you', 'the only human always gets the table back');
+  assert.equal(first.status, 'playing');
+
+  game.draw('s1');
+  game.pass('s1');
+  const after = unoStateFor('s1').game;
+  assert.ok(after);
+  assert.equal(after.turn === 'you' || after.status === 'over', true, 'the bots played through');
+  assert.ok(after.opponents[0]!.bot);
+  assert.ok(!('hand' in after.opponents[0]!));
+});
+
+test('walking away from a bot table finishes it and hides it from you', () => {
+  startBotGame('s7', 'Gina', 2);
+  const ended = unoLeaveGame('s7');
+  assert.ok(ended);
+  assert.equal(ended.status, 'over');
+  assert.equal(unoStateFor('s7').game, null);
+  assert.equal(unoStateFor('s7').queued, false);
 });

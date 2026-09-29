@@ -4,6 +4,7 @@ import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../t
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
+import { UnoLogo, TicTacToeLogo } from './GameLogos';
 import type { ChatTheme } from './ChatThemeMenu';
 
 const MATCH_POLL_INTERVAL_MS = 400;
@@ -37,6 +38,7 @@ interface MatchmakingQueueProps {
   autoSearch?: boolean;
   chatTheme: ChatTheme;
   onOpenUno?: () => void;
+  onOpenTicTacToe?: () => void;
 }
 
 export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
@@ -48,6 +50,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   autoSearch = false,
   chatTheme,
   onOpenUno,
+  onOpenTicTacToe,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -576,32 +579,56 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
         </div>
 
-        {/* UNO Arena — casual 1v1 before or instead of chat matching */}
+        {/* Games — a quick table before or instead of chat matching */}
         <div
-          className={`ui-surface rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+          className={`ui-surface rounded-2xl p-4 sm:p-5 space-y-3 ${
             isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 shrink-0 -rotate-6 items-center justify-center rounded-xl border-2 border-yellow-400 bg-red-600 shadow">
-              <span className="text-xs font-black italic tracking-tighter text-white">UNO</span>
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-bold">UNO Arena</div>
-              <div className="text-xs text-stone-500 dark:text-stone-400">
-                Play a live 1v1 card duel against another student
-              </div>
+          <div className="border-b border-stone-200 pb-3 dark:border-stone-800">
+            <div className="text-sm font-bold tracking-tight">Games</div>
+            <div className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+              Two quick games — play against classmates or the house bots.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onOpenUno}
-            disabled={isSearching}
-            id="open-uno-btn"
-            className="w-full sm:w-auto shrink-0 rounded-xl border border-stone-300 px-4 py-2 text-xs font-bold transition hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800"
-          >
-            Enter arena
-          </button>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              id="open-uno-btn"
+              type="button"
+              onClick={onOpenUno}
+              disabled={isSearching}
+              className="group flex items-center gap-3 rounded-xl border border-stone-200 bg-white/60 p-3 text-left transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:border-stone-600 dark:hover:bg-stone-800"
+            >
+              <UnoLogo className="h-10 w-10 -rotate-6 transition-transform group-hover:-rotate-3 motion-reduce:transform-none" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold">UNO Arena</span>
+                <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">
+                  Classic 1v1 or four players · real players or bots
+                </span>
+              </span>
+              <span className="chat-theme-accent-soft shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold">
+                Enter
+              </span>
+            </button>
+            <button
+              id="open-tictactoe-btn"
+              type="button"
+              onClick={onOpenTicTacToe}
+              disabled={isSearching}
+              className="group flex items-center gap-3 rounded-xl border border-stone-200 bg-white/60 p-3 text-left transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:border-stone-600 dark:hover:bg-stone-800"
+            >
+              <TicTacToeLogo className="h-10 w-10 transition-transform group-hover:-rotate-3 motion-reduce:transform-none" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold">Tic Tac Toe</span>
+                <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">
+                  Three in a row · play the bot or share the screen
+                </span>
+              </span>
+              <span className="chat-theme-accent-soft shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold">
+                Play
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

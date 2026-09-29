@@ -31,6 +31,7 @@ import {
   unoReset,
   unoStateFor,
   unoStats,
+  startBotGame,
 } from './uno';
 import type { UnoGame } from './uno';
 
@@ -817,7 +818,7 @@ export function attachRuntime(
     res.json({ success: true });
   });
 
-  // --- UNO 1v1 tables (arena pairing before matching, or inside a chat room) ---
+  // --- UNO tables: arena pairing (1v1 or four players) or inside a chat room ---
   app.get('/api/uno/state', (req, res) => {
     res.json(unoStateFor(authenticate(req)!.id));
   });
@@ -826,7 +827,14 @@ export function attachRuntime(
     if (!unoLimiter.take('uno-arena:' + session.id, 30, 60000))
       return res.status(429).json({ error: 'You are joining too quickly. Try again shortly.' });
     try {
-      const result = joinArena(session.id, session.sessionHandle);
+      const size: 2 | 4 = req.body?.size === 4 ? 4 : 2;
+      const result =
+        req.body?.opponents === 'bots'
+          ? {
+              status: 'matched' as const,
+              gameId: startBotGame(session.id, session.sessionHandle, size).id,
+            }
+          : joinArena(session.id, session.sessionHandle, size);
       const game = result.gameId ? unoGameForSession(session.id) : undefined;
       if (game) pushUnoGame(game);
       res.json(result);
