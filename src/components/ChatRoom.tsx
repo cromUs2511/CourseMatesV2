@@ -1110,15 +1110,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       data-status={peerPresence}
                       aria-hidden="true"
                     />
-                    <span className="chat-theme-accent-text shrink-0">
-                      {peer.isSimulated ? 'AI' : 'Peer'}
-                    </span>
-                    <span
-                      className="shrink-0 text-stone-400 dark:text-stone-500"
-                      aria-hidden="true"
-                    >
-                      ·
-                    </span>
                     <span className="chat-presence-label shrink-0" data-status={peerPresence}>
                       {PRESENCE_LABELS[peerPresence]}
                     </span>
