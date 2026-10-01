@@ -232,11 +232,12 @@ const INTEREST_STOP_WORDS = new Set([
   'to',
   'with',
 ]);
+const INTEREST_WORD_REGEX = /[\p{L}\p{N}]+/gu;
 function interestWords(interests: string[]): Set<string> {
   return new Set(
     interests
       .filter((interest) => interest.toLocaleLowerCase() !== GENERIC_INTEREST)
-      .flatMap((interest) => interest.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+      .flatMap((interest) => interest.toLocaleLowerCase().match(INTEREST_WORD_REGEX) || [])
       .filter((word) => word.length > 1 && !INTEREST_STOP_WORDS.has(word)),
   );
 }
@@ -246,16 +247,23 @@ function sharedInterest(a: Participant, b: Participant): { score: number; topic?
   const sharedWords = [...aWords].filter((word) => bWords.has(word));
   if (!sharedWords.length) return { score: 0 };
 
-  const normalizedB = new Set(b.interests.map((interest) => interest.trim().toLocaleLowerCase()));
+  const bExactSet = new Set(b.interests.map((interest) => interest.trim().toLocaleLowerCase()));
   const exact = a.interests.find(
     (interest) =>
       interest.toLocaleLowerCase() !== GENERIC_INTEREST &&
-      normalizedB.has(interest.trim().toLocaleLowerCase()),
+      bExactSet.has(interest.trim().toLocaleLowerCase()),
   );
   const firstWord = sharedWords[0];
   if (!firstWord) return { score: 0 };
   const topic = exact || firstWord.replace(/(^|\s)\S/g, (letter) => letter.toLocaleUpperCase());
   return { score: sharedWords.length + (exact ? 100 : 0), topic };
+}
+
+function sharedInterestQuick(a: Participant, b: Participant): { score: number } {
+  const aWords = interestWords(a.interests);
+  const bWords = interestWords(b.interests);
+  const sharedCount = [...aWords].filter((word) => bWords.has(word)).length;
+  return { score: sharedCount };
 }
 function validSession(token: unknown) {
   const session = typeof token === 'string' ? sessions.get(token) : undefined;
@@ -403,10 +411,16 @@ function join(session: Identity, data: any, ws?: WebSocket) {
     })),
   });
   const rankedInterestMatches = sameVerification
-    .map((peer) => ({ peer, match: sharedInterest(participant, peer) }))
+    .map((peer) => {
+      const quickScore = sharedInterestQuick(participant, peer);
+      return { peer, match: quickScore };
+    })
     .filter((candidate) => candidate.match.score > 0)
     .sort((a, b) => b.match.score - a.match.score);
-  const interestMatch = rankedInterestMatches[0];
+  const topCandidate = rankedInterestMatches[0];
+  const interestMatch = topCandidate
+    ? { peer: topCandidate.peer, match: sharedInterest(participant, topCandidate.peer) }
+    : { peer: undefined, match: { score: 0 } };
   const peer =
     interestMatch?.peer ||
     (participant.allowNormal

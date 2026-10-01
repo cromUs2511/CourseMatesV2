@@ -299,18 +299,28 @@ export class SafetyStore {
   private prune(): void {
     this.assertAvailable();
     const now = this.now();
+    if (this.state.bans.length + this.state.blocks.length + this.state.reports.length === 0) return;
     const cutoff = now - SAFETY_RETENTION_MS;
+    let changed = false;
     const next: State = {
       ...this.state,
-      bans: this.state.bans.filter((ban) => ban.until === null || ban.until > now),
-      blocks: this.state.blocks.filter((block) => block.createdAt > cutoff),
-      reports: this.state.reports.filter((report) => report.createdAt > cutoff),
+      bans: (() => {
+        const filtered = this.state.bans.filter((ban) => ban.until === null || ban.until > now);
+        if (filtered.length !== this.state.bans.length) changed = true;
+        return filtered;
+      })(),
+      blocks: (() => {
+        const filtered = this.state.blocks.filter((block) => block.createdAt > cutoff);
+        if (filtered.length !== this.state.blocks.length) changed = true;
+        return filtered;
+      })(),
+      reports: (() => {
+        const filtered = this.state.reports.filter((report) => report.createdAt > cutoff);
+        if (filtered.length !== this.state.reports.length) changed = true;
+        return filtered;
+      })(),
     };
-    if (
-      next.bans.length !== this.state.bans.length ||
-      next.blocks.length !== this.state.blocks.length ||
-      next.reports.length !== this.state.reports.length
-    ) {
+    if (changed) {
       this.persist(next);
       this.state = next;
     }
