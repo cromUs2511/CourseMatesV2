@@ -92,7 +92,7 @@ function OpponentBox({
   dense?: boolean;
 }) {
   const yourTurn = state.turn === 'you' && state.status === 'playing';
-  const lit = dense ? opponent.active : !yourTurn;
+  const lit = state.status === 'playing' && (dense ? opponent.active : !yourTurn);
   const fanCount = Math.min(opponent.handCount, dense ? 4 : 6);
   return (
     <div
@@ -231,18 +231,6 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
       </header>
 
       <main className="uno-stage relative flex min-h-0 flex-1 flex-col items-center justify-between overflow-hidden p-2 md:p-4">
-        {/* Direction of play ring */}
-        <div
-          className={`uno-ring absolute h-64 w-64 md:h-80 md:w-80 ${
-            state.direction === 1 ? 'uno-dir-cw' : 'uno-dir-ccw'
-          }`}
-          aria-hidden="true"
-        >
-          <span className="uno-ring-arrow arrow-top">▲</span>
-          <span className="uno-ring-arrow arrow-bottom">▼</span>
-          <span className="uno-ring-arrow arrow-left">◀</span>
-          <span className="uno-ring-arrow arrow-right">▶</span>
-        </div>
 
         {/* Other seats */}
         <div
@@ -346,7 +334,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 className={`h-3 w-3 rounded-full ${yourTurn ? 'bg-emerald-400' : 'bg-slate-600'}`}
                 aria-hidden="true"
               />
-              <span className="text-xs font-bold text-slate-100">You</span>
+              <span className="max-w-28 truncate text-xs font-bold text-slate-100" title={state.you.handle}>You · {state.you.handle}</span>
               <span className="ml-1 rounded bg-emerald-950/80 px-2 py-0.5 text-xs font-black text-emerald-400">
                 {state.you.hand.length} card{state.you.hand.length === 1 ? '' : 's'}
               </span>
@@ -513,7 +501,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
               Leave the game?
             </h3>
             <p className="mb-5 text-xs leading-relaxed text-slate-400">
-              Your opponent wins the table if you walk away now.
+              Leaving cancels this table. Minimize instead to keep playing while you chat.
             </p>
             <div className="space-y-2">
               <button
@@ -544,7 +532,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           aria-label="Game result"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-8 text-center shadow-2xl">
+          <div className="uno-deal-in w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-8 text-center shadow-2xl">
             <div
               className={`mb-3 flex justify-center ${
                 state.winner === 'you' ? 'text-amber-400' : 'text-red-400'
@@ -563,8 +551,11 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                   ? 'Defeated'
                   : 'Game over'}
             </h2>
+            <p className="mb-2 text-sm font-semibold text-slate-100">{state.winnerHandle ? `${state.winnerHandle} wins the match` : 'Table closed — no winner'}</p>
             <p className="mb-6 text-sm text-slate-300">{state.notice}</p>
+            {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
             <div className="space-y-3">
+              {state.source === 'room' && state.winner && <button type="button" disabled={busy || state.rematchRequested} onClick={() => onAction({ action: 'rematch', gameId: state.gameId, round: state.round })} className="w-full rounded-xl bg-amber-400 py-3 font-bold text-slate-950 disabled:opacity-60">{state.rematchRequested ? 'Waiting for your peer…' : state.opponentRequestedRematch ? 'Accept rematch' : 'Request rematch'}</button>}
               <button
                 type="button"
                 onClick={onLeave}

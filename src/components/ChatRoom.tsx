@@ -36,7 +36,6 @@ import { SpiderWebBackground } from './SpiderWebBackground';
 import { TopMusicBar, type TopMusicBarHandle } from './TopMusicBar';
 import { MessageReactions } from './MessageReactions';
 import { ChatThemeMenu, type ChatTheme } from './ChatThemeMenu';
-import { ThemeToggle } from './ThemeToggle';
 import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -45,6 +44,9 @@ import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { MusicSnippetPicker } from './MusicSnippetPicker';
 import { MusicSnippetCard } from './MusicSnippetCard';
 import { UnoTable } from './UnoTable';
+import { GamesCatalogDialog } from './GamesCatalogDialog';
+import { PeerTicTacToe, type PeerTicTacToeHandle } from './PeerTicTacToe';
+import { GameInvitation } from './GameInvitation';
 import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
@@ -142,6 +144,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     shuffleList(CONVERSATION_STARTER_POOL),
   );
   const [startersSent, setStartersSent] = useState(0);
+  const [startersExpired, setStartersExpired] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setStartersExpired(true), 75000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [selectedStarter, setSelectedStarter] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
@@ -164,7 +171,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [unoOpen, setUnoOpen] = useState(false);
   const [unoBusy, setUnoBusy] = useState(false);
   const [unoError, setUnoError] = useState('');
-  const unoInitiatedRef = useRef(false);
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const ticTacToeRef = useRef<PeerTicTacToeHandle>(null);
+  const unoSeenRound = useRef('');
+  const unoSending = useRef(false);
+  const applyUno = useCallback((next: UnoStateResponse) => {
+    setUnoState((current) => (next.revision ?? 0) >= (current?.revision ?? 0) ? next : current);
+  }, []);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isAtLatest, setIsAtLatest] = useState(true);
@@ -478,7 +491,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'uno_state') {
-          setUnoState({
+          applyUno({
+            revision: data.revision,
             game: data.game ?? null,
             challenge: data.challenge ?? null,
             queued: !!data.queued,
@@ -547,7 +561,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
     };
-  }, [peer, roomId, session.id, ws, receiveMessages, markDisconnected]);
+  }, [peer, roomId, session.id, ws, receiveMessages, markDisconnected, applyUno]);
 
   // UNO: polled as well as pushed so a challenge or move survives a dead socket.
   useEffect(() => {
@@ -556,7 +570,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     const sync = () => {
       void apiRequest<UnoStateResponse>('/api/uno/state')
         .then((data) => {
-          if (!disposed) setUnoState(data);
+           if (!disposed) applyUno(data);
         })
         .catch(() => {
           /* Transient failures retry on the next tick. */
@@ -568,32 +582,37 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       disposed = true;
       clearInterval(interval);
     };
-  }, [peer.isSimulated, roomId]);
+  }, [peer.isSimulated, roomId, applyUno]);
 
   // Open my own table as soon as the peer accepts the challenge I sent.
   useEffect(() => {
-    if (unoState?.game && unoInitiatedRef.current) {
-      unoInitiatedRef.current = false;
+    const game = unoState?.game;
+    const round = game ? `${game.gameId}:${game.round ?? 1}` : '';
+    if (game && round !== unoSeenRound.current) {
+      unoSeenRound.current = round;
       setUnoOpen(true);
     }
   }, [unoState?.game]);
 
   const sendUnoAction = async (action: UnoAction) => {
+    if (unoSending.current) return;
+    unoSending.current = true;
     setUnoBusy(true);
     setUnoError('');
     try {
-      const data = await apiRequest<UnoStateResponse>('/api/uno/action', action);
-      setUnoState(data);
+      const data = await apiRequest<UnoStateResponse>('/api/uno/action', { ...action, round: unoState?.game?.round });
+      applyUno(data);
     } catch (err) {
       setUnoError((err as Error).message);
     } finally {
+      unoSending.current = false;
       setUnoBusy(false);
     }
   };
 
   const refreshUno = async () => {
     try {
-      setUnoState(await apiRequest<UnoStateResponse>('/api/uno/state'));
+      applyUno(await apiRequest<UnoStateResponse>('/api/uno/state'));
     } catch {
       /* The next poll restores state. */
     }
@@ -604,17 +623,31 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setUnoError('');
     try {
       await apiRequest('/api/uno/challenge', { roomId });
-      unoInitiatedRef.current = true;
       await refreshUno();
     } catch (err) {
-      unoInitiatedRef.current = false;
       setUnoError((err as Error).message);
     }
+  };
+
+  const openGameFromCatalog = (game: 'uno' | 'tictactoe') => {
+    setGamesOpen(false);
+    if (game === 'uno') {
+      if (unoState?.game) {
+        setUnoOpen(true);
+        setUnoError('');
+      } else if (!unoState?.challenge) void challengePeer();
+      return;
+    }
+    setUnoOpen(false);
+    ticTacToeRef.current?.open();
   };
 
   const respondToUnoChallenge = async (accept: boolean) => {
     const challengeId = unoState?.challenge?.id;
     if (!challengeId) return;
+    if (unoSending.current) return;
+    unoSending.current = true;
+    setUnoBusy(true);
     setUnoError('');
     try {
       await apiRequest('/api/uno/challenge/respond', { challengeId, accept });
@@ -622,6 +655,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       await refreshUno();
     } catch (err) {
       setUnoError((err as Error).message);
+    } finally {
+      unoSending.current = false;
+      setUnoBusy(false);
     }
   };
 
@@ -1125,19 +1161,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   isDarkMode={isDarkMode}
                   compact
                 />
-                {!peerDisconnected && (
-                  <TopMusicBar
-                    ref={musicBarRef}
-                    compact
-                    isDarkMode={isDarkMode}
-                    roomId={roomId}
-                    ws={ws}
-                    remoteMusic={roomMusic}
-                    isSimulated={peer.isSimulated}
-                    onAmbientChange={handleAmbientChange}
-                    accent={chatTheme.accent}
-                    accentHover={chatTheme.accentHover}
-                  />
+                {!peer.isSimulated && !peerDisconnected && roomId && (
+                  <button type="button" onClick={() => setSafetyOpen(true)} aria-label="Report or block peer" title="Report or block peer" className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"><Shield className="h-4 w-4" /></button>
                 )}
                 <button
                   id="chat-fullscreen-btn"
@@ -1156,40 +1181,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             }
             chatActions={
               <>
-                {!peer.isSimulated && !peerDisconnected && roomId && (
-                  <button
-                    type="button"
-                    onClick={() => setSafetyOpen(true)}
-                    aria-label="Report or block peer"
-                    title="Report or block peer"
-                    className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
-                  >
-                    <Shield className="h-4 w-4" />
-                  </button>
+                {!peerDisconnected && (
+                  <TopMusicBar ref={musicBarRef} compact isDarkMode={isDarkMode} roomId={roomId} ws={ws} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
                 )}
                 {!peer.isSimulated && !peerDisconnected && roomId && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (unoState?.game) {
-                        setUnoOpen(true);
-                        setUnoError('');
-                      } else if (!unoState?.challenge) void challengePeer();
-                    }}
-                    aria-label={
-                      unoState?.game
-                        ? 'Open the UNO table'
-                        : unoState?.challenge
-                          ? 'A UNO challenge is pending'
-                          : 'Challenge this peer to a UNO duel'
-                    }
-                    title={
-                      unoState?.game
-                        ? 'Open UNO table'
-                        : unoState?.challenge
-                          ? 'UNO challenge pending'
-                          : 'Challenge peer to UNO'
-                    }
+                    id="chat-games-btn"
+                    onClick={() => setGamesOpen(true)}
+                    aria-label="Open the games catalog"
+                    title="Games"
                     className={`chat-display-control relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/10 ${
                       unoState?.game ? 'text-yellow-400' : 'text-[#c8bb8d]'
                     }`}
@@ -1200,13 +1201,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     )}
                   </button>
                 )}
-                <ThemeToggle
-                  id="mobile-dark-mode-toggle-btn"
-                  isDarkMode={headerProps.isDarkMode}
-                  onToggle={headerProps.onToggleDarkMode}
-                  compact
-                  className="chat-theme-toggle min-[900px]:hidden"
-                />
                 {!peerDisconnected && (
                   <button
                     id="leave-chat-btn"
@@ -1231,6 +1225,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           className="flex-1 min-h-0 w-full px-3 py-3.5 sm:px-6 sm:py-7 overflow-y-auto overscroll-contain space-y-1 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
+            {!peer.isSimulated && !peerDisconnected && roomId && (
+              <PeerTicTacToe ref={ticTacToeRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+            )}
+            {unoState?.challenge && !peerDisconnected && (
+              <GameInvitation game="UNO" sender={unoState.challenge.fromHandle} incoming={unoState.challenge.direction === 'incoming'} busy={unoBusy} onRespond={(accept) => void respondToUnoChallenge(accept)} />
+            )}
+            {unoError && !unoOpen && <p role="alert" className="py-2 text-sm text-red-500">{unoError}</p>}
             {messages.map((msg, index) => {
               if (msg.type === 'system') {
                 const isUnsentMessage = msg.text === 'Message unsent.';
@@ -1548,12 +1549,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         </div>
 
         {/* Each chat allows three successfully sent conversation starters. */}
-        {!peerDisconnected &&
+        {!peerDisconnected && !startersExpired &&
           startersSent < CONVERSATION_STARTER_LIMIT &&
           aiSuggestions.length > 0 && (
             <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-1.5 sm:px-6 sm:pb-3">
               <div
-                className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-sm ${isDarkMode ? 'border-stone-700 bg-[#1c1b1a]/95' : 'border-stone-200 bg-[#fffdfa]/95'}`}
+                className={`mx-auto max-w-3xl border-t px-1 py-2.5 ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center space-x-1.5 shrink-0 text-stone-500 dark:text-stone-400">
@@ -1739,47 +1740,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             isDarkMode ? 'bg-[#141312]/88 border-stone-800' : 'bg-[#fffdfa]/88 border-stone-200'
           }`}
         >
-          {unoState?.challenge && (
-            <div
-              role="status"
-              className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-xs dark:border-stone-700 dark:bg-stone-900"
-            >
-              <span className="min-w-0 truncate font-semibold text-stone-700 dark:text-stone-200">
-                {unoState.challenge.direction === 'incoming'
-                  ? `${unoState.challenge.fromHandle} challenged you to a UNO duel`
-                  : `Challenge sent to ${unoState.challenge.fromHandle}…`}
-                {unoError && <span className="ml-2 text-red-500">{unoError}</span>}
-              </span>
-              <span className="flex shrink-0 gap-2">
-                {unoState.challenge.direction === 'incoming' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void respondToUnoChallenge(true)}
-                      className="rounded-lg bg-stone-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-stone-700 dark:bg-white dark:text-stone-900 md:py-1 md:text-[11px]"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void respondToUnoChallenge(false)}
-                      className="rounded-lg border border-stone-300 px-3.5 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-200 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800 md:py-1 md:text-[11px]"
-                    >
-                      Decline
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void respondToUnoChallenge(false)}
-                    className="rounded-lg border border-stone-300 px-3 py-1 text-[11px] font-semibold text-stone-600 hover:bg-stone-200 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
-                  >
-                    Cancel challenge
-                  </button>
-                )}
-              </span>
-            </div>
-          )}
           <div ref={composerRef} className="max-w-3xl mx-auto">
             {mediaRemainingSeconds > 0 && (
               <p
@@ -2068,6 +2028,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             />
           </div>
         </div>
+      )}
+      {gamesOpen && (
+        <GamesCatalogDialog
+          hasGame={Boolean(unoState?.game)}
+          hasChallenge={Boolean(unoState?.challenge)}
+          onSelectUno={() => openGameFromCatalog('uno')}
+          onSelectTicTacToe={() => openGameFromCatalog('tictactoe')}
+          onClose={() => setGamesOpen(false)}
+        />
       )}
       {safetyOpen && roomId && (
         <SafetyDialog

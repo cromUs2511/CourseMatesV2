@@ -4,111 +4,75 @@ async function enter(page: Page) {
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
+  await expect(page.locator('#start-chat-btn')).toBeVisible();
+  await expect(page.locator('#open-uno-btn, #open-tictactoe-btn')).toHaveCount(0);
 }
 
-const drawButton = (page: Page) => page.getByRole('button', { name: 'Draw a card from the deck' });
-
-async function openArena(page: Page) {
-  await page.locator('#open-uno-btn').click();
-  await expect(page.getByRole('heading', { name: 'UNO Arena', exact: true })).toBeVisible();
+for (const polling of [false, true]) {
+  test(`Tic Tac Toe shares invitations, turns, results and rematches (${polling ? 'REST recovery' : 'WebSocket'})`, async ({ browser }) => {
+    test.setTimeout(polling ? 60000 : 30000);
+    const first = await browser.newContext();
+    const second = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const a = await first.newPage(), b = await second.newPage();
+    const errors: string[] = [];
+    try {
+      for (const page of [a, b]) {
+        page.on('pageerror', (error) => errors.push(error.message));
+        if (polling) await page.routeWebSocket('**/ws/chat*', (socket) => socket.close());
+        await enter(page);
+      }
+      await a.locator('#start-chat-btn').click();
+      await b.locator('#start-chat-btn').click();
+      await expect(a.locator('#chat-header')).toBeVisible();
+      const invite = async () => {
+        await a.getByRole('button', { name: 'Open the games catalog' }).click();
+        await expect(a.getByRole('dialog', { name: 'Games' })).toBeVisible();
+        await a.locator('#chat-game-tictactoe-btn').click();
+        await expect(b.getByRole('region', { name: 'Tic Tac Toe invitation' })).toBeVisible();
+      };
+      await invite();
+      await b.getByRole('button', { name: 'Decline', exact: true }).click();
+      await expect(a.getByRole('region', { name: 'Tic Tac Toe invitation' })).toHaveCount(0);
+      await invite();
+      await b.getByRole('button', { name: 'Accept', exact: true }).click();
+      for (const page of [a, b]) await expect(page.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
+      await expect(b.getByRole('button', { name: 'Square 1: empty', exact: true })).toBeDisabled();
+      for (const [page, square, mark] of [[a, 1, 'X'], [b, 4, 'O'], [a, 2, 'X'], [b, 5, 'O'], [a, 3, 'X']] as const) {
+        await page.getByRole('button', { name: `Square ${square}: empty`, exact: true }).click();
+        for (const peer of [a, b]) await expect(peer.getByRole('button', { name: `Square ${square}: ${mark}`, exact: true })).toBeDisabled();
+      }
+      for (const page of [a, b]) {
+        await expect(page.getByRole('status').filter({ hasText: /wins!/ })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Square 9: empty', exact: true })).toBeDisabled();
+      }
+      await a.getByRole('button', { name: 'Request rematch', exact: true }).click();
+      await b.getByRole('button', { name: 'Accept rematch', exact: true }).click();
+      await expect(b.getByRole('button', { name: 'Square 1: empty', exact: true })).toBeEnabled();
+      // O starts round two. This sequence fills the board without a winning line.
+      for (const [page, square] of [[b, 1], [a, 2], [b, 3], [a, 5], [b, 4], [a, 6], [b, 8], [a, 7], [b, 9]] as const) {
+        await page.getByRole('button', { name: `Square ${square}: empty`, exact: true }).click();
+      }
+      for (const page of [a, b]) await expect(page.getByText('Draw — well played!')).toBeVisible();
+      await b.getByRole('button', { name: 'Minimize Tic Tac Toe' }).click();
+      await expect(b.getByRole('textbox', { name: 'Chat message' })).toBeVisible();
+      await b.getByRole('button', { name: 'Open the games catalog' }).click();
+      await b.locator('#chat-game-tictactoe-btn').click();
+      await expect(b.getByText('Draw — well played!')).toBeVisible();
+      expect(await b.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(errors).toEqual([]);
+    } finally { await first.close(); await second.close(); }
+  });
 }
 
-async function joinFourPlayerQueue(page: Page) {
+test('icebreakers expire once, 75 seconds into a conversation', async ({ page }) => {
   await enter(page);
-  await openArena(page);
-  await page.getByRole('radio', { name: /Four players/ }).click();
-  await page.getByRole('button', { name: 'Find a four-player table' }).click();
-}
-
-test('the arena can fill the table with bots and the bots answer every move', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-
-  await enter(page);
-  await openArena(page);
-  await page.getByRole('radio', { name: /Bots/ }).click();
-  await page.getByRole('button', { name: 'Play the bots' }).click();
-
-  await expect(page.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.uno-opponent').first()).toContainText(/^Bot /);
-  await expect(page.locator('.uno-turn-indicator')).toHaveText('Your turn!', { timeout: 15_000 });
-
-  await drawButton(page).click();
-  await page.getByRole('button', { name: 'Pass turn' }).click();
-  await expect(page.locator('.uno-turn-indicator')).toHaveText('Your turn!', { timeout: 15_000 });
-
-  await page.getByRole('button', { name: 'Quit the UNO game' }).click();
-  await page
-    .getByRole('dialog', { name: 'Leave the game?' })
-    .getByRole('button', { name: 'Leave table' })
-    .click();
-  await expect(page.getByRole('button', { name: 'Play the bots' })).toBeVisible();
-
-  expect(errors).toEqual([]);
-});
-
-test('a four player queue only completes with four waiting sessions', async ({ browser }) => {
-  const contexts = await Promise.all([
-    browser.newContext(),
-    browser.newContext(),
-    browser.newContext(),
-    browser.newContext(),
-  ]);
-  const pages = await Promise.all(contexts.map((context) => context.newPage()));
-  const errors: string[] = [];
-  try {
-    for (const page of pages.slice(0, 3)) {
-      page.on('pageerror', (error) => errors.push(error.message));
-      await joinFourPlayerQueue(page);
-    }
-    await expect(pages[0]!.getByText(/Waiting for three more players/)).toBeVisible();
-    for (const page of pages.slice(0, 3)) await expect(page.locator('.uno-table')).toHaveCount(0);
-
-    pages[3]!.on('pageerror', (error) => errors.push(error.message));
-    await joinFourPlayerQueue(pages[3]!);
-
-    for (const page of pages) {
-      await expect(page.locator('.uno-table')).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('.uno-opponent')).toHaveCount(3);
-      await expect(page.getByText('Arena 4 players')).toBeVisible();
-      await expect(page.locator('.uno-turn-indicator')).toHaveText(/\S/);
-    }
-    const heldTurn = async () =>
-      (
-        await Promise.all(pages.map((page) => page.locator('.uno-turn-indicator').textContent()))
-      ).some((turn) => turn === 'Your turn!');
-    await expect.poll(heldTurn, { timeout: 10_000 }).toBe(true);
-    expect(errors).toEqual([]);
-  } finally {
-    await Promise.all(contexts.map((context) => context.close()));
-  }
-});
-
-test('tic tac toe plays against the bot and a friend on one screen', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  const filled = page.getByRole('button', { name: /^Cell .+, (X|O)$/ });
-
-  await enter(page);
-  await page.locator('#open-tictactoe-btn').click();
-  await expect(page.getByRole('heading', { name: 'Tic Tac Toe' })).toBeVisible();
-
-  await page.locator('#ttt-play-bot-btn').click();
-  await page.getByRole('button', { name: 'Cell top left, empty' }).click();
-  await expect(filled).toHaveCount(2, { timeout: 15_000 });
-
-  await page.getByRole('button', { name: 'Choose another opponent' }).click();
-  await page.locator('#ttt-play-friend-btn').click();
-  await page.getByRole('button', { name: 'Cell centre, empty' }).click();
-  await page.getByRole('button', { name: 'Cell top left, empty' }).click();
-  await expect(filled).toHaveCount(2);
-
-  await page.getByRole('button', { name: 'New round' }).click();
-  await expect(filled).toHaveCount(0);
-
-  await page.getByRole('button', { name: 'Back to menu' }).click();
-  await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
-
-  expect(errors).toEqual([]);
+  await page.clock.install();
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+  await expect(page.locator('#ai-suggestions-bar')).toBeVisible();
+  await page.clock.fastForward(60000);
+  await page.getByRole('button', { name: 'Shuffle' }).click();
+  await expect(page.locator('#ai-suggestions-bar')).toBeVisible();
+  await page.clock.fastForward(16000);
+  await expect(page.locator('#ai-suggestions-bar')).toHaveCount(0);
 });

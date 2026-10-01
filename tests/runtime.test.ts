@@ -511,3 +511,64 @@ test('shared music survives HTTP fallback and rejects invalid tracks and non-mem
     await request('/api/match/cancel', a, {});
   }
 });
+
+test('Tic Tac Toe REST and socket snapshots agree and room departure purges the game', async () => {
+  const { a, b, roomId } = await pair();
+  const ws = new WebSocket(base.replace('http:', 'ws:') + '/ws/chat', { headers: { Cookie: 'cm_session=' + b.token, Origin: base } });
+  const events: any[] = [];
+  ws.on('message', (raw) => events.push(JSON.parse(raw.toString())));
+  await new Promise<void>((resolve) => ws.once('open', resolve));
+  ws.send(JSON.stringify({ type: 'join_queue', interests: [] }));
+  await waitFor(() => events.some((e) => e.type === 'queued' || e.type === 'matched'));
+  try {
+    const path = '/api/chat/tictactoe';
+    assert.equal((await request(path + '?roomId=' + roomId)).status, 401);
+    assert.equal((await request(path, identity(), { roomId, action: 'invite' })).status, 404);
+    const invitation = (await request(path, a, { roomId, action: 'invite' })).data;
+    await waitFor(() => events.some((event) => event.type === 'tictactoe_state'));
+    assert.deepEqual(events.find((event) => event.type === 'tictactoe_state').state, invitation);
+    const accepted = await request(path, b, { roomId, action: 'respond', invitationId: invitation.invitation.id, accept: true });
+    assert.equal(accepted.status, 200);
+    assert.deepEqual((await request(path + '?roomId=' + roomId, a)).data, accepted.data);
+    ws.close();
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    const action = { roomId, action: 'move', gameId: accepted.data.game.id, round: 1, revision: accepted.data.revision, square: 0 };
+    assert.equal((await request(path, b, action)).status, 409);
+    const moved = (await request(path, a, action)).data;
+    assert.equal(moved.game.board[0], 'X');
+    assert.deepEqual((await request(path + '?roomId=' + roomId, b)).data, moved);
+    assert.equal((await request(path, a, action)).status, 409);
+    await request('/api/chat/leave', a, { roomId });
+    assert.equal((await request(path + '?roomId=' + roomId, b)).status, 404);
+    assert.equal((await request('/api/uno/arena', a, { size: 4, opponents: 'bots' })).status, 410);
+  } finally { ws.close(); await request('/api/match/cancel', a, {}); }
+});
+
+test('shared playback retains its clock across pauses, polls, restart and track changes', async () => {
+  const { a, b, roomId } = await pair();
+  const update = { roomId, trackId: 'test', isPlaying: true, volume: 70, isMuted: false, position: 42 };
+  try {
+    const first = (await request('/api/chat/music', a, update)).data.music;
+    assert.equal(first.position, 42);
+    assert.ok(first.updatedAt <= first.serverNow);
+    const poll = (await request('/api/chat/messages?roomId=' + roomId, b)).data.music;
+    assert.equal(poll.updatedAt, first.updatedAt);
+    assert.equal(poll.revision, first.revision);
+    const paused = (await request('/api/chat/music', b, { ...update, isPlaying: false, position: 47 })).data.music;
+    assert.equal(paused.position, 47);
+    const restart = (await request('/api/chat/music', a, { ...update, position: 0 })).data.music;
+    assert.equal(restart.position, 0);
+    const next = (await request('/api/chat/music', b, { ...update, trackId: 'next', position: undefined })).data.music;
+    assert.equal(next.position, 0);
+    for (const position of [-1, '0', 604801]) assert.equal((await request('/api/chat/music', a, { ...update, position })).status, 400);
+    // The rollout switch preserves the original play/pause contract for old clients.
+    process.env.CHAT_MULTIPLAYER_V2 = 'false';
+    const legacy = (await request('/api/chat/music', a, update)).data.music;
+    assert.equal(legacy.position, undefined);
+    assert.equal(legacy.isPlaying, true);
+    assert.equal((await request('/api/chat/tictactoe?roomId=' + roomId, a)).status, 503);
+  } finally {
+    delete process.env.CHAT_MULTIPLAYER_V2;
+    await request('/api/match/cancel', a, {});
+  }
+});

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, Pause, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { MusicTrack, RoomMusicState } from '../types';
 import {
@@ -132,15 +132,23 @@ export const TopMusicBar = React.forwardRef<
   const updateQueue = useRef(Promise.resolve());
   const [syncError, setSyncError] = useState('');
   const [needsGesture, setNeedsGesture] = useState(false);
+  const clockRef = useRef<{ position: number; receivedAt: number; playing: boolean } | null>(null);
+  const applyRemoteRef = useRef<(remote: RoomMusicState) => void>(() => {});
+  const expectedPosition = () => {
+    const clock = clockRef.current;
+    return clock ? clock.position + (clock.playing ? (performance.now() - clock.receivedAt) / 1000 : 0) : 0;
+  };
   const broadcast = (
-    state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean },
+    state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean; position?: number },
     track = tracks.find((item) => item.id === state.trackId),
   ) => {
     if (!roomId || isSimulated) return;
     setSyncError('');
+    const position = state.position ?? playerRef.current?.getCurrentTime() ?? expectedPosition();
+    const sentAt = performance.now();
     updateQueue.current = updateQueue.current.then(async () => {
       try {
-        const payload = { roomId, ...state, ...(track ? { track } : {}) };
+        const payload = { roomId, ...state, position: Math.max(0, position + (state.isPlaying ? (performance.now() - sentAt) / 1000 : 0)), ...(track ? { track } : {}) };
         let data: { music: RoomMusicState } | null = null;
         let lastError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -154,7 +162,7 @@ export const TopMusicBar = React.forwardRef<
         }
         if (!data)
           throw lastError instanceof Error ? lastError : new Error('Music could not sync.');
-        appliedRevision.current = Math.max(appliedRevision.current, data.music.revision);
+        applyRemoteRef.current(data.music);
         setSyncError('');
       } catch (error) {
         setSyncError(
@@ -182,6 +190,8 @@ export const TopMusicBar = React.forwardRef<
         const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
         if (!track) return;
         appliedRevision.current = remote.revision;
+        const position = (remote.position ?? 0) + (remote.isPlaying ? Math.max(0, (remote.serverNow ?? remote.updatedAt ?? 0) - (remote.updatedAt ?? 0)) / 1000 : 0);
+        clockRef.current = remote.position === undefined ? null : { position, receivedAt: performance.now(), playing: remote.isPlaying };
         if (index < 0) {
           index = tracks.length;
           setTracks((previous) => [...previous, track]);
@@ -201,10 +211,15 @@ export const TopMusicBar = React.forwardRef<
           else playerRef.current.unMute();
           if (trackChanged) {
             loadingTrackRef.current = remote.isPlaying;
-            if (remote.isPlaying) playerRef.current.loadVideoById(track.youtubeVideoId);
-            else playerRef.current.cueVideoById(track.youtubeVideoId);
-          } else if (remote.isPlaying) playerRef.current.playVideo();
-          else playerRef.current.pauseVideo();
+            const video = { videoId: track.youtubeVideoId, startSeconds: position };
+            if (remote.isPlaying) playerRef.current.loadVideoById(video);
+            else playerRef.current.cueVideoById(video);
+          } else {
+            if (remote.position !== undefined && Math.abs(playerRef.current.getCurrentTime() - position) > 0.75)
+              playerRef.current.seekTo(position, true);
+            if (remote.isPlaying) playerRef.current.playVideo();
+            else playerRef.current.pauseVideo();
+          }
         } else {
           setPlayerEnabled(true);
         }
@@ -221,10 +236,24 @@ export const TopMusicBar = React.forwardRef<
         /* Polling recovers missed events. */
       }
     };
+    applyRemoteRef.current = applyRemote;
     if (remoteMusic) applyRemote(remoteMusic);
     ws?.addEventListener('message', onMessage);
     return () => ws?.removeEventListener('message', onMessage);
   }, [roomId, tracks, ws, remoteMusic]);
+
+  useEffect(() => {
+    const correctDrift = () => {
+      const player = playerRef.current;
+      if (!playerReadyRef.current || !player || !clockRef.current?.playing || !wantsPlaybackRef.current || loadingTrackRef.current || document.hidden) return;
+      const clock = clockRef.current;
+      const expected = clock.position + (performance.now() - clock.receivedAt) / 1000;
+      if (Math.abs(player.getCurrentTime() - expected) > 1.5) player.seekTo(expected, true);
+    };
+    const timer = window.setInterval(correctDrift, 4000);
+    document.addEventListener('visibilitychange', correctDrift);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', correctDrift); };
+  }, []);
 
   useEffect(() => {
     // Fetch custom directory from server if available
@@ -304,9 +333,9 @@ export const TopMusicBar = React.forwardRef<
               else target.unMute();
               if (wantsPlaybackRef.current) {
                 loadingTrackRef.current = true;
-                target.loadVideoById(latestRef.current.currentTrack.youtubeVideoId);
+                target.loadVideoById({ videoId: latestRef.current.currentTrack.youtubeVideoId, startSeconds: expectedPosition() });
               } else {
-                target.cueVideoById(latestRef.current.currentTrack.youtubeVideoId);
+                target.cueVideoById({ videoId: latestRef.current.currentTrack.youtubeVideoId, startSeconds: expectedPosition() });
                 setIsLoading(false);
               }
             },
@@ -316,22 +345,10 @@ export const TopMusicBar = React.forwardRef<
               setIsLoading(data === 3);
               if (data === 1) {
                 loadingTrackRef.current = false;
-                if (!wantsPlaybackRef.current) {
-                  const latest = latestRef.current;
-                  broadcastRef.current(
-                    {
-                      trackId: latest.currentTrack.id,
-                      isPlaying: true,
-                      volume: latest.volume,
-                      isMuted: latest.isMuted,
-                    },
-                    latest.currentTrack,
-                  );
-                }
-                wantsPlaybackRef.current = true;
+                if (!wantsPlaybackRef.current) target.pauseVideo();
                 setPlayerError('');
                 setNeedsGesture(false);
-              } else if (data === 2 && wantsPlaybackRef.current && !loadingTrackRef.current) {
+              } else if (data === 0 && wantsPlaybackRef.current) {
                 wantsPlaybackRef.current = false;
                 const latest = latestRef.current;
                 broadcastRef.current(
@@ -339,12 +356,11 @@ export const TopMusicBar = React.forwardRef<
                     trackId: latest.currentTrack.id,
                     isPlaying: false,
                     volume: latest.volume,
-                    isMuted: latest.isMuted,
+                      isMuted: latest.isMuted,
+                      position: 0,
                   },
                   latest.currentTrack,
                 );
-              } else if (data === 0 && wantsPlaybackRef.current) {
-                target.playVideo();
               }
             },
             onError: ({ data }) => {
@@ -389,7 +405,7 @@ export const TopMusicBar = React.forwardRef<
     } else {
       setPlayerEnabled(true);
     }
-    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted }, track);
+    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted, ...(!resume ? { position: 0 } : {}) }, track);
   };
 
   const togglePlay = () => {
@@ -709,6 +725,7 @@ export const TopMusicBar = React.forwardRef<
                     >
                       {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                     </button>
+                    <button type="button" aria-label="Restart shared track" onClick={() => startTrack(currentTrack)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-500 text-stone-100 hover:bg-white/10"><RotateCcw className="h-4 w-4" /></button>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -869,8 +886,13 @@ export const TopMusicBar = React.forwardRef<
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">Enable music playback</p>
                   <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                    Press Play to enable sound on this device.
+                    Enable sound on this device to join your peer at the current playback position.
                   </p>
+                  <button id="music-join-btn" type="button" onClick={() => {
+                    setNeedsGesture(false);
+                    if (playerReadyRef.current) playerRef.current?.seekTo(expectedPosition(), true);
+                    startTrack(currentTrack, true, false);
+                  }} className="mt-3 rounded-lg bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-white">Join shared music</button>
                 </div>
                 <button
                   type="button"

@@ -258,6 +258,30 @@ test('colours are one of the four standard UNO colours', () => {
   for (const colour of UNO_COLORS) assert.ok(['red', 'blue', 'green', 'yellow'].includes(colour));
 });
 
+test('a chat table never awards a win for leaving and finished games need both rematch votes', () => {
+  const challenge = createUnoChallenge({ id: 's1', handle: 'Alpha' }, { id: 's2', handle: 'Bravo' }, 'room');
+  const game = respondToChallenge(challenge.id, 's2', true).game!;
+  game.turn = 0;
+  game.activeColor = 'red';
+  game.discard = [card('top', 'red', '3')];
+  game.players[0].hand = [card('last', 'red', '7')];
+  game.play('s1', 'last');
+  assert.equal(game.stateFor('s1')!.winnerHandle, game.stateFor('s2')!.winnerHandle);
+  assert.equal(game.stateFor('s2')!.winner, 'opponent');
+  assert.deepEqual(game.stateFor('s2')!.playable, []);
+  assert.throws(() => game.draw('s2'), /already over/);
+  game.rematch('s2', 1);
+  game.rematch('s2', 1);
+  assert.equal(game.status, 'over');
+  game.rematch('s1', 1);
+  assert.equal(game.status, 'playing');
+  assert.equal(game.round, 2);
+  assert.ok(game.players.every((player) => player.hand.length >= 7));
+  game.forfeit('s1');
+  assert.equal(game.winner, null);
+  assert.throws(() => game.rematch('s2', 2), /Finish the match/);
+});
+
 test('a four player table fills with the earliest waiting seats and never mixes sizes', () => {
   assert.deepEqual(joinArena('s1', 'Alpha', 4), { status: 'waiting' });
   joinArena('s2', 'Bravo', 4);

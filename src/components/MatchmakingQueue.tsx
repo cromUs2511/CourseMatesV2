@@ -4,7 +4,6 @@ import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../t
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
-import { UnoLogo, TicTacToeLogo } from './GameLogos';
 import type { ChatTheme } from './ChatThemeMenu';
 
 const MATCH_POLL_INTERVAL_MS = 400;
@@ -37,8 +36,6 @@ interface MatchmakingQueueProps {
   isDarkMode: boolean;
   autoSearch?: boolean;
   chatTheme: ChatTheme;
-  onOpenUno?: () => void;
-  onOpenTicTacToe?: () => void;
 }
 
 export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
@@ -49,8 +46,6 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   isDarkMode,
   autoSearch = false,
   chatTheme,
-  onOpenUno,
-  onOpenTicTacToe,
 }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -579,57 +574,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
         </div>
 
-        {/* Games — a quick table before or instead of chat matching */}
-        <div
-          className={`ui-surface rounded-2xl p-4 sm:p-5 space-y-3 ${
-            isDarkMode ? 'text-stone-100' : 'text-stone-800'
-          }`}
-        >
-          <div className="border-b border-stone-200 pb-3 dark:border-stone-800">
-            <div className="text-sm font-bold tracking-tight">Games</div>
-            <div className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-              Two quick games — play against classmates or the house bots.
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <button
-              id="open-uno-btn"
-              type="button"
-              onClick={onOpenUno}
-              disabled={isSearching}
-              className="group flex items-center gap-3 rounded-xl border border-stone-200 bg-white/60 p-3 text-left transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:border-stone-600 dark:hover:bg-stone-800"
-            >
-              <UnoLogo className="h-10 w-10 -rotate-6 transition-transform group-hover:-rotate-3 motion-reduce:transform-none" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold">UNO Arena</span>
-                <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">
-                  Classic 1v1 or four players · real players or bots
-                </span>
-              </span>
-              <span className="chat-theme-accent-soft shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold">
-                Enter
-              </span>
-            </button>
-            <button
-              id="open-tictactoe-btn"
-              type="button"
-              onClick={onOpenTicTacToe}
-              disabled={isSearching}
-              className="group flex items-center gap-3 rounded-xl border border-stone-200 bg-white/60 p-3 text-left transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:border-stone-600 dark:hover:bg-stone-800"
-            >
-              <TicTacToeLogo className="h-10 w-10 transition-transform group-hover:-rotate-3 motion-reduce:transform-none" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold">Tic Tac Toe</span>
-                <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">
-                  Three in a row · play the bot or share the screen
-                </span>
-              </span>
-              <span className="chat-theme-accent-soft shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold">
-                Play
-              </span>
-            </button>
-          </div>
-        </div>
+        <p className="text-center text-xs text-stone-500 dark:text-stone-400">Match with a peer to chat, share music, or invite them to UNO and Tic Tac Toe.</p>
       </div>
     </div>
   );

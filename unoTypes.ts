@@ -59,6 +59,9 @@ export type UnoViewerState = {
   winner: 'you' | 'opponent' | null;
   winnerHandle: string | null;
   notice: string;
+  round?: number;
+  rematchRequested?: boolean;
+  opponentRequestedRematch?: boolean;
 };
 
 export type UnoChallengeView = {
@@ -69,13 +72,15 @@ export type UnoChallengeView = {
 };
 
 export type UnoStateResponse = {
+  revision?: number;
   game: UnoViewerState | null;
   challenge: UnoChallengeView | null;
   queued: boolean;
 };
 
 export type UnoAction = {
-  action: 'play' | 'draw' | 'pass' | 'uno';
+  action: 'play' | 'draw' | 'pass' | 'uno' | 'rematch';
+  round?: number;
   gameId?: string;
   cardId?: string;
   color?: UnoColor;

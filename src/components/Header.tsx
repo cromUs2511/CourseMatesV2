@@ -18,6 +18,7 @@ export interface HeaderProps {
   conversation?: React.ReactNode;
   chatActions?: React.ReactNode;
   displayActions?: React.ReactNode;
+  className?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   conversation,
   chatActions,
   displayActions,
+  className,
 }) => {
   const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -67,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       id="main-header"
-      className={`relative shrink-0 w-full z-40 transition-colors duration-150 border-b backdrop-blur-xl ${
+      className={`relative shrink-0 w-full z-40 transition-colors duration-150 border-b backdrop-blur-xl ${className ?? ''} ${
         conversation
           ? isDarkMode
             ? 'bg-[#141312]/82 border-stone-800 text-stone-100'
@@ -85,23 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className={`${conversation ? 'hidden min-[900px]:block' : 'block'} min-w-0 flex-1`}>
             {conversation ? (
               <div className="flex items-center gap-2">
-                <ThemeToggle
-                  isDarkMode={isDarkMode}
-                  onToggle={onToggleDarkMode}
-                  className="chat-theme-toggle shadow-sm"
-                />
-                {session && (
-                  <div
-                    className={`min-w-0 max-w-40 truncate rounded-lg border px-2 py-1.5 text-[10px] font-semibold shadow-sm ${
-                      isDarkMode
-                        ? 'border-stone-700 bg-stone-900/80 text-stone-200'
-                        : 'border-stone-200 bg-white/80 text-stone-800'
-                    }`}
-                    title={`You: ${session.sessionHandle}`}
-                  >
-                    {session.sessionHandle}
-                  </div>
-                )}
+                <span className="brand-script text-lg font-bold text-[var(--chat-accent)]">CourseMates</span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -131,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
                   aria-expanded={settingsOpen}
                   aria-controls="header-settings"
                   onClick={() => setSettingsOpen((value) => !value)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 shadow-sm hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 min-[900px]:hidden"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-500/10 dark:text-stone-300"
                 >
                   <Settings2 className="h-4 w-4" />
                 </button>
@@ -141,23 +127,24 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-settings"
                 className={
                   conversation
-                    ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-92px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-[0_22px_60px_rgba(41,37,36,0.18)] dark:border-stone-700 dark:bg-[#1c1b1a] min-[900px]:static min-[900px]:mt-0 min-[900px]:flex min-[900px]:w-auto min-[900px]:max-h-none min-[900px]:max-w-none min-[900px]:overflow-visible min-[900px]:flex-nowrap min-[900px]:rounded-none min-[900px]:border-0 min-[900px]:bg-transparent min-[900px]:p-0 min-[900px]:shadow-none min-[900px]:dark:bg-transparent`
+                    ? `${settingsOpen ? 'flex' : 'hidden'} absolute right-3 top-full mt-2 z-50 max-h-[calc(100dvh-92px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-[#fffdfa] p-3 text-xs shadow-xl dark:border-stone-700 dark:bg-[#1c1b1a]`
                     : 'flex items-center gap-2 text-xs'
                 }
               >
                 {conversation && (
-                  <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400 min-[900px]:hidden">
+                  <p className="w-full px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-400">
                     Appearance &amp; account
                   </p>
                 )}
                 {conversation && displayActions ? (
-                  <div className="flex w-full items-center gap-3 px-1 min-[900px]:contents">
+                  <div className="flex w-full items-center gap-3 px-1">
                     <div
                       role="group"
                       aria-label="Chat display controls"
-                      className="chat-display-controls flex min-w-0 flex-1 items-center justify-between min-[900px]:w-auto min-[900px]:flex-none min-[900px]:justify-start"
+                      className="chat-display-controls flex min-w-0 flex-1 items-center justify-between"
                     >
                       <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact />
+                      <ThemeToggle id="mobile-dark-mode-toggle-btn" isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact />
                       {displayActions}
                     </div>
                   </div>
@@ -190,7 +177,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <div
                     className={
                       conversation
-                        ? 'order-first w-full border-b border-stone-200 pb-3 dark:border-stone-700 min-[768px]:hidden'
+                        ? 'order-first w-full border-b border-stone-200 pb-3 dark:border-stone-700'
                         : 'flex items-center space-x-2 pl-1 sm:pl-2 border-l border-stone-200 dark:border-stone-800'
                     }
                   >

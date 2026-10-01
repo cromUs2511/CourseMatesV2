@@ -101,6 +101,8 @@ export class UnoGame {
   notice = '';
   createdAt = Date.now();
   lastSeen = Date.now();
+  round = 1;
+  rematchRequests = new Set<string>();
 
   constructor(
     first: UnoSeat,
@@ -415,8 +417,22 @@ export class UnoGame {
     const loser = this.players.findIndex((player) => player.id === sessionId);
     if (loser === -1) return;
     this.status = 'over';
-    this.winner = this.crownWithout(loser);
+    this.winner = this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? null : this.crownWithout(loser);
     this.notice = `${this.players[loser]!.handle} left the table.`;
+  }
+
+  rematch(sessionId: string, round?: number): void {
+    this.indexOf(sessionId);
+    if (this.status !== 'over' || this.winner === null)
+      throw new Error('Finish the match before requesting a rematch.');
+    if (round !== undefined && round !== this.round) throw new Error('That round has ended.');
+    this.rematchRequests.add(sessionId);
+    this.touch();
+    if (this.players.every((player) => this.rematchRequests.has(player.id))) {
+      this.round++;
+      this.rematchRequests.clear();
+      this.start();
+    }
   }
 
   abort(): void {
@@ -483,6 +499,9 @@ export class UnoGame {
       winnerHandle:
         this.status === 'over' && this.winner !== null ? this.players[this.winner]!.handle : null,
       notice: this.notice,
+      round: this.round,
+      rematchRequested: this.rematchRequests.has(sessionId),
+      opponentRequestedRematch: [...this.rematchRequests].some((id) => id !== sessionId),
     };
   }
 }
@@ -510,6 +529,7 @@ const arena = new Map<string, ArenaEntry>();
 const games = new Map<string, UnoGame>();
 const gameBySession = new Map<string, string>();
 const challenges = new Map<string, UnoChallenge>();
+let snapshotRevision = 0;
 
 export const UNO_LIMITS = { games: 500, arena: 500, challenges: 500 };
 
@@ -621,6 +641,10 @@ export function createUnoChallenge(
   roomId: string,
 ): UnoChallenge {
   if (from.id === to.id) throw new Error('You cannot challenge yourself.');
+  for (const player of [from, to]) {
+    const previous = unoGameForSession(player.id);
+    if (previous?.status === 'over') unoLeaveGame(player.id);
+  }
   if (unoGameForSession(from.id) || unoGameForSession(to.id))
     throw new Error('One of you is already at a UNO table.');
   const existing = unoChallengeForSession(from.id) || unoChallengeForSession(to.id);
@@ -657,6 +681,11 @@ export function respondToChallenge(
     throw new Error('That challenge is not for you.');
   if (accept && challenge.toId !== sessionId)
     throw new Error('Only the challenged peer can accept.');
+  if (Date.now() - challenge.createdAt > 90000) {
+    challenges.delete(challengeId);
+    throw new Error('That invitation expired. Send a new one.');
+  }
+  if (accept && games.size >= UNO_LIMITS.games) throw new Error('Too many tables right now.');
   challenges.delete(challengeId);
   if (!accept) return { challenge };
   dropSession(challenge.fromId);
@@ -682,6 +711,7 @@ export function cancelChallenge(challengeId: string, sessionId: string): UnoChal
 }
 
 export function unoStateFor(sessionId: string): {
+  revision: number;
   game: UnoViewerState | null;
   challenge: {
     id: string;
@@ -702,6 +732,7 @@ export function unoStateFor(sessionId: string): {
   const seat = arena.get(sessionId);
   if (seat) seat.lastSeen = Date.now();
   return {
+    revision: ++snapshotRevision,
     game: game ? game.stateFor(sessionId) : null,
     challenge: challenge
       ? {
@@ -771,7 +802,7 @@ export function unoCleanup(now = Date.now()): UnoGame[] {
   const expired: UnoGame[] = [];
   for (const [id, entry] of arena) if (now - entry.lastSeen > 30000) arena.delete(id);
   for (const [id, challenge] of challenges)
-    if (now - challenge.lastSeen > 60000 || now - challenge.createdAt > 5 * 60000)
+    if (now - challenge.lastSeen > 60000 || now - challenge.createdAt > 90000)
       challenges.delete(id);
   for (const [id, game] of [...games]) {
     if (game.status === 'playing' && now - game.lastSeen > 90000) {

@@ -369,13 +369,16 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
             document.addEventListener(
               'click',
               (event) => {
-                if ((event.target as Element).closest('#music-play-toggle-btn'))
+                if ((event.target as Element).closest('#music-play-toggle-btn, #music-join-btn'))
                   (window as any).musicUnlocked = true;
               },
               true,
             );
             (window as any).YT = {
               Player: class {
+                position = 0;
+                since = Date.now();
+                playing = false;
                 constructor(
                   element: HTMLElement,
                   private options: any,
@@ -383,21 +386,31 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
                   const iframe = document.createElement('iframe');
                   iframe.title = 'Music video';
                   element.replaceWith(iframe);
+                  (window as any).musicPlayer = this;
                   setTimeout(() => options.events.onReady({ target: this }), 0);
                 }
-                loadVideoById(id: string) {
-                  (window as any).musicLoads.push(id);
+                loadVideoById(video: string | { videoId: string; startSeconds: number }) {
+                  (window as any).musicLoads.push(typeof video === 'string' ? video : video.videoId);
+                  this.position = typeof video === 'string' ? 0 : video.startSeconds;
+                  this.since = Date.now();
                   this.playVideo();
                 }
                 cueVideoById() {}
+                getCurrentTime() { return this.position + (this.playing ? (Date.now() - this.since) / 1000 : 0); }
+                seekTo(seconds: number) { this.position = seconds; this.since = Date.now(); }
                 playVideo() {
                   if (!(window as any).musicUnlocked) {
                     this.options.events.onAutoplayBlocked({ target: this });
                     return;
                   }
+                  this.position = this.getCurrentTime();
+                  this.since = Date.now();
+                  this.playing = true;
                   this.options.events.onStateChange({ target: this, data: 1 });
                 }
                 pauseVideo() {
+                  this.position = this.getCurrentTime();
+                  this.playing = false;
                   this.options.events.onStateChange({ target: this, data: 2 });
                 }
                 setVolume(volume: number) {
@@ -432,10 +445,8 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
       await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
       await a.getByRole('button', { name: 'Play Study Music' }).click();
       if (source === 'mobile autoplay') {
-        await expect(b.getByText('Press Play to enable sound on this device.')).toBeVisible();
+        await b.getByRole('button', { name: 'Join shared music' }).click();
         await openMusic(b);
-        await b.getByRole('button', { name: 'Play Study Music' }).click();
-        await expect(b.getByRole('status')).toHaveCount(0);
       }
       for (const page of [a, b]) {
         if (page === b && source !== 'mobile autoplay') {
@@ -522,6 +533,19 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
           [a, b].map((page) => page.evaluate(() => (window as any).musicLoads.length)),
         ),
       ).toEqual(loads);
+      // Local drift correction seeks to the shared clock without writing it back.
+      let syncWrites = 0;
+      for (const page of [a, b]) page.on('request', (request) => {
+        if (request.url().endsWith('/api/chat/music')) syncWrites++;
+      });
+      await b.evaluate(() => { (window as any).musicPlayer.position += 20; });
+      await expect.poll(async () => {
+        const times = await Promise.all([a, b].map((page) => page.evaluate(() => (window as any).musicPlayer.getCurrentTime())));
+        return Math.abs(times[0] - times[1]);
+      }, { timeout: 7000 }).toBeLessThan(2);
+      expect(syncWrites).toBe(0);
+      await a.getByRole('button', { name: 'Restart shared track' }).click();
+      await expect.poll(() => b.evaluate(() => (window as any).musicPlayer.getCurrentTime())).toBeLessThan(2);
       for (const width of [320, 375, 1280]) {
         await a.setViewportSize({ width, height: 800 });
         await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeInViewport();

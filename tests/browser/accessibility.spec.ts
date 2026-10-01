@@ -50,7 +50,7 @@ test('chat room meets WCAG A/AA without serious or critical violations', async (
   }
 });
 
-test('UNO arena, table and rules meet WCAG A/AA without serious violations', async ({
+test('UNO invitation, table and rules meet WCAG A/AA without serious violations', async ({
   browser,
 }) => {
   const first = await browser.newContext(),
@@ -60,12 +60,13 @@ test('UNO arena, table and rules meet WCAG A/AA without serious violations', asy
   try {
     await enter(a);
     await enter(b);
-    await a.locator('#open-uno-btn').click();
-    await b.locator('#open-uno-btn').click();
-    await expect(a.getByRole('heading', { name: 'UNO Arena', exact: true })).toBeVisible();
+    await a.locator('#start-chat-btn').click();
+    await b.locator('#start-chat-btn').click();
+    await a.getByRole('button', { name: 'Open the games catalog' }).click();
+    await a.locator('#chat-game-uno-btn').click();
+    await expect(b.getByRole('region', { name: 'UNO invitation' })).toBeVisible();
     expect(await audit(a)).toEqual([]);
-    await a.getByRole('button', { name: 'Find an opponent' }).click();
-    await b.getByRole('button', { name: 'Find an opponent' }).click();
+    await b.getByRole('button', { name: 'Accept', exact: true }).click();
     await expect(a.locator('.uno-table')).toBeVisible({ timeout: 15_000 });
     expect(await audit(a)).toEqual([]);
     await a.getByRole('button', { name: 'UNO rules' }).click();
@@ -76,14 +77,19 @@ test('UNO arena, table and rules meet WCAG A/AA without serious violations', asy
   }
 });
 
-test('tic tac toe meets WCAG A/AA without serious or critical violations', async ({ page }) => {
-  await enter(page);
-  await page.locator('#open-tictactoe-btn').click();
-  await expect(page.getByRole('heading', { name: 'Tic Tac Toe' })).toBeVisible();
-  expect(await audit(page)).toEqual([]);
-  await page.locator('#ttt-play-bot-btn').click();
-  await expect(page.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
-  expect(await audit(page)).toEqual([]);
+test('tic tac toe meets WCAG A/AA without serious or critical violations', async ({ browser }) => {
+  const first = await browser.newContext(), second = await browser.newContext();
+  const a = await first.newPage(), b = await second.newPage();
+  try {
+    await enter(a); await enter(b);
+    await a.locator('#start-chat-btn').click(); await b.locator('#start-chat-btn').click();
+    await a.getByRole('button', { name: 'Open the games catalog' }).click();
+    expect(await audit(a)).toEqual([]);
+    await a.locator('#chat-game-tictactoe-btn').click();
+    await b.getByRole('button', { name: 'Accept', exact: true }).click();
+    await expect(a.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
+    expect(await audit(a)).toEqual([]);
+  } finally { await first.close(); await second.close(); }
 });
 
 test('the access gate can be completed with the keyboard alone', async ({ page }) => {

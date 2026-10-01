@@ -325,9 +325,32 @@
 /* Momentum hand swiping that never chains into the page behind the table.
    Pinch zoom stays available: no touch-action override on the scroller. */
 .uno-hand {
+  justify-content: safe center;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* A quiet table boundary, with the two seats anchored on opposite edges. */
+.uno-stage::before {
+  content: '';
+  position: absolute;
+  inset: 8% 5% 18%;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 45%;
+  pointer-events: none;
+}
+.uno-opponent {
+  box-shadow: none;
+  background: rgb(0 0 0 / 0.18);
+}
+.uno-mine {
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+.uno-card.playable:hover {
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.4), 0 0 0 2px #facc15, inset 0 0 0 3px #fff !important;
 }
 
 /* ---------- Short viewports (landscape phones, split screens) ----------

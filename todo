@@ -1,0 +1,200 @@
+# CourseMates UI + Multiplayer Improvement Brief
+
+## Objective
+Improve the existing CourseMates chat, games, and media experience while preserving current product behavior unless a change is explicitly requested below.
+
+## Priority Order
+1. Functional multiplayer behavior
+   - UNO game state
+   - Tic-Tac-Toe game state
+   - Game invitations
+   - Music synchronization
+2. Interaction polish
+   - responsiveness
+   - animations
+   - visual clarity
+   - mobile/desktop consistency
+3. Final UI refinement
+   - stronger hierarchy
+   - cleaner dark-mode layout
+   - less clutter and more intentional design
+
+---
+
+## 1) Improve the UNO Game UI
+Redesign the UNO interface for both desktop and mobile so it feels like a real digital UNO table for two players.
+
+### Requirements
+- Local player's cards stay clearly visible at the bottom.
+- Opponent is positioned clearly across from the local player.
+- Center of the board clearly shows the draw pile and discard pile.
+- Player names, card counts, turn status, and key game information are easy to understand.
+- Layout must be responsive for desktop and mobile.
+- Add a polished turn indicator (glow, pulse, highlight, or other subtle visual cue) when it is a player's turn.
+- Card draw, card play, turn transitions, UNO calls, and victory interactions should feel smooth.
+- Goal: remove the unfinished stacked layout and make the table feel like an actual multiplayer card game.
+
+---
+
+## 2) Fix UNO Match Completion
+UNO should behave as a proper 1v1 game between the two current chat participants.
+
+### Requirements
+- Match ends only when one player successfully empties their hand.
+- When a player wins:
+  - clearly display the winner
+  - show a proper victory state or animation
+  - disable further card interaction after the match ends
+  - allow both players to request or start a rematch
+- Both users must receive the same final game result.
+
+---
+
+## 3) Move Games Inside the Chat Interface
+UNO and Tic-Tac-Toe should no longer appear as standalone major interface sections.
+
+### Requirements
+- Add a Games icon or button inside the chat controls.
+- When clicked, open a small game catalog with at least:
+  - UNO
+  - Tic-Tac-Toe
+- After selecting a game, the user can invite the person they are currently chatting with.
+- The game flow should feel integrated into the conversation rather than like a separate app section.
+
+---
+
+## 4) Fix Tic-Tac-Toe Multiplayer
+The current Tic-Tac-Toe experience appears broken or non-responsive and must be repaired for real-time 2-player play.
+
+### Requirements
+- Both users see the same board state.
+- Clicking a valid square updates the board for both users.
+- Turns alternate correctly.
+- A user cannot play during the opponent's turn.
+- A square cannot be selected twice.
+- Wins are detected correctly.
+- Draws are detected correctly.
+- The game clearly indicates whose turn it is.
+- The game displays the winner or draw result.
+- Both players can request or start a rematch.
+- Game state remains synchronized between both users.
+
+---
+
+## 5) Fix Music Synchronization
+Currently, shared music playback can be inconsistent and may only play for one user.
+
+### Requirements
+- Ensure both users in the chat experience the same shared music session.
+- Shared actions must synchronize for both participants, including:
+  - play
+  - pause
+  - track change
+  - current song
+  - playback position
+  - restart
+  - skip (if supported)
+- Both users should remain approximately synchronized instead of drifting into separate playback states.
+- Prevent unnecessary synchronization loops where one client's update repeatedly triggers the other client.
+
+---
+
+## 6) Simplify UNO to Two Players Only
+UNO should be limited to the two users in the active chat.
+
+### Requirements
+- Remove the 4-player UNO option.
+- Remove bot-player options.
+- Remove player-count selectors.
+- Automatically treat the two users in the current chat as the UNO players.
+- Do not show multiplayer setup options that are no longer needed.
+- Keep the experience focused on quick, simple 1v1 matches inside the conversation.
+
+---
+
+## 7) Improve the Game Invitation UI
+The current invitation flow is easy to miss and should be redesigned to stand out inside the conversation.
+
+### Requirements
+- Show a proper game invitation card inside the chat.
+- It must clearly display:
+  - selected game
+  - sender of the invitation
+  - recognizable game icon or visual
+  - accept button
+  - decline button
+- The invitation should visually stand out from normal chat messages while still fitting the CourseMates design language.
+- Once accepted, both users should automatically enter or initialize the same game session.
+
+---
+
+## 8) Add a Time Limit to the Ice Breaker
+The Ice Breaker should only appear temporarily at the start of a new chat.
+
+### Requirements
+- Show the Ice Breaker when a conversation begins.
+- Keep it available for approximately 1 minute to 1 minute 30 seconds.
+- After that period, automatically hide or dismiss it.
+- If users begin chatting before the timer ends, it may disappear earlier.
+- The timer must not constantly reset on page re-renders or normal chat updates.
+- The Ice Breaker should feel temporary, not permanent.
+
+---
+
+## 9) Improve the Overall UI
+Refine the general interface so it feels more intentional, polished, and human-designed.
+
+### Avoid
+- excessive rounded cards
+- too many floating containers
+- random gradients
+- oversized empty sections
+- excessive glow effects
+- too many decorative elements
+- inconsistent spacing
+- repeated card-within-card layouts
+- generic dashboard styling
+
+### Prefer
+- stronger visual hierarchy
+- cleaner spacing consistency
+- fewer unnecessary containers
+- readable typography
+- cohesive dark-mode design
+- obvious interactive elements without visual noise
+- a recognizable CourseMates identity
+
+---
+
+## 10) Fix the Header Options
+Review and redesign the header controls to reduce clutter and improve layout quality.
+
+### Requirements
+- Keep only the most important actions immediately visible.
+- Place secondary actions inside an overflow, settings, or contextual menu.
+- The chat header should prioritize:
+  - user/chat information
+  - important conversation actions
+  - games access
+  - music/shared-session controls when relevant
+  - settings or additional options
+- Header layout must adapt properly between desktop and mobile.
+
+---
+
+## Overall Requirement
+These improvements must work as part of the existing CourseMates application and not as disconnected mockups.
+
+### Must preserve
+- the current chat system
+- the product identity
+- existing app behavior unless explicitly modified above
+
+### Priority order for implementation
+1. UNO multiplayer game state
+2. Tic-Tac-Toe multiplayer game state
+3. Game invitations
+4. Music synchronization
+5. UI polish, animation, and responsiveness
+
+This is the primary focus. Functional multiplayer reliability comes before visual refinement.

@@ -34,6 +34,7 @@ import {
   startBotGame,
 } from './uno';
 import type { UnoGame } from './uno';
+import { PeerTicTacToe } from './ticTacToe';
 
 type Identity = StudentSession & { token: string; email: string; actor: string; expiresAt: number };
 type Participant = {
@@ -75,6 +76,7 @@ type Room = {
   typing: Map<string, number>;
   revision: number;
   music?: RoomMusic;
+  ticTacToe?: PeerTicTacToe;
 };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
@@ -591,6 +593,12 @@ function updateMusic(session: Identity, room: Room, data: any) {
   if (data.track !== undefined && (!track || track.id !== trackId))
     throw new Error('Invalid music track.');
   const currentMusic = room.music;
+  if (data.position !== undefined && (!Number.isFinite(data.position) || data.position < 0 || data.position > 604800))
+    throw new Error('Invalid playback position.');
+  const now = Date.now();
+  const position = data.position ?? (currentMusic && currentMusic.trackId === trackId
+    ? (currentMusic.position ?? 0) + (currentMusic.isPlaying ? Math.max(0, now - (currentMusic.updatedAt ?? now)) / 1000 : 0)
+    : 0);
   const sharedTrack =
     track || (currentMusic && currentMusic.trackId === trackId ? currentMusic.track : undefined);
   room.music = {
@@ -600,6 +608,7 @@ function updateMusic(session: Identity, room: Room, data: any) {
     isPlaying: data.isPlaying === true,
     volume,
     isMuted: data.isMuted === true,
+    ...(process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? { position, updatedAt: now, serverNow: now } : {}),
   };
   for (const peer of room.peers)
     if (peer.id !== session.id)
@@ -778,7 +787,7 @@ export function attachRuntime(
       active: true,
       messages: changed ? room.messages : [],
       revision: room.revision,
-      music: room.music,
+      music: room.music ? { ...room.music, serverNow: Date.now() } : undefined,
       peerDisconnected: false,
       peerPresence,
       isPeerTyping: [...room.typing].some(
@@ -792,9 +801,34 @@ export function attachRuntime(
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     try {
       updateMusic(session, room, req.body);
-      res.json({ music: room.music });
+      res.json({ music: { ...room.music, serverNow: Date.now() } });
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });
+    }
+  });
+  app.get('/api/chat/tictactoe', (req, res) => {
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const room = requireRoom(authenticate(req)!, req.query.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    room.ticTacToe ??= new PeerTicTacToe();
+    res.json(room.ticTacToe.snapshot());
+  });
+  app.post('/api/chat/tictactoe', (req, res) => {
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    if (!unoLimiter.take('ttt:' + session.id, 120, 60000))
+      return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
+    try {
+      room.ticTacToe ??= new PeerTicTacToe();
+      room.ticTacToe.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
+      const state = room.ticTacToe.snapshot();
+      for (const peer of room.peers)
+        notify(peer.ws, { type: 'tictactoe_state', roomId: room.id, state });
+      res.json(state);
+    } catch (error) {
+      res.status(409).json({ error: (error as Error).message });
     }
   });
   app.post('/api/chat/typing', (req, res) => {
@@ -823,6 +857,8 @@ export function attachRuntime(
     res.json(unoStateFor(authenticate(req)!.id));
   });
   app.post('/api/uno/arena', (req, res) => {
+    if (process.env.CHAT_MULTIPLAYER_V2 !== 'false')
+      return res.status(410).json({ error: 'UNO is now a two-player game inside your current chat. Invite your peer from Games.' });
     const session = authenticate(req)!;
     if (!unoLimiter.take('uno-arena:' + session.id, 30, 60000))
       return res.status(429).json({ error: 'You are joining too quickly. Try again shortly.' });
@@ -900,10 +936,19 @@ export function attachRuntime(
       return res.status(404).json({ error: 'That table is no longer available.' });
     try {
       const action = req.body?.action;
+      if (req.body?.round !== undefined && req.body.round !== game.round)
+        throw new Error('That round has ended.');
       if (action === 'play') game.play(session.id, String(req.body?.cardId || ''), req.body?.color);
       else if (action === 'draw') game.draw(session.id);
       else if (action === 'pass') game.pass(session.id);
       else if (action === 'uno') game.callUno(session.id);
+      else if (action === 'rematch') {
+        if (!game.roomId || !requireRoom(session, game.roomId))
+          throw new Error('Your chat has ended.');
+        if (game.players.some((player) => unoGameForSession(player.id)?.id !== game.id))
+          throw new Error('Your peer left this table. Send a new invitation.');
+        game.rematch(session.id, req.body?.round);
+      }
       else throw new Error('Invalid game action.');
       pushUnoGame(game);
       res.json(unoStateFor(session.id));
@@ -1054,7 +1099,7 @@ export function attachRuntime(
           if (room) room.peers.find((p) => p.id === session!.id)!.ws = ws;
           const result = join(session, data, ws);
           if (room || result.status === 'queued') notify(ws, { type: result.status, ...result });
-          if (room?.music) notify(ws, { type: 'music_state', roomId: room.id, music: room.music });
+          if (room?.music) notify(ws, { type: 'music_state', roomId: room.id, music: { ...room.music, serverNow: Date.now() } });
           return;
         }
         if (!joined) {

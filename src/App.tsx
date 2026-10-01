@@ -3,8 +3,6 @@ import { Header } from './components/Header';
 import { AccessGateway } from './components/AccessGateway';
 import { MatchmakingQueue } from './components/MatchmakingQueue';
 import { ChatRoom } from './components/ChatRoom';
-import { UnoArena } from './components/UnoArena';
-import { TicTacToe } from './components/TicTacToe';
 import { StudentSession, ActivePeerInfo } from './types';
 import { apiRequest, SESSION_EXPIRED_EVENT } from './utils/api';
 import { getSoundEnabled, setSoundEnabled } from './utils/sound';
@@ -38,9 +36,6 @@ export default function App() {
   const [error, setError] = useState('');
   const [queueKey, setQueueKey] = useState(0);
   const [autoSearch, setAutoSearch] = useState(false);
-  const [unoOpen, setUnoOpen] = useState(false);
-  const [unoPlaying, setUnoPlaying] = useState(false);
-  const [tictactoeOpen, setTictactoeOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -98,8 +93,6 @@ export default function App() {
       setActiveRoomId(undefined);
       setSession(null);
       setAutoSearch(false);
-      setUnoOpen(false);
-      setTictactoeOpen(false);
       setError('Your session ended. Continue to start a new anonymous session.');
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, expired);
@@ -135,8 +128,6 @@ export default function App() {
     setSession(null);
     setError('');
     setAutoSearch(false);
-    setUnoOpen(false);
-    setTictactoeOpen(false);
   };
   const handleMatched = (peer: ActivePeerInfo, topic: string, ws?: WebSocket, roomId?: string) => {
     setActivePeer(peer);
@@ -171,7 +162,7 @@ export default function App() {
         } as React.CSSProperties
       }
     >
-      {session && !activePeer && !(unoOpen && unoPlaying) && (
+      {session && !activePeer && (
         <Header
           {...headerProps}
           displayActions={
@@ -237,14 +228,6 @@ export default function App() {
             chatTheme={chatTheme}
             onChatThemeChange={handleChatThemeChange}
           />
-        ) : unoOpen ? (
-          <UnoArena
-            isDarkMode={isDarkMode}
-            onBack={() => setUnoOpen(false)}
-            onPlayingChange={setUnoPlaying}
-          />
-        ) : tictactoeOpen ? (
-          <TicTacToe isDarkMode={isDarkMode} onBack={() => setTictactoeOpen(false)} />
         ) : (
           <MatchmakingQueue
             key={queueKey}
@@ -255,8 +238,6 @@ export default function App() {
             isDarkMode={isDarkMode}
             autoSearch={autoSearch}
             chatTheme={chatTheme}
-            onOpenUno={() => setUnoOpen(true)}
-            onOpenTicTacToe={() => setTictactoeOpen(true)}
           />
         )}
       </main>

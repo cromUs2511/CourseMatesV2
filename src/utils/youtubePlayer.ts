@@ -2,9 +2,10 @@ export interface YouTubePlayer {
   playVideo(): void;
   pauseVideo(): void;
   loadVideoById(
-    video: string | { videoId: string; startSeconds: number; endSeconds: number },
+    video: string | { videoId: string; startSeconds: number; endSeconds?: number },
   ): void;
-  cueVideoById(video: string | { videoId: string; startSeconds: number; endSeconds: number }): void;
+  cueVideoById(video: string | { videoId: string; startSeconds: number; endSeconds?: number }): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
   getCurrentTime(): number;
   mute(): void;
   unMute(): void;

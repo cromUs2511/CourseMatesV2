@@ -105,6 +105,10 @@ export interface MusicTrack {
 }
 
 export interface RoomMusicState {
+  /** Position at updatedAt; serverNow avoids device clock skew. */
+  position?: number;
+  updatedAt?: number;
+  serverNow?: number;
   trackId: string;
   track?: MusicTrack;
   isPlaying: boolean;
