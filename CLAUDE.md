@@ -37,6 +37,16 @@ operational runbook is `docs/operations.md`.
   `/api/auth|match|chat/*` routes, `/api/health`, and the WebSocket server.
 - `chatImages.ts`, `voiceMessages.ts` — server-side media validation.
   `pythonOrchestrator.ts` — non-throwing shadow client.
+- `safety.ts` — `SafetyStore` (reports, blocks, bans; the only durable data) and
+  `moderateText`, driven by `moderation-patterns.json`. `serverSecurity.ts` —
+  `WindowLimiter`, `constantTimeEqual`, `metrics` and the production config gate.
+- Peer games, one server module each, all mounted from `runtime.ts`:
+  `ticTacToe.ts`, `rps.ts`, `connectFour.ts`, `chess.ts` (chess.js),
+  `trivia.ts`, `wouldYouRather.ts`, and `uno.ts` / `unoTypes.ts`. Matching UI is
+  `src/components/Peer*.tsx`, `Uno*.tsx`, with shared catalog data in
+  `src/data/peerGames.ts`.
+- `UNO.txt` (standalone HTML prototype) and `todo` (a game-repair task brief)
+  are scratch files, not part of the product.
 - `src/data/` is imported by both the browser and the server, so shared limits
   (`chatImages.ts`, `chatVoice.ts`, `reactions.ts`) live in one place. Change a
   limit there, not in a copy.
@@ -112,6 +122,40 @@ another participant's token or email.
   explicitly current or online questions. The chatbot is a labelled simulation
   (`isSimulated` on `ActivePeerInfo`).
 - All `/api/*` responses are `no-store`, and unknown paths return a JSON 404.
+
+## Peer games
+
+Seven games: UNO, Tic-Tac-Toe, Rock Paper Scissors, Connect Four, Chess,
+Trivia, Would You Rather.
+
+- Routes are `GET|POST /api/chat/{tictactoe,rps,connectfour,chess,trivia,wyr}`
+  (invite, respond, move) and `/api/uno/*` (arena, challenge, action, away,
+  leave). Both are rate limited (429) and can return 503 when games are
+  disabled.
+- Only one non-UNO peer game, or an in-room UNO table, may be live per room.
+  New ones go through `assertRoomGameFree`; a game with a `result` no longer
+  blocks.
+- State is server-authoritative and synced over WebSocket with REST fallback,
+  like chat. Never send a player's hidden state (UNO hands, unrevealed Would You
+  Rather choices) to the peer.
+- Chess boards must come from `chess.board()`, not from parsing chess.js ASCII
+  output.
+- Tests: `tests/uno.test.ts`, `peerGames.test.ts`, `peer-games-repair.test.ts`,
+  and `tests/browser/games.spec.ts` / `uno.spec.ts`.
+
+## Safety, moderation and admin
+
+- Users report and block via `POST /api/safety/<action>`. Browser ids are
+  HMAC-hashed with `MODERATION_SECRET` into a 64-hex actor; no message text,
+  email or token is stored. Reports keep the IP for 30 days; permanent IP bans
+  do not expire.
+- `SafetyStore` persists to `DATA_DIR/moderation.json` (atomic write, symlinks
+  and bad secrets rejected). A storage error disables it until restart.
+- `/api/admin/*` (login, session, metrics, reports, moderate) uses an
+  `ADMIN_TOKEN`-backed HttpOnly cookie scoped to `/api/admin`, rendered by
+  `AdminDashboard.tsx`. Compare secrets with `constantTimeEqual`.
+- `moderateText` filters outgoing text using `moderation-patterns.json`. The
+  static pages `public/{privacy,terms,community}.html` back the 18+ terms flag.
 
 ## Frontend
 

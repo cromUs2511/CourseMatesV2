@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
 
                 {/* Authenticated Identity Badge - No user emojis or icons */}
-                {session && (
+                {session && conversation && (
                   <div
                     className={
                       conversation
