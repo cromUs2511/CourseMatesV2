@@ -395,9 +395,18 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             <div className="min-w-0">
               {!isEditingName ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="max-w-full break-words text-base font-bold tracking-tight text-stone-900 dark:text-white">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNameInput(session.customHandle ? session.sessionHandle : '');
+                      setIsEditingName(true);
+                    }}
+                    disabled={isSearching}
+                    title="Change name"
+                    className="min-h-10 max-w-full break-words rounded-lg text-left text-base font-bold tracking-tight text-stone-900 dark:text-white cursor-pointer hover:underline disabled:cursor-not-allowed disabled:no-underline"
+                  >
                     {session.sessionHandle}
-                  </span>
+                  </button>
                   {!session.customHandle && (
                     <button
                       onClick={onRerollHandle}
@@ -408,17 +417,6 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNameInput(session.customHandle ? session.sessionHandle : '');
-                      setIsEditingName(true);
-                    }}
-                    disabled={isSearching}
-                    className="matching-name-action chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
-                  >
-                    {session.customHandle ? 'Edit name' : 'Use a custom name'}
-                  </button>
                   {session.customHandle && (
                     <button
                       type="button"

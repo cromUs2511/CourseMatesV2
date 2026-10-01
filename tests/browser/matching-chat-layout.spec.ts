@@ -64,13 +64,15 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
         expect(
           Math.abs(shuffleBox.y + shuffleBox.height / 2 - iconBox.y - iconBox.height / 2),
         ).toBeLessThan(1);
-        await page.getByRole('button', { name: 'Use a custom name' }).click();
+        await page.getByTitle('Change name').click();
         await expectContained(page, '.matching-name-form, .matching-name-form input');
         await page
           .getByRole('textbox', { name: 'Custom name' })
           .fill('A very long study nickname for wrapping');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
-        await expect(page.getByRole('button', { name: 'Edit name' })).toBeVisible();
+        await expect(page.getByTitle('Change name')).toHaveText(
+          'A very long study nickname for wrapping',
+        );
 
         for (const width of [320, 390, 1280]) {
           await page.setViewportSize({ width, height: 844 });

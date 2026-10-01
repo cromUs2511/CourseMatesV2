@@ -49,7 +49,7 @@ test('main menu exposes light-dark and chat color controls together', async ({ p
     .click();
   await expect(colorsButton).toHaveAttribute('title', 'Chat theme: Ocean blue');
   await expect(page.locator('.ambient-grid')).toHaveCSS('background-color', 'rgb(242, 248, 252)');
-  await expect(page.getByRole('button', { name: 'Use a custom name' })).toHaveCSS(
+  await expect(page.getByRole('button', { name: 'Shuffle default name' })).toHaveCSS(
     'color',
     'rgb(18, 103, 130)',
   );
@@ -402,14 +402,14 @@ test('a custom name can be changed back to a random default handle', async ({ pa
   await page.goto('/');
   await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
   await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
-  await page.getByRole('button', { name: 'Use a custom name' }).click();
+  await page.getByTitle('Change name').click();
   await page.getByRole('textbox', { name: 'Custom name' }).fill('Custom Study Name');
   await page.getByRole('button', { name: 'Save' }).click();
   const profileName = page.getByRole('main').getByText('Custom Study Name', { exact: true });
   await expect(profileName).toBeVisible();
   await page.getByRole('button', { name: 'Use random name' }).click();
   await expect(profileName).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Use a custom name' })).toBeVisible();
+  await expect(page.getByTitle('Shuffle default name')).toBeVisible();
 });
 
 test('mobile chat header shows a compact centered identity without the matching topic', async ({
