@@ -46,6 +46,10 @@ export const Header: React.FC<HeaderProps> = ({
     if (!settingsOpen) return;
     if (settingsPanelRef.current) settingsPanelRef.current.scrollTop = 0;
     const closeOutside = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      // The chat theme grid renders in a portal; interacting with it must not
+      // dismiss the settings panel behind it.
+      if (target?.closest?.('[data-chat-theme-grid]')) return;
       if (!settingsRef.current?.contains(event.target as Node)) setSettingsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -87,7 +91,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className={`${conversation ? 'hidden min-[900px]:block' : 'block'} min-w-0 flex-1`}>
             {conversation ? (
               <div className="flex items-center gap-2">
-                <span className="brand-script text-lg font-bold text-[var(--chat-accent)]">CourseMates</span>
+                <span className="brand-script text-lg font-bold text-[var(--chat-accent)]">
+                  CourseMates
+                </span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -117,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
                   aria-expanded={settingsOpen}
                   aria-controls="header-settings"
                   onClick={() => setSettingsOpen((value) => !value)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-500/10 dark:text-stone-300"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-500/10 dark:text-stone-300"
                 >
                   <Settings2 className="h-4 w-4" />
                 </button>
@@ -144,7 +150,12 @@ export const Header: React.FC<HeaderProps> = ({
                       className="chat-display-controls flex min-w-0 flex-1 items-center justify-between"
                     >
                       <SoundToggle isEnabled={isSoundEnabled} onToggle={onToggleSound} compact />
-                      <ThemeToggle id="mobile-dark-mode-toggle-btn" isDarkMode={isDarkMode} onToggle={onToggleDarkMode} compact />
+                      <ThemeToggle
+                        id="mobile-dark-mode-toggle-btn"
+                        isDarkMode={isDarkMode}
+                        onToggle={onToggleDarkMode}
+                        compact
+                      />
                       {displayActions}
                     </div>
                   </div>

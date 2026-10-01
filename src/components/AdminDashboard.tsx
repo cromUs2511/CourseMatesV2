@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check, LogOut, RefreshCw, Shield, ShieldAlert } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  LogOut,
+  RefreshCw,
+  Shield,
+  ShieldAlert,
+} from 'lucide-react';
 import { apiRequest } from '../utils/api';
 
 type AdminReport = {
@@ -47,6 +55,9 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
+  const durationMenuRef = useRef<HTMLDivElement>(null);
+  const durationButtonRef = useRef<HTMLButtonElement>(null);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -90,6 +101,27 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
     const refresh = window.setInterval(() => void loadReports(), 60_000);
     return () => window.clearInterval(refresh);
   }, [authenticated, loadReports]);
+
+  useEffect(() => {
+    if (!durationMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!durationMenuRef.current?.contains(event.target as Node)) {
+        setDurationMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDurationMenuOpen(false);
+        durationButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [durationMenuOpen]);
 
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -362,34 +394,60 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-            Restriction duration
-            <select
-              value={duration === null ? 'permanent' : String(duration)}
-              onChange={(event) =>
-                setDuration(
-                  event.target.value === 'permanent'
-                    ? null
-                    : (Number(event.target.value) as 86_400_000 | 172_800_000 | 259_200_000),
-                )
-              }
-              style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
-              className="rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-stone-900 dark:border-stone-700 dark:text-stone-100"
-            >
-              {BAN_DURATIONS.map((item) => (
-                <option
-                  key={item.label}
-                  value={item.value ?? 'permanent'}
-                  style={{
-                    backgroundColor: isDarkMode ? '#1a1917' : '#ffffff',
-                    color: isDarkMode ? '#f5f5f4' : '#1c1917',
-                  }}
+          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+            <span>Restriction duration</span>
+            <div ref={durationMenuRef} className="relative">
+              <button
+                ref={durationButtonRef}
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={durationMenuOpen}
+                aria-controls="restriction-duration-menu"
+                onClick={() => setDurationMenuOpen((open) => !open)}
+                className="inline-flex min-w-32 items-center justify-between gap-3 rounded-lg border border-stone-300 bg-white px-3 py-2 text-left font-medium text-stone-900 hover:bg-stone-100 dark:border-stone-700 dark:bg-[#1a1917] dark:text-stone-100 dark:hover:bg-stone-800"
+              >
+                {BAN_DURATIONS.find((item) => item.value === duration)?.label}
+                <ChevronDown
+                  aria-hidden="true"
+                  className={`h-4 w-4 transition-transform ${durationMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {durationMenuOpen && (
+                <div
+                  id="restriction-duration-menu"
+                  role="menu"
+                  aria-label="Restriction duration"
+                  className={`absolute right-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg border p-1 shadow-xl ${
+                    isDarkMode
+                      ? 'border-stone-700 bg-[#1a1917] text-stone-100'
+                      : 'border-stone-200 bg-white text-stone-900'
+                  }`}
                 >
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+                  {BAN_DURATIONS.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={duration === item.value}
+                      onClick={() => {
+                        setDuration(item.value);
+                        setDurationMenuOpen(false);
+                      }}
+                      className={`block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${
+                        duration === item.value
+                          ? 'bg-emerald-600 text-white'
+                          : isDarkMode
+                            ? 'text-stone-100 hover:bg-stone-800'
+                            : 'text-stone-900 hover:bg-stone-100'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <section aria-label="Reports" className="space-y-3">
           {loading && reports.length === 0 ? (

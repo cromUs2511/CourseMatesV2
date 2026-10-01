@@ -180,6 +180,38 @@ test('mobile chat theme picker keeps its full grid width', async ({ page }) => {
   await expect(picker.getByRole('button', { name: 'Graphite neon' })).toBeVisible();
 });
 
+test('chat theme grid anchors to the settings panel instead of clipping', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.locator('#start-chat-btn').click();
+  await page.locator('#simulate-peer-btn').click();
+  await expect(page.locator('#chat-header')).toBeVisible();
+  await page.getByRole('button', { name: 'Account and display settings' }).click();
+  await page.getByRole('button', { name: 'Choose chat color theme' }).click();
+
+  const picker = page.getByRole('dialog', { name: 'Chat color themes' });
+  await expect(picker).toBeVisible();
+  const panel = page.locator('#header-settings');
+  const pickerBox = (await picker.boundingBox())!;
+  const panelBox = (await panel.boundingBox())!;
+  const pickerRight = pickerBox.x + pickerBox.width;
+  const pickerBottom = pickerBox.y + pickerBox.height;
+  const panelRight = panelBox.x + panelBox.width;
+  // Right-aligned with the panel and fully inside the viewport.
+  expect(pickerRight).toBeLessThanOrEqual(panelRight + 1);
+  expect(pickerBox.x).toBeGreaterThanOrEqual(panelBox.x - 1);
+  expect(pickerBottom).toBeLessThanOrEqual(720);
+  // The grid overlays instead of hiding inside the panel scroll area.
+  expect(await panel.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+  await picker.getByRole('button', { name: 'Ocean blue' }).click();
+  await expect(page.getByRole('button', { name: 'Choose chat color theme' })).toHaveAttribute(
+    'title',
+    'Chat theme: Ocean blue',
+  );
+});
+
 test('selected chat theme colors every chat display control', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
