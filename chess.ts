@@ -1,43 +1,60 @@
 import crypto from 'node:crypto';
-import { Chess, type Color, type PieceSymbol } from 'chess.js';
-import type { ChessState, ChessAction, ChessPieceColor, ChessBoard, ChessPiece } from './src/data/peerGames';
+import { Chess, type PieceSymbol } from 'chess.js';
+import type {
+  ChessState,
+  ChessAction,
+  ChessPieceColor,
+  ChessBoard,
+  ChessPiece,
+} from './src/data/peerGames';
 
-function chessBoardToArray(chess: Chess): ChessBoard {
-  const board: ChessBoard = Array.from({ length: 8 }, () => Array(8).fill(null));
-  const ascii = chess.ascii().split('\n');
-  for (let rank = 0; rank < 8; rank++) {
-    const line = ascii[7 - rank];
-    if (!line) continue;
-    for (let file = 0; file < 8; file++) {
-      const char = line[file * 2 + 2];
-      if (char && char !== '.') {
-        const color: ChessPieceColor = char === char.toUpperCase() ? 'white' : 'black';
-        const typeMap: Record<string, ChessPiece['type']> = {
-          p: 'pawn', r: 'rook', n: 'knight', b: 'bishop', q: 'queen', k: 'king',
-        };
-        const type = typeMap[char.toLowerCase()]!;
-        board[rank]![file] = { type, color, hasMoved: false };
-      }
-    }
-  }
-  return board;
+const TYPE_FROM_SYMBOL: Record<PieceSymbol, ChessPiece['type']> = {
+  p: 'pawn',
+  r: 'rook',
+  n: 'knight',
+  b: 'bishop',
+  q: 'queen',
+  k: 'king',
+};
+
+const PROMOTION_SYMBOL: Record<ChessPiece['type'], PieceSymbol> = {
+  queen: 'q',
+  rook: 'r',
+  bishop: 'b',
+  knight: 'n',
+  pawn: 'p',
+  king: 'k',
+};
+
+/**
+ * Convert a chess.js position to the CourseMates board shape.
+ * chess.board() returns rank 8 first, matching board[0] === rank 8.
+ */
+function chessToBoard(chess: Chess): ChessBoard {
+  const raw = chess.board();
+  return raw.map((rankRow) =>
+    rankRow.map((cell) => {
+      if (!cell) return null;
+      const type = TYPE_FROM_SYMBOL[cell.type];
+      if (!type) throw new Error('Unknown piece type.');
+      return {
+        type,
+        color: cell.color === 'w' ? ('white' as ChessPieceColor) : ('black' as ChessPieceColor),
+      };
+    }),
+  );
 }
 
-function arrayToChess(board: ChessBoard, turn: ChessPieceColor): Chess {
-  const chess = new Chess();
-  chess.clear();
-  for (let rank = 0; rank < 8; rank++) {
-    for (let file = 0; file < 8; file++) {
-      const piece = board[rank]![file];
-      if (piece) {
-        const typeChar = { pawn: 'p', rook: 'r', knight: 'n', bishop: 'b', queen: 'q', king: 'k' }[piece.type] as PieceSymbol;
-        const color = piece.color === 'white' ? 'w' : 'b';
-        chess.put({ type: typeChar, color }, `${String.fromCharCode(97 + file)}${8 - rank}` as any);
-      }
-    }
-  }
-  (chess as any).turn = turn === 'white' ? 'w' : 'b';
-  return chess;
+function isSquare(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < 8)
+  );
+}
+
+function toAlgebraic(square: [number, number]): string {
+  return String.fromCharCode(97 + square[1]) + (8 - square[0]);
 }
 
 export class PeerChess {
@@ -73,13 +90,17 @@ export class PeerChess {
       if (action.accept && invitation.fromId === actor)
         throw new Error('Only your peer can accept this invitation.');
       if (action.accept) {
-        const ordered = [...peers].sort((a) => a.id === invitation.fromId ? -1 : 1);
+        const ordered = [...peers].sort((a) => (a.id === invitation.fromId ? -1 : 1));
         const chess = new Chess();
         state.game = {
           id: crypto.randomUUID(),
           round: 1,
-          players: ordered.map((peer, index) => ({ ...peer, color: index === 0 ? 'white' : 'black' })),
-          board: chessBoardToArray(chess),
+          players: ordered.map((peer, index) => ({
+            ...peer,
+            color: index === 0 ? 'white' : 'black',
+          })),
+          board: chessToBoard(chess),
+          fen: chess.fen(),
           turn: 'white',
           result: null,
           inCheck: null,
@@ -94,7 +115,12 @@ export class PeerChess {
       if (!game || game.id !== action.gameId || game.round !== action.round)
         throw new Error('That round is no longer available.');
 
-      const chess = arrayToChess(game.board, game.turn);
+      let chess: Chess;
+      try {
+        chess = new Chess(game.fen);
+      } catch {
+        throw new Error('That position is no longer available.');
+      }
 
       if (action.action === 'rematch') {
         if (!game.result) throw new Error('Finish this round first.');
@@ -103,7 +129,8 @@ export class PeerChess {
         if (game.rematch.length === 2) {
           game.round++;
           const newChess = new Chess();
-          game.board = chessBoardToArray(newChess);
+          game.board = chessToBoard(newChess);
+          game.fen = newChess.fen();
           game.turn = 'white';
           game.result = null;
           game.inCheck = null;
@@ -117,26 +144,42 @@ export class PeerChess {
 
         const player = game.players.find((p) => p.id === actor)!;
         if (player.color !== game.turn) throw new Error('It is not your turn.');
+        if (!isSquare(action.from) || !isSquare(action.to))
+          throw new Error('Choose two squares on the board.');
+        if (action.promotion !== undefined && !(action.promotion in PROMOTION_SYMBOL))
+          throw new Error('Choose a valid promotion piece.');
 
         try {
           const move = chess.move({
-            from: String.fromCharCode(97 + action.from[1]) + (8 - action.from[0]),
-            to: String.fromCharCode(97 + action.to[1]) + (8 - action.to[0]),
-            promotion: action.promotion || undefined,
+            from: toAlgebraic(action.from),
+            to: toAlgebraic(action.to),
+            promotion:
+              action.promotion === undefined
+                ? undefined
+                : PROMOTION_SYMBOL[action.promotion as ChessPiece['type']],
           });
 
-          game.board = chessBoardToArray(chess);
+          game.board = chessToBoard(chess);
+          game.fen = chess.fen();
           game.turn = chess.turn() === 'w' ? 'white' : 'black';
           game.lastMove = {
             from: action.from,
             to: action.to,
-            piece: { type: move.piece as ChessPiece['type'], color: move.color === 'w' ? 'white' : 'black', hasMoved: true },
+            piece: {
+              type: TYPE_FROM_SYMBOL[move.piece],
+              color: move.color === 'w' ? 'white' : 'black',
+            },
           };
 
           if (chess.isCheckmate()) {
             game.result = { winnerId: actor, reason: 'checkmate' };
             game.inCheck = null;
-          } else if (chess.isStalemate() || chess.isDraw() || chess.isThreefoldRepetition() || chess.isInsufficientMaterial()) {
+          } else if (
+            chess.isStalemate() ||
+            chess.isDraw() ||
+            chess.isThreefoldRepetition() ||
+            chess.isInsufficientMaterial()
+          ) {
             game.result = { winnerId: null, reason: 'stalemate' };
             game.inCheck = null;
           } else if (chess.isCheck()) {
@@ -154,7 +197,8 @@ export class PeerChess {
         game.drawOfferedBy = actor;
       } else if (action.action === 'respondDraw') {
         if (game.result) throw new Error('This round is over.');
-        if (!game.drawOfferedBy || game.drawOfferedBy === actor) throw new Error('No draw offered to respond to.');
+        if (!game.drawOfferedBy || game.drawOfferedBy === actor)
+          throw new Error('No draw offered to respond to.');
         if (action.accept) {
           game.result = { winnerId: null, reason: 'draw-agreed' };
           game.drawOfferedBy = null;

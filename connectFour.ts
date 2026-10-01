@@ -8,12 +8,17 @@ function emptyBoard(): (('red' | 'yellow') | null)[][] {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 }
 
-function checkWin(board: (('red' | 'yellow') | null)[][], row: number, col: number, color: 'red' | 'yellow'): number[] {
+function checkWin(
+  board: (('red' | 'yellow') | null)[][],
+  row: number,
+  col: number,
+  color: 'red' | 'yellow',
+): number[] {
   const directions: [number, number][] = [
-    [0, 1],   // horizontal
-    [1, 0],   // vertical
-    [1, 1],   // diagonal down-right
-    [1, -1],  // diagonal down-left
+    [0, 1], // horizontal
+    [1, 0], // vertical
+    [1, 1], // diagonal down-right
+    [1, -1], // diagonal down-left
   ];
 
   for (const dir of directions) {
@@ -73,14 +78,18 @@ export class PeerConnectFour {
       if (action.accept && invitation.fromId === actor)
         throw new Error('Only your peer can accept this invitation.');
       if (action.accept) {
-        const ordered = [...peers].sort((a) => a.id === invitation.fromId ? -1 : 1);
+        const ordered = [...peers].sort((a) => (a.id === invitation.fromId ? -1 : 1));
         state.game = {
           id: crypto.randomUUID(),
           round: 1,
-          players: ordered.map((peer, index) => ({ ...peer, color: index === 0 ? 'red' : 'yellow' })),
+          players: ordered.map((peer, index) => ({
+            ...peer,
+            color: index === 0 ? 'red' : 'yellow',
+          })),
           board: emptyBoard(),
           turn: 'red',
           result: null,
+          lastMove: null,
           rematch: [],
         };
       }
@@ -99,6 +108,7 @@ export class PeerConnectFour {
           game.board = emptyBoard();
           game.turn = 'red';
           game.result = null;
+          game.lastMove = null;
           game.rematch = [];
         }
       } else if (action.action === 'move') {
@@ -119,6 +129,7 @@ export class PeerConnectFour {
         if (row === -1) throw new Error('Column is full.');
 
         game.board[row]![col] = player.color;
+        game.lastMove = { row, col };
         const winningCells = checkWin(game.board, row, col, player.color);
         if (winningCells.length > 0) {
           game.result = { winnerId: actor, winningCells };

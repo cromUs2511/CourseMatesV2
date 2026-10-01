@@ -18,6 +18,23 @@ export class PeerRockPaperScissors {
     return structuredClone(this.state);
   }
 
+  /**
+   * Per-player view: before a round is revealed each player sees only
+   * their own choice. After reveal both choices are visible.
+   */
+  serializeFor(viewerId: string): RpsState {
+    const state = this.snapshot();
+    const game = state.game;
+    if (game && game.turn === 'choosing') {
+      const own = game.choices[viewerId];
+      game.choices = own ? { [viewerId]: own } : {};
+      for (const player of game.players) {
+        if (player.id !== viewerId) player.choice = null;
+      }
+    }
+    return state;
+  }
+
   act(actor: string, peers: { id: string; handle: string }[], action: RpsAction): void {
     if (peers.length !== 2 || !peers.some((peer) => peer.id === actor))
       throw new Error('This game is for the two current chat participants.');
@@ -40,7 +57,7 @@ export class PeerRockPaperScissors {
       if (action.accept && invitation.fromId === actor)
         throw new Error('Only your peer can accept this invitation.');
       if (action.accept) {
-        const ordered = [...peers].sort((a) => a.id === invitation.fromId ? -1 : 1);
+        const ordered = [...peers].sort((a) => (a.id === invitation.fromId ? -1 : 1));
         state.game = {
           id: crypto.randomUUID(),
           round: 1,
@@ -65,16 +82,29 @@ export class PeerRockPaperScissors {
         game.rematch.push(actor);
         if (game.rematch.length === 2) {
           game.round++;
-          game.players.forEach((p) => { p.choice = null; });
+          game.players.forEach((p) => {
+            p.choice = null;
+          });
           game.choices = {};
           game.turn = 'choosing';
           game.result = null;
           game.rematch = [];
         }
+      } else if (action.action === 'next') {
+        if (game.turn !== 'revealing') throw new Error('Finish the current round first.');
+        game.round++;
+        game.players.forEach((p) => {
+          p.choice = null;
+        });
+        game.choices = {};
+        game.turn = 'choosing';
+        game.result = null;
       } else if (action.action === 'choose') {
         if (game.turn !== 'choosing') throw new Error('It is not time to choose.');
         if (game.result) throw new Error('This round is over.');
         if (game.choices[actor]) throw new Error('You have already chosen.');
+        if (action.choice !== 'rock' && action.choice !== 'paper' && action.choice !== 'scissors')
+          throw new Error('Choose rock, paper, or scissors.');
 
         game.choices[actor] = action.choice;
         const player = game.players.find((p) => p.id === actor)!;
@@ -93,7 +123,11 @@ export class PeerRockPaperScissors {
             game.scores[winnerId!]!++;
           }
 
-          const reason = isDraw ? 'Draw!' : winnerId === p1.id ? `${p1.handle} wins the round!` : `${p2.handle} wins the round!`;
+          const reason = isDraw
+            ? 'Draw!'
+            : winnerId === p1.id
+              ? `${p1.handle} wins the round!`
+              : `${p2.handle} wins the round!`;
           game.result = { winnerId, reason };
 
           const maxScore = Math.ceil(game.bestOf / 2);

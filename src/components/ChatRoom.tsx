@@ -53,6 +53,7 @@ import { PeerTrivia, type PeerTriviaHandle } from './PeerTrivia';
 import { PeerWouldYouRather, type PeerWouldYouRatherHandle } from './PeerWouldYouRather';
 import { GameInvitation } from './GameInvitation';
 import type { UnoAction, UnoStateResponse } from '../../unoTypes';
+import type { PeerGameActivity, PeerGameKey } from '../data/peerGames';
 import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
@@ -183,10 +184,40 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const chessRef = useRef<PeerChessHandle>(null);
   const triviaRef = useRef<PeerTriviaHandle>(null);
   const wyrRef = useRef<PeerWouldYouRatherHandle>(null);
+  const [peerActivities, setPeerActivities] = useState<
+    Partial<Record<PeerGameKey, PeerGameActivity>>
+  >({});
+  const reportPeerActivity = useCallback((key: PeerGameKey, activity: PeerGameActivity | null) => {
+    setPeerActivities((prev) => {
+      const current = prev[key];
+      if (!activity && !current) return prev;
+      if (
+        activity &&
+        current &&
+        current.status === activity.status &&
+        current.incoming === activity.incoming &&
+        current.label === activity.label
+      )
+        return prev;
+      const next = { ...prev };
+      if (activity) next[key] = activity;
+      else delete next[key];
+      return next;
+    });
+  }, []);
+  const activePeerEntry: PeerGameActivity | null = Object.values(peerActivities)[0] ?? null;
+  const resumePeerGame = (game: PeerGameKey) => {
+    if (game === 'tictactoe') ticTacToeRef.current?.open();
+    else if (game === 'rps') rpsRef.current?.open();
+    else if (game === 'connectfour') connectFourRef.current?.open();
+    else if (game === 'chess') chessRef.current?.open();
+    else if (game === 'trivia') triviaRef.current?.open();
+    else if (game === 'wyr') wyrRef.current?.open();
+  };
   const unoSeenRound = useRef('');
   const unoSending = useRef(false);
   const applyUno = useCallback((next: UnoStateResponse) => {
-    setUnoState((current) => (next.revision ?? 0) >= (current?.revision ?? 0) ? next : current);
+    setUnoState((current) => ((next.revision ?? 0) >= (current?.revision ?? 0) ? next : current));
   }, []);
   const [swipe, setSwipe] = useState<{ id: string; offset: number } | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -580,7 +611,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     const sync = () => {
       void apiRequest<UnoStateResponse>('/api/uno/state')
         .then((data) => {
-           if (!disposed) applyUno(data);
+          if (!disposed) applyUno(data);
         })
         .catch(() => {
           /* Transient failures retry on the next tick. */
@@ -610,7 +641,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setUnoBusy(true);
     setUnoError('');
     try {
-      const data = await apiRequest<UnoStateResponse>('/api/uno/action', { ...action, round: unoState?.game?.round });
+      const data = await apiRequest<UnoStateResponse>('/api/uno/action', {
+        ...action,
+        round: unoState?.game?.round,
+      });
       applyUno(data);
     } catch (err) {
       setUnoError((err as Error).message);
@@ -1204,7 +1238,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   compact
                 />
                 {!peer.isSimulated && !peerDisconnected && roomId && (
-                  <button type="button" onClick={() => setSafetyOpen(true)} aria-label="Report or block peer" title="Report or block peer" className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"><Shield className="h-4 w-4" /></button>
+                  <button
+                    type="button"
+                    onClick={() => setSafetyOpen(true)}
+                    aria-label="Report or block peer"
+                    title="Report or block peer"
+                    className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
+                  >
+                    <Shield className="h-4 w-4" />
+                  </button>
                 )}
                 <button
                   id="chat-fullscreen-btn"
@@ -1224,7 +1266,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             chatActions={
               <>
                 {!peerDisconnected && (
-                  <TopMusicBar ref={musicBarRef} compact isDarkMode={isDarkMode} roomId={roomId} ws={ws} remoteMusic={roomMusic} isSimulated={peer.isSimulated} onAmbientChange={handleAmbientChange} accent={chatTheme.accent} accentHover={chatTheme.accentHover} />
+                  <TopMusicBar
+                    ref={musicBarRef}
+                    compact
+                    isDarkMode={isDarkMode}
+                    roomId={roomId}
+                    ws={ws}
+                    remoteMusic={roomMusic}
+                    isSimulated={peer.isSimulated}
+                    onAmbientChange={handleAmbientChange}
+                    accent={chatTheme.accent}
+                    accentHover={chatTheme.accentHover}
+                  />
                 )}
                 {!peer.isSimulated && !peerDisconnected && roomId && (
                   <button
@@ -1259,6 +1312,21 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             }
           />
         </div>
+        {activePeerEntry && !peer.isSimulated && !peerDisconnected && roomId && (
+          <div className="flex w-full shrink-0 items-center justify-center px-3 pt-2 sm:px-6">
+            <button
+              type="button"
+              onClick={() => resumePeerGame(activePeerEntry.game)}
+              className="flex w-full max-w-3xl items-center justify-center gap-2 rounded-full border border-stone-300 bg-stone-100 px-4 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-200 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+            >
+              <Gamepad2 className="h-3.5 w-3.5 shrink-0 text-[var(--chat-accent)]" />
+              <span className="min-w-0 truncate">
+                🎮 {activePeerEntry.label} — {activePeerEntry.status}
+              </span>
+              <span className="shrink-0 underline">Resume</span>
+            </button>
+          </div>
+        )}
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -1269,18 +1337,70 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
             {!peer.isSimulated && !peerDisconnected && roomId && (
               <>
-                <PeerTicTacToe ref={ticTacToeRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
-                <PeerRockPaperScissors ref={rpsRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
-                <PeerConnectFour ref={connectFourRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
-                <PeerChess ref={chessRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
-                <PeerTrivia ref={triviaRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
-                <PeerWouldYouRather ref={wyrRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerTicTacToe
+                  ref={ticTacToeRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('tictactoe', a)}
+                />
+                <PeerRockPaperScissors
+                  ref={rpsRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('rps', a)}
+                />
+                <PeerConnectFour
+                  ref={connectFourRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('connectfour', a)}
+                />
+                <PeerChess
+                  ref={chessRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('chess', a)}
+                />
+                <PeerTrivia
+                  ref={triviaRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('trivia', a)}
+                />
+                <PeerWouldYouRather
+                  ref={wyrRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('wyr', a)}
+                />
               </>
             )}
             {unoState?.challenge && !peerDisconnected && (
-              <GameInvitation game="UNO" sender={unoState.challenge.fromHandle} incoming={unoState.challenge.direction === 'incoming'} busy={unoBusy} onRespond={(accept) => void respondToUnoChallenge(accept)} />
+              <GameInvitation
+                game="UNO"
+                sender={unoState.challenge.fromHandle}
+                incoming={unoState.challenge.direction === 'incoming'}
+                busy={unoBusy}
+                onRespond={(accept) => void respondToUnoChallenge(accept)}
+              />
             )}
-            {unoError && !unoOpen && <p role="alert" className="py-2 text-sm text-red-500">{unoError}</p>}
+            {unoError && !unoOpen && (
+              <p role="alert" className="py-2 text-sm text-red-500">
+                {unoError}
+              </p>
+            )}
             {messages.map((msg, index) => {
               if (msg.type === 'system') {
                 const isUnsentMessage = msg.text === 'Message unsent.';
@@ -1598,85 +1718,84 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         </div>
 
         {/* Each chat allows three successfully sent conversation starters. */}
-        {!peerDisconnected && !startersExpired &&
+        {!peerDisconnected &&
+          !startersExpired &&
           startersSent < CONVERSATION_STARTER_LIMIT &&
           aiSuggestions.length > 0 && (
             <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-1.5 sm:px-6 sm:pb-3">
               <div
-              className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-sm ${
-                isDarkMode
-                  ? 'border-stone-700 bg-stone-950/80'
-                  : 'border-stone-200 bg-white/85'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
-                    style={{
-                      borderColor: `${chatTheme.accent}66`,
-                      backgroundColor: `${chatTheme.accent}1a`,
-                    }}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" style={{ color: chatTheme.accent }} />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="brand-script text-sm font-bold leading-none"
-                        style={{ color: chatTheme.accent }}
-                      >
-                        Break the ice
-                      </span>
-                      <span
-                        className="rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                        aria-live="polite"
-                        style={{
-                          borderColor: `${chatTheme.accent}66`,
-                          color: chatTheme.accent,
-                          backgroundColor: `${chatTheme.accent}12`,
-                        }}
-                      >
-                        {CONVERSATION_STARTER_LIMIT - startersSent} left
-                      </span>
+                className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-sm ${
+                  isDarkMode ? 'border-stone-700 bg-stone-950/80' : 'border-stone-200 bg-white/85'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
+                      style={{
+                        borderColor: `${chatTheme.accent}66`,
+                        backgroundColor: `${chatTheme.accent}1a`,
+                      }}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" style={{ color: chatTheme.accent }} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="brand-script text-sm font-bold leading-none"
+                          style={{ color: chatTheme.accent }}
+                        >
+                          Break the ice
+                        </span>
+                        <span
+                          className="rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                          aria-live="polite"
+                          style={{
+                            borderColor: `${chatTheme.accent}66`,
+                            color: chatTheme.accent,
+                            backgroundColor: `${chatTheme.accent}12`,
+                          }}
+                        >
+                          {CONVERSATION_STARTER_LIMIT - startersSent} left
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fetchAiSuggestions()}
+                    disabled={isSuggestionsLoading || isSending}
+                    title="Shuffle and generate new topic prompts"
+                    className="flex shrink-0 items-center gap-1 rounded-full border border-stone-300 bg-stone-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-700 transition-colors hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                  >
+                    <RefreshCw
+                      className={`h-3 w-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`}
+                    />
+                    <span>Shuffle</span>
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => fetchAiSuggestions()}
-                  disabled={isSuggestionsLoading || isSending}
-                  title="Shuffle and generate new topic prompts"
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-stone-300 bg-stone-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-700 transition-colors hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
-                >
-                  <RefreshCw
-                    className={`h-3 w-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`}
-                  />
-                  <span>Shuffle</span>
-                </button>
-              </div>
-
-              <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-                {aiSuggestions.map((prompt, idx) => (
-                  <button
-                    key={idx}
-                    disabled={isSending}
-                    onClick={() => handleSuggestionClick(prompt)}
-                    title="Use this conversation starter"
-                    className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isDarkMode
-                        ? 'border-stone-700 bg-stone-900 text-stone-300 hover:border-stone-500 hover:text-white'
-                        : 'border-stone-200 bg-stone-50 text-stone-700 hover:border-stone-300 hover:bg-white'
-                    }`}
-                  >
-                    {prompt}
-                  </button>
-                ))}
+                <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+                  {aiSuggestions.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      disabled={isSending}
+                      onClick={() => handleSuggestionClick(prompt)}
+                      title="Use this conversation starter"
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isDarkMode
+                          ? 'border-stone-700 bg-stone-900 text-stone-300 hover:border-stone-500 hover:text-white'
+                          : 'border-stone-200 bg-stone-50 text-stone-700 hover:border-stone-300 hover:bg-white'
+                      }`}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         {deleteMenuMessageId &&
           messageActionsPosition &&
           createPortal(
@@ -2105,6 +2224,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         <GamesCatalogDialog
           hasGame={Boolean(unoState?.game)}
           hasChallenge={Boolean(unoState?.challenge)}
+          activePeerGame={
+            activePeerEntry ? { game: activePeerEntry.game, label: activePeerEntry.label } : null
+          }
           onSelectUno={() => openGameFromCatalog('uno')}
           onSelectTicTacToe={() => openGameFromCatalog('tictactoe')}
           onSelectRps={() => openGameFromCatalog('rps')}

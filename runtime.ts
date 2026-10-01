@@ -435,6 +435,53 @@ function requireRoom(session: Identity, id: unknown) {
   room.peers.find((p) => p.id === session.id)!.lastSeen = Date.now();
   return room;
 }
+
+type PeerGameSnapshot = {
+  snapshot(now?: number): { invitation: { id: string } | null; game: { result: unknown } | null };
+};
+
+/**
+ * Only one peer game may be live per room at a time. Returns the label of a
+ * different game that is currently inviting or in play, or null when free.
+ * Completed games (result set) do not block new games.
+ */
+function activePeerGame(room: Room, except?: string): string | null {
+  const entries: [string, string, PeerGameSnapshot | undefined][] = [
+    ['tictactoe', 'Tic Tac Toe', room.ticTacToe],
+    ['rps', 'Rock Paper Scissors', room.rockPaperScissors],
+    ['connectfour', 'Connect Four', room.connectFour],
+    ['chess', 'Chess', room.chess],
+    ['trivia', 'Trivia', room.trivia],
+    ['wyr', 'Would You Rather', room.wouldYouRather],
+  ];
+  for (const [key, label, instance] of entries) {
+    if (!instance || key === except) continue;
+    const state = instance.snapshot();
+    if (state.invitation) return label;
+    if (state.game && state.game.result == null) return label;
+  }
+  return null;
+}
+
+function assertNoOtherActiveGame(room: Room, key: string): void {
+  const other = activePeerGame(room, key);
+  if (other) throw new Error(`Finish your current ${other} game first.`);
+}
+
+/** An in-chat UNO table or pending UNO challenge for this room also holds the game slot. */
+function roomUnoBusy(room: Room): boolean {
+  for (const p of room.peers) {
+    const s = unoStateFor(p.id);
+    if (s.game && s.game.source === 'room' && s.game.roomId === room.id) return true;
+    if (s.challenge && s.challenge.roomId === room.id) return true;
+  }
+  return false;
+}
+
+function assertRoomGameFree(room: Room, key: string): void {
+  assertNoOtherActiveGame(room, key);
+  if (roomUnoBusy(room)) throw new Error('Finish your current UNO game first.');
+}
 function send(session: Identity, room: Room, data: any) {
   if (typeof data.text !== 'string' || data.text.length > 4000)
     throw new Error('Messages must contain at most 4000 characters.');
@@ -603,12 +650,18 @@ function updateMusic(session: Identity, room: Room, data: any) {
   if (data.track !== undefined && (!track || track.id !== trackId))
     throw new Error('Invalid music track.');
   const currentMusic = room.music;
-  if (data.position !== undefined && (!Number.isFinite(data.position) || data.position < 0 || data.position > 604800))
+  if (
+    data.position !== undefined &&
+    (!Number.isFinite(data.position) || data.position < 0 || data.position > 604800)
+  )
     throw new Error('Invalid playback position.');
   const now = Date.now();
-  const position = data.position ?? (currentMusic && currentMusic.trackId === trackId
-    ? (currentMusic.position ?? 0) + (currentMusic.isPlaying ? Math.max(0, now - (currentMusic.updatedAt ?? now)) / 1000 : 0)
-    : 0);
+  const position =
+    data.position ??
+    (currentMusic && currentMusic.trackId === trackId
+      ? (currentMusic.position ?? 0) +
+        (currentMusic.isPlaying ? Math.max(0, now - (currentMusic.updatedAt ?? now)) / 1000 : 0)
+      : 0);
   const sharedTrack =
     track || (currentMusic && currentMusic.trackId === trackId ? currentMusic.track : undefined);
   room.music = {
@@ -618,7 +671,9 @@ function updateMusic(session: Identity, room: Room, data: any) {
     isPlaying: data.isPlaying === true,
     volume,
     isMuted: data.isMuted === true,
-    ...(process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? { position, updatedAt: now, serverNow: now } : {}),
+    ...(process.env.CHAT_MULTIPLAYER_V2 !== 'false'
+      ? { position, updatedAt: now, serverNow: now }
+      : {}),
   };
   for (const peer of room.peers)
     if (peer.id !== session.id)
@@ -817,14 +872,16 @@ export function attachRuntime(
     }
   });
   app.get('/api/chat/tictactoe', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const room = requireRoom(authenticate(req)!, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.ticTacToe ??= new PeerTicTacToe();
     res.json(room.ticTacToe.snapshot());
   });
   app.post('/api/chat/tictactoe', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -832,7 +889,16 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.ticTacToe ??= new PeerTicTacToe();
-      room.ticTacToe.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'tictactoe');
+      room.ticTacToe.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       const state = room.ticTacToe.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'tictactoe_state', roomId: room.id, state });
@@ -844,14 +910,17 @@ export function attachRuntime(
 
   // Rock Paper Scissors
   app.get('/api/chat/rps', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
-    const room = requireRoom(authenticate(req)!, req.query.roomId);
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.rockPaperScissors ??= new PeerRockPaperScissors();
-    res.json(room.rockPaperScissors.snapshot());
+    res.json(room.rockPaperScissors.serializeFor(session.id));
   });
   app.post('/api/chat/rps', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -859,11 +928,23 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.rockPaperScissors ??= new PeerRockPaperScissors();
-      room.rockPaperScissors.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
-      const state = room.rockPaperScissors.snapshot();
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'rps');
+      room.rockPaperScissors.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       for (const peer of room.peers)
-        notify(peer.ws, { type: 'rps_state', roomId: room.id, state });
-      res.json(state);
+        notify(peer.ws, {
+          type: 'rps_state',
+          roomId: room.id,
+          state: room.rockPaperScissors.serializeFor(peer.id),
+        });
+      res.json(room.rockPaperScissors.serializeFor(session.id));
     } catch (error) {
       res.status(409).json({ error: (error as Error).message });
     }
@@ -871,14 +952,16 @@ export function attachRuntime(
 
   // Connect Four
   app.get('/api/chat/connectfour', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const room = requireRoom(authenticate(req)!, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.connectFour ??= new PeerConnectFour();
     res.json(room.connectFour.snapshot());
   });
   app.post('/api/chat/connectfour', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -886,7 +969,16 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.connectFour ??= new PeerConnectFour();
-      room.connectFour.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'connectfour');
+      room.connectFour.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       const state = room.connectFour.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'connectfour_state', roomId: room.id, state });
@@ -898,14 +990,16 @@ export function attachRuntime(
 
   // Chess
   app.get('/api/chat/chess', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const room = requireRoom(authenticate(req)!, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.chess ??= new PeerChess();
     res.json(room.chess.snapshot());
   });
   app.post('/api/chat/chess', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -913,7 +1007,16 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.chess ??= new PeerChess();
-      room.chess.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'chess');
+      room.chess.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       const state = room.chess.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'chess_state', roomId: room.id, state });
@@ -925,14 +1028,17 @@ export function attachRuntime(
 
   // Trivia
   app.get('/api/chat/trivia', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
-    const room = requireRoom(authenticate(req)!, req.query.roomId);
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.trivia ??= new PeerTrivia();
-    res.json(room.trivia.snapshot());
+    res.json(room.trivia.serializeFor(session.id));
   });
   app.post('/api/chat/trivia', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -940,11 +1046,23 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.trivia ??= new PeerTrivia();
-      room.trivia.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
-      const state = room.trivia.snapshot();
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'trivia');
+      room.trivia.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       for (const peer of room.peers)
-        notify(peer.ws, { type: 'trivia_state', roomId: room.id, state });
-      res.json(state);
+        notify(peer.ws, {
+          type: 'trivia_state',
+          roomId: room.id,
+          state: room.trivia.serializeFor(peer.id),
+        });
+      res.json(room.trivia.serializeFor(session.id));
     } catch (error) {
       res.status(409).json({ error: (error as Error).message });
     }
@@ -952,14 +1070,17 @@ export function attachRuntime(
 
   // Would You Rather
   app.get('/api/chat/wyr', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
-    const room = requireRoom(authenticate(req)!, req.query.roomId);
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.query.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
     room.wouldYouRather ??= new PeerWouldYouRather();
-    res.json(room.wouldYouRather.snapshot());
+    res.json(room.wouldYouRather.serializeFor(session.id));
   });
   app.post('/api/chat/wyr', (req, res) => {
-    if (process.env.CHAT_MULTIPLAYER_V2 === 'false') return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
     const session = authenticate(req)!;
     const room = requireRoom(session, req.body.roomId);
     if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
@@ -967,11 +1088,23 @@ export function attachRuntime(
       return res.status(429).json({ error: 'Too many game actions. Try again shortly.' });
     try {
       room.wouldYouRather ??= new PeerWouldYouRather();
-      room.wouldYouRather.act(session.id, room.peers.map(({ id, handle }) => ({ id, handle })), req.body);
-      const state = room.wouldYouRather.snapshot();
+      if (
+        req.body?.action === 'invite' ||
+        (req.body?.action === 'respond' && req.body?.accept === true)
+      )
+        assertRoomGameFree(room, 'wyr');
+      room.wouldYouRather.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
       for (const peer of room.peers)
-        notify(peer.ws, { type: 'wyr_state', roomId: room.id, state });
-      res.json(state);
+        notify(peer.ws, {
+          type: 'wyr_state',
+          roomId: room.id,
+          state: room.wouldYouRather.serializeFor(peer.id),
+        });
+      res.json(room.wouldYouRather.serializeFor(session.id));
     } catch (error) {
       res.status(409).json({ error: (error as Error).message });
     }
@@ -1004,7 +1137,12 @@ export function attachRuntime(
   });
   app.post('/api/uno/arena', (req, res) => {
     if (process.env.CHAT_MULTIPLAYER_V2 !== 'false')
-      return res.status(410).json({ error: 'UNO is now a two-player game inside your current chat. Invite your peer from Games.' });
+      return res
+        .status(410)
+        .json({
+          error:
+            'UNO is now a two-player game inside your current chat. Invite your peer from Games.',
+        });
     const session = authenticate(req)!;
     if (!unoLimiter.take('uno-arena:' + session.id, 30, 60000))
       return res.status(429).json({ error: 'You are joining too quickly. Try again shortly.' });
@@ -1037,6 +1175,8 @@ export function attachRuntime(
     if (!unoLimiter.take('uno-challenge:' + session.id, 20, 60000))
       return res.status(429).json({ error: 'Too many challenges. Slow down.' });
     try {
+      const other = activePeerGame(room);
+      if (other) throw new Error(`Finish your current ${other} game first.`);
       const challenge = createUnoChallenge(
         { id: session.id, handle: session.sessionHandle },
         { id: peer.id, handle: peer.handle },
@@ -1094,8 +1234,7 @@ export function attachRuntime(
         if (game.players.some((player) => unoGameForSession(player.id)?.id !== game.id))
           throw new Error('Your peer left this table. Send a new invitation.');
         game.rematch(session.id, req.body?.round);
-      }
-      else throw new Error('Invalid game action.');
+      } else throw new Error('Invalid game action.');
       pushUnoGame(game);
       res.json(unoStateFor(session.id));
     } catch (error) {
@@ -1253,7 +1392,12 @@ export function attachRuntime(
           if (room) room.peers.find((p) => p.id === session!.id)!.ws = ws;
           const result = join(session, data, ws);
           if (room || result.status === 'queued') notify(ws, { type: result.status, ...result });
-          if (room?.music) notify(ws, { type: 'music_state', roomId: room.id, music: { ...room.music, serverNow: Date.now() } });
+          if (room?.music)
+            notify(ws, {
+              type: 'music_state',
+              roomId: room.id,
+              music: { ...room.music, serverNow: Date.now() },
+            });
           return;
         }
         if (!joined) {

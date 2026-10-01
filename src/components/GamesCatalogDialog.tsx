@@ -1,10 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { Gamepad2, X, Target, GitBranch, Crown, HelpCircle, Brain } from 'lucide-react';
-import { TicTacToeLogo, RockPaperScissorsLogo, ConnectFourLogo, ChessLogo, TriviaLogo, WouldYouRatherLogo } from './GameLogos';
+import {
+  TicTacToeLogo,
+  RockPaperScissorsLogo,
+  ConnectFourLogo,
+  ChessLogo,
+  TriviaLogo,
+  WouldYouRatherLogo,
+} from './GameLogos';
 
 export type GamesCatalogProps = {
   hasGame: boolean;
   hasChallenge: boolean;
+  /** A live peer game (invitation or unfinished game) in this chat, if any. */
+  activePeerGame?: { game: string; label: string } | null;
   onSelectUno: () => void;
   onSelectTicTacToe: () => void;
   onSelectRps: () => void;
@@ -18,6 +27,7 @@ export type GamesCatalogProps = {
 export function GamesCatalogDialog({
   hasGame,
   hasChallenge,
+  activePeerGame,
   onSelectUno,
   onSelectTicTacToe,
   onSelectRps,
@@ -51,7 +61,26 @@ export function GamesCatalogDialog({
     ? 'Open your table'
     : hasChallenge
       ? 'Answer the pending challenge in chat'
-      : 'Challenge this peer to a UNO duel';
+      : activePeerGame
+        ? `Finish your current ${activePeerGame.label} game first`
+        : 'Challenge this peer to a UNO duel';
+  const unoDisabled = (hasChallenge && !hasGame) || !!activePeerGame;
+
+  const peerState = (key: string, fallback: string) => {
+    if (!activePeerGame) return { disabled: false, hint: fallback };
+    if (activePeerGame.game === key) return { disabled: false, hint: 'Reopen your game' };
+    return { disabled: true, hint: `Finish your current ${activePeerGame.label} game first` };
+  };
+
+  const ttt = peerState(
+    'tictactoe',
+    'Invite your peer to a live two-player game, or reopen your board.',
+  );
+  const rps = peerState('rps', 'Best of 3 — choose secretly, reveal together.');
+  const cf = peerState('connectfour', 'Drop pieces, connect four to win.');
+  const chess = peerState('chess', 'Full chess with castling, promotion, en passant.');
+  const trivia = peerState('trivia', '10 questions, multiple choice, timed.');
+  const wyr = peerState('wyr', 'Fun choices, reveal together, discuss after.');
 
   return (
     <dialog
@@ -80,7 +109,7 @@ export function GamesCatalogDialog({
           type="button"
           id="chat-game-uno-btn"
           onClick={onSelectUno}
-          disabled={hasChallenge && !hasGame}
+          disabled={unoDisabled}
           className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
@@ -92,79 +121,77 @@ export function GamesCatalogDialog({
           type="button"
           id="chat-game-tictactoe-btn"
           onClick={onSelectTicTacToe}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={ttt.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <TicTacToeLogo className="h-5 w-5" /> Tic Tac Toe
           </span>
-          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            Invite your peer to a live two-player game, or reopen your board.
-          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">{ttt.hint}</span>
         </button>
         <button
           type="button"
           id="chat-game-rps-btn"
           onClick={onSelectRps}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={rps.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <RockPaperScissorsLogo className="h-5 w-5" /> Rock Paper Scissors
           </span>
-          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            Best of 3 — choose secretly, reveal together.
-          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">{rps.hint}</span>
         </button>
         <button
           type="button"
           id="chat-game-connectfour-btn"
           onClick={onSelectConnectFour}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={cf.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <ConnectFourLogo className="h-5 w-5" /> Connect Four
           </span>
-          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            Drop pieces, connect four to win.
-          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">{cf.hint}</span>
         </button>
         <button
           type="button"
           id="chat-game-chess-btn"
           onClick={onSelectChess}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={chess.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <ChessLogo className="h-5 w-5" /> Chess
           </span>
           <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            Full chess with castling, promotion, en passant.
+            {chess.hint}
           </span>
         </button>
         <button
           type="button"
           id="chat-game-trivia-btn"
           onClick={onSelectTrivia}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={trivia.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <TriviaLogo className="h-5 w-5" /> Trivia
           </span>
           <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            10 questions, multiple choice, timed.
+            {trivia.hint}
           </span>
         </button>
         <button
           type="button"
           id="chat-game-wyr-btn"
           onClick={onSelectWyr}
-          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+          disabled={wyr.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
         >
           <span className="flex items-center gap-2 text-sm font-bold">
             <WouldYouRatherLogo className="h-5 w-5" /> Would You Rather
           </span>
-          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
-            Fun choices, reveal together, discuss after.
-          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">{wyr.hint}</span>
         </button>
       </div>
       <button

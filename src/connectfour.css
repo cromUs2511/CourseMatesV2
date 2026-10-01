@@ -1,0 +1,22 @@
+/* Connect Four piece drop animation. Honours reduced-motion. */
+
+@keyframes cf-drop {
+  from {
+    transform: translateY(-180%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.cf-drop-in {
+  animation: cf-drop 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-drop-in {
+    animation: none;
+  }
+}

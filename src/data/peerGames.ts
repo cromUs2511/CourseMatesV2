@@ -41,6 +41,7 @@ export type RpsAction =
   | { action: 'invite' }
   | { action: 'respond'; invitationId: string; accept: boolean }
   | { action: 'choose'; gameId: string; round: number; revision: number; choice: RpsChoice }
+  | { action: 'next'; gameId: string; round: number; revision: number }
   | { action: 'rematch'; gameId: string; round: number };
 
 export type ConnectFourState = {
@@ -53,6 +54,7 @@ export type ConnectFourState = {
     board: (('red' | 'yellow') | null)[][];
     turn: 'red' | 'yellow';
     result: { winnerId: string | null; winningCells: number[] } | null;
+    lastMove: { row: number; col: number } | null;
     rematch: string[];
   } | null;
 };
@@ -77,8 +79,13 @@ export type ChessState = {
     round: number;
     players: { id: string; handle: string; color: ChessPieceColor }[];
     board: ChessBoard;
+    /** Server-authoritative position (castling rights, en passant, clocks). */
+    fen: string;
     turn: ChessPieceColor;
-    result: { winnerId: string | null; reason: 'checkmate' | 'stalemate' | 'resignation' | 'draw-agreed' } | null;
+    result: {
+      winnerId: string | null;
+      reason: 'checkmate' | 'stalemate' | 'resignation' | 'draw-agreed';
+    } | null;
     inCheck: ChessPieceColor | null;
     lastMove: { from: [number, number]; to: [number, number]; piece: ChessPiece } | null;
     drawOfferedBy: string | null;
@@ -89,13 +96,22 @@ export type ChessState = {
 export type ChessAction =
   | { action: 'invite' }
   | { action: 'respond'; invitationId: string; accept: boolean }
-  | { action: 'move'; gameId: string; round: number; revision: number; from: [number, number]; to: [number, number]; promotion?: ChessPieceType }
+  | {
+      action: 'move';
+      gameId: string;
+      round: number;
+      revision: number;
+      from: [number, number];
+      to: [number, number];
+      promotion?: ChessPieceType;
+    }
   | { action: 'offerDraw'; gameId: string; round: number; revision: number }
   | { action: 'respondDraw'; gameId: string; round: number; revision: number; accept: boolean }
   | { action: 'resign'; gameId: string; round: number; revision: number }
   | { action: 'rematch'; gameId: string; round: number };
 
-export type TriviaCategory = 'general' | 'science' | 'technology' | 'gaming' | 'movies' | 'music' | 'history' | 'random';
+export type TriviaCategory =
+  'general' | 'science' | 'technology' | 'gaming' | 'movies' | 'music' | 'history' | 'random';
 export type TriviaQuestion = {
   id: string;
   question: string;
@@ -126,6 +142,7 @@ export type TriviaAction =
   | { action: 'invite'; category: TriviaCategory }
   | { action: 'respond'; invitationId: string; accept: boolean }
   | { action: 'answer'; gameId: string; round: number; revision: number; answerIndex: number }
+  | { action: 'next'; gameId: string; round: number; revision: number }
   | { action: 'rematch'; gameId: string; round: number };
 
 export type WyrChoice = 'A' | 'B';
@@ -159,3 +176,13 @@ export type WyrAction =
   | { action: 'choose'; gameId: string; round: number; revision: number; choice: WyrChoice }
   | { action: 'next'; gameId: string; round: number; revision: number }
   | { action: 'rematch'; gameId: string; round: number };
+
+export type PeerGameKey = 'tictactoe' | 'rps' | 'connectfour' | 'chess' | 'trivia' | 'wyr';
+
+/** Compact live status reported to the chat shell for the generic game indicator. */
+export type PeerGameActivity = {
+  game: PeerGameKey;
+  label: string;
+  status: string;
+  incoming: boolean;
+};
