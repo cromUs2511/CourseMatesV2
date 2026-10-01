@@ -48,18 +48,23 @@ export function UnoCardFace({
   playable = false,
   className = '',
   label,
+  tint,
   onPlay,
 }: {
   card: UnoCard;
   playable?: boolean;
   className?: string;
   label?: string;
+  /** Colour a played wild is dressed in, so the pile shows the chosen colour. */
+  tint?: UnoColor;
   onPlay?: () => void;
 }) {
   const corner = CORNER_LABEL[card.value] ?? card.value;
   const face = (
     <div
-      className={`uno-card c-${card.color} ${playable ? 'playable' : ''} ${className}`}
+      className={`uno-card c-${card.color === 'black' && tint ? tint : card.color} ${
+        card.color === 'black' && tint ? 'is-tinted' : ''
+      } ${playable ? 'playable' : ''} ${className}`}
       data-card-id={card.id}
       data-card-value={card.value}
       data-card-color={card.color}
@@ -100,21 +105,26 @@ function OpponentBox({
         dense ? 'px-2.5 py-1' : 'px-4 py-1.5'
       } ${lit ? 'border-emerald-500/60 bg-emerald-950/40' : 'border-slate-600'}`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex max-w-full items-center gap-2">
         <span
-          className={`h-2.5 w-2.5 rounded-full ${
-            lit ? 'animate-ping motion-reduce:animate-none bg-emerald-400' : 'bg-slate-500'
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+            lit ? 'bg-emerald-400 shadow-[0_0_0_3px_rgb(52_211_153/0.25)]' : 'bg-slate-500'
           }`}
           aria-hidden="true"
         />
-        <span className="max-w-[140px] truncate text-xs font-bold text-slate-200 md:text-sm">
+        <span
+          className={`min-w-0 truncate text-xs font-bold text-slate-200 md:text-sm ${
+            dense ? 'max-w-[140px]' : 'max-w-[240px]'
+          }`}
+          title={opponent.handle}
+        >
           {opponent.handle}
         </span>
-        <span className="rounded-full border border-red-500/30 bg-red-900/60 px-2 py-0.5 text-xs font-black text-red-300">
+        <span className="shrink-0 whitespace-nowrap rounded-full border border-red-500/30 bg-red-900/60 px-2 py-0.5 text-xs font-black text-red-300">
           {opponent.handCount} card{opponent.handCount === 1 ? '' : 's'}
         </span>
         {opponent.calledUno && opponent.handCount === 1 && (
-          <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
+          <span className="shrink-0 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
             UNO!
           </span>
         )}
@@ -195,7 +205,8 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
         <p
           role="status"
           aria-live="polite"
-          className="min-w-0 flex-1 truncate rounded-full border border-emerald-500/30 bg-slate-900/80 px-3 py-1 text-center text-xs font-bold text-emerald-300"
+          title={error || state.notice}
+          className="line-clamp-3 min-w-0 flex-1 rounded-2xl border border-emerald-500/30 bg-slate-900/80 px-3 py-1 text-center text-[11px] font-bold leading-snug text-emerald-300 sm:text-xs"
         >
           {error ? <span className="text-red-300">{error}</span> : state.notice}
         </p>
@@ -307,8 +318,9 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             <div className="flex flex-col items-center">
               <div className="relative flex items-center justify-center">
                 <UnoCardFace
-                  key={state.top.id}
+                  key={`${state.top.id}:${state.activeColor}`}
                   card={state.top}
+                  tint={state.activeColor}
                   className="uno-deal-in pointer-events-none scale-105 shadow-2xl"
                   label={`Discard pile: ${state.top.color} ${state.top.value}`}
                 />
@@ -341,22 +353,22 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
         {/* Your side */}
         <div className="uno-mine relative z-20 flex w-full flex-col items-center pb-2">
           <div className="uno-callrow mb-1.5 flex w-full max-w-4xl items-center justify-between gap-3 px-3">
-            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-slate-900/80 px-3 py-1">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-slate-900/80 px-3 py-1">
               <span
-                className={`h-3 w-3 rounded-full ${yourTurn ? 'bg-emerald-400' : 'bg-slate-600'}`}
+                className={`h-3 w-3 shrink-0 rounded-full ${yourTurn ? 'bg-emerald-400' : 'bg-slate-600'}`}
                 aria-hidden="true"
               />
               <span
-                className="max-w-28 truncate text-xs font-bold text-slate-100"
+                className="min-w-0 truncate text-xs font-bold text-slate-100"
                 title={state.you.handle}
               >
                 You · {state.you.handle}
               </span>
-              <span className="ml-1 rounded bg-emerald-950/80 px-2 py-0.5 text-xs font-black text-emerald-400">
+              <span className="ml-1 shrink-0 whitespace-nowrap rounded bg-emerald-950/80 px-2 py-0.5 text-xs font-black text-emerald-400">
                 {state.you.hand.length} card{state.you.hand.length === 1 ? '' : 's'}
               </span>
               {state.you.calledUno && state.you.hand.length === 1 && (
-                <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
+                <span className="shrink-0 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black uppercase text-yellow-300">
                   UNO!
                 </span>
               )}
@@ -365,7 +377,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
               <p
                 role="status"
                 aria-live="polite"
-                className={`uno-turn-indicator rounded-full border-2 px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-lg ${
+                className={`uno-turn-indicator shrink-0 whitespace-nowrap rounded-full border-2 px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-lg ${
                   yourTurn
                     ? 'is-yours border-slate-950/60 bg-amber-400 text-slate-950'
                     : 'border-slate-500/60 bg-slate-800 text-slate-200'
@@ -385,7 +397,7 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             tabIndex={0}
             aria-label="Your UNO hand"
           >
-            <div className="flex min-w-max items-center justify-start -space-x-5 px-6 md:-space-x-7 md:justify-center">
+            <div className="uno-hand-row flex w-full items-center px-2">
               {state.you.hand.map((card, index) => {
                 const playable = yourTurn && state.playable.includes(card.id) && !busy;
                 return (

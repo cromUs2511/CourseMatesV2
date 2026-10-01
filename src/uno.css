@@ -246,6 +246,27 @@
   animation: unoHandIn 200ms ease-out backwards;
 }
 
+/* The hand is centred and squeezes itself to fit: each wrapper may shrink so
+   cards overlap more as the hand grows, and only the last stays full width.
+   Below the minimum the row scrolls instead of clipping the left edge. */
+.uno-hand-row {
+  justify-content: safe center;
+}
+.uno-hand-card {
+  flex: 0 1 auto;
+  min-width: 26px;
+}
+.uno-hand-card + .uno-hand-card {
+  margin-left: -20px;
+}
+.uno-hand-card:last-child {
+  flex-shrink: 0;
+}
+@media (min-width: 768px) {
+  .uno-hand-card + .uno-hand-card {
+    margin-left: -28px;
+  }
+}
 @keyframes unoTurnIn {
   0% {
     opacity: 0;

@@ -724,12 +724,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     await refreshUno();
   };
 
+  // Keyed on the table id, not the state object: every poll or push builds a new
+  // object, and re-running this effect sent a "rejoined" request each time.
+  const unoGameId = unoState?.game?.gameId;
+  const unoOpenRef = useRef(unoOpen);
+  unoOpenRef.current = unoOpen;
   useEffect(() => {
-    if (!unoState?.game) return;
+    if (!unoGameId) return;
     const away = () => {
       void apiRequest('/api/uno/away', { away: true }).catch(() => undefined);
     };
     const resume = () => {
+      // A minimized table stays away until the player reopens it.
+      if (!unoOpenRef.current) return;
       void apiRequest('/api/uno/away', { away: false }).catch(() => undefined);
     };
     const onVisibility = () => {
@@ -745,9 +752,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
-      resume();
     };
-  }, [unoState?.game]);
+  }, [unoGameId]);
+
+  // Reopening a minimized table is what marks the player present again.
+  useEffect(() => {
+    if (unoOpen && unoGameId) void apiRequest('/api/uno/away', { away: false }).catch(() => undefined);
+  }, [unoOpen, unoGameId]);
 
   const sendTyping = (isTyping: boolean) => {
     if (roomId && !peer.isSimulated && !peerDisconnected) {

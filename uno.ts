@@ -267,6 +267,8 @@ export class UnoGame {
       penalty = 4;
       skipVictim = true;
       this.notice = `${player.handle} played Wild +4 on ${this.activeColor.toUpperCase()}!`;
+    } else if (card.value === 'wild') {
+      this.notice = `${player.handle} played Wild — colour is now ${this.activeColor.toUpperCase()}.`;
     } else {
       this.notice = `${player.handle} played ${card.color.toUpperCase()} ${top.value.toUpperCase()}.`;
     }
@@ -486,6 +488,9 @@ export class UnoGame {
     if (this.status !== 'playing') return;
     const index = this.players.findIndex((player) => player.id === sessionId);
     if (index === -1) return;
+    // Focus/blur events repeat constantly; only a real change may touch the
+    // notice or bump the revision, or every client re-renders and flickers.
+    if (this.awayBy.has(sessionId) === away) return;
     if (away) this.awayBy.add(sessionId);
     else this.awayBy.delete(sessionId);
     this.updateAwayState(now);

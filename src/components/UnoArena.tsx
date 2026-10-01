@@ -38,11 +38,16 @@ export function UnoArena({ isDarkMode, onBack, onPlayingChange }: UnoArenaProps)
   const searchingRef = useRef(false);
   const mountedRef = useRef(true);
 
+  // A slow poll must not overwrite the newer state a move just returned.
+  const applyState = useCallback((next: UnoStateResponse) => {
+    setState((current) => ((next.revision ?? 0) >= (current?.revision ?? 0) ? next : current));
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const data = await apiRequest<UnoStateResponse>('/api/uno/state');
       if (!mountedRef.current) return;
-      setState(data);
+      applyState(data);
       if (data.game || !data.queued) {
         setSearching(false);
         searchingRef.current = false;
@@ -50,7 +55,7 @@ export function UnoArena({ isDarkMode, onBack, onPlayingChange }: UnoArenaProps)
     } catch {
       /* Polling failures are retried on the next tick. */
     }
-  }, []);
+  }, [applyState]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -103,7 +108,7 @@ export function UnoArena({ isDarkMode, onBack, onPlayingChange }: UnoArenaProps)
     setError('');
     try {
       const data = await apiRequest<UnoStateResponse>('/api/uno/action', action);
-      setState(data);
+      applyState(data);
     } catch (err) {
       setError((err as Error).message);
       await refresh();
