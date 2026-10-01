@@ -1,5 +1,25 @@
 import { test, expect } from '@playwright/test';
 
+test('main menu color picker keeps every label inside the viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: /at least 18 years old/i }).check();
+  await page.getByRole('button', { name: 'Continue to CourseMates' }).click();
+  await page.getByRole('button', { name: 'Choose chat color theme' }).click();
+  const colors = page.getByRole('dialog', { name: 'Chat color themes' });
+  const box = (await colors.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(12);
+  expect(box.x + box.width).toBeLessThanOrEqual(363);
+  for (const button of await colors.getByRole('button').all()) {
+    const label = button.locator('span').last();
+    expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  await page.setViewportSize({ width: 320, height: 360 });
+  const resized = (await colors.boundingBox())!;
+  expect(resized.x).toBeGreaterThanOrEqual(12);
+  expect(resized.x + resized.width).toBeLessThanOrEqual(308);
+});
+
 test('main menu logout confirmation is centered in the viewport', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 320 });
   await page.goto('/');

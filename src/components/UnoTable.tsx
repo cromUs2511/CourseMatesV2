@@ -232,14 +232,18 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
         </div>
       </header>
 
-      {(state.opponentAway || state.youAway || ownCountdown > 0 || opponentCountdown > 0) && !gameOver && (
-        <div className="z-30 border-b border-amber-500/40 bg-amber-950/60 px-3 py-2 text-center text-xs font-black uppercase tracking-[0.18em] text-amber-200 shadow-lg backdrop-blur-sm">
-          {state.opponentAway ? `Your opponent is away — table auto-ends in ${opponentCountdown}s` : state.youAway ? `You are away — return before ${ownCountdown}s or the table will end` : `Table timer: ${Math.max(opponentCountdown, ownCountdown)}s`}
-        </div>
-      )}
+      {(state.opponentAway || state.youAway || ownCountdown > 0 || opponentCountdown > 0) &&
+        !gameOver && (
+          <div className="z-30 border-b border-amber-500/40 bg-amber-950/60 px-3 py-2 text-center text-xs font-black uppercase tracking-[0.18em] text-amber-200 shadow-lg backdrop-blur-sm">
+            {state.opponentAway
+              ? `Your opponent is away — table auto-ends in ${opponentCountdown}s`
+              : state.youAway
+                ? `You are away — return before ${ownCountdown}s or the table will end`
+                : `Table timer: ${Math.max(opponentCountdown, ownCountdown)}s`}
+          </div>
+        )}
 
       <main className="uno-stage relative flex min-h-0 flex-1 flex-col items-center justify-between overflow-hidden p-2 md:p-4">
-
         {/* Other seats */}
         <div
           className={`relative z-10 flex w-full justify-center ${
@@ -342,7 +346,12 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                 className={`h-3 w-3 rounded-full ${yourTurn ? 'bg-emerald-400' : 'bg-slate-600'}`}
                 aria-hidden="true"
               />
-              <span className="max-w-28 truncate text-xs font-bold text-slate-100" title={state.you.handle}>You · {state.you.handle}</span>
+              <span
+                className="max-w-28 truncate text-xs font-bold text-slate-100"
+                title={state.you.handle}
+              >
+                You · {state.you.handle}
+              </span>
               <span className="ml-1 rounded bg-emerald-950/80 px-2 py-0.5 text-xs font-black text-emerald-400">
                 {state.you.hand.length} card{state.you.hand.length === 1 ? '' : 's'}
               </span>
@@ -354,7 +363,6 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
             </div>
             {!gameOver && (
               <p
-                key={state.turn}
                 role="status"
                 aria-live="polite"
                 className={`uno-turn-indicator rounded-full border-2 px-4 py-1.5 text-sm font-black uppercase tracking-wide shadow-lg ${
@@ -559,11 +567,34 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
                   ? 'Defeated'
                   : 'Game over'}
             </h2>
-            <p className="mb-2 text-sm font-semibold text-slate-100">{state.winnerHandle ? `${state.winnerHandle} wins the match` : 'Table closed — no winner'}</p>
+            <p className="mb-2 text-sm font-semibold text-slate-100">
+              {state.winnerHandle
+                ? `${state.winnerHandle} wins the match`
+                : 'Table closed — no winner'}
+            </p>
             <p className="mb-6 text-sm text-slate-300">{state.notice}</p>
-            {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
+            {error && (
+              <p role="alert" className="mb-3 text-sm text-red-300">
+                {error}
+              </p>
+            )}
             <div className="space-y-3">
-              {state.source === 'room' && state.winner && <button type="button" disabled={busy || state.rematchRequested} onClick={() => onAction({ action: 'rematch', gameId: state.gameId, round: state.round })} className="w-full rounded-xl bg-amber-400 py-3 font-bold text-slate-950 disabled:opacity-60">{state.rematchRequested ? 'Waiting for your peer…' : state.opponentRequestedRematch ? 'Accept rematch' : 'Request rematch'}</button>}
+              {state.source === 'room' && state.winner && (
+                <button
+                  type="button"
+                  disabled={busy || state.rematchRequested}
+                  onClick={() =>
+                    onAction({ action: 'rematch', gameId: state.gameId, round: state.round })
+                  }
+                  className="w-full rounded-xl bg-amber-400 py-3 font-bold text-slate-950 disabled:opacity-60"
+                >
+                  {state.rematchRequested
+                    ? 'Waiting for your peer…'
+                    : state.opponentRequestedRematch
+                      ? 'Accept rematch'
+                      : 'Request rematch'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onLeave}

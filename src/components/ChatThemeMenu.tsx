@@ -169,8 +169,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  // Right offset (px from the viewport edge) aligning the chat grid with the
-  // settings panel. Measured so the grid never detaches from its button.
+  // Clamp the measured panel to both viewport edges before the first paint.
   const [panelRightOffset, setPanelRightOffset] = useState<number | null>(null);
 
   useEffect(() => {
@@ -194,18 +193,20 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({
   useLayoutEffect(() => {
     if (!open || !compact) return;
     const update = () => {
+      const button = buttonRef.current?.getBoundingClientRect();
+      if (!button) return;
       const panel = buttonRef.current?.closest('#header-settings');
-      if (panel) {
-        setPanelRightOffset(Math.max(12, window.innerWidth - panel.getBoundingClientRect().right));
-      } else {
-        const button = buttonRef.current?.getBoundingClientRect();
-        setPanelRightOffset(button ? Math.max(12, window.innerWidth - button.right) : null);
-      }
+      const width = dropdownRef.current?.getBoundingClientRect().width ?? 288;
+      const anchor = standalone
+        ? button.left + width
+        : (panel?.getBoundingClientRect().right ?? button.right);
+      const maxRight = Math.max(12, window.innerWidth - width - 12);
+      setPanelRightOffset(Math.min(maxRight, Math.max(12, window.innerWidth - anchor)));
     };
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
-  }, [open, compact]);
+  }, [open, compact, standalone]);
 
   const themeGrid = (
     <>
@@ -252,7 +253,9 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({
                   />
                 )}
               </span>
-              <span className="w-full truncate">{option.label}</span>
+              <span className="flex min-h-[2.5em] w-full items-center justify-center whitespace-normal break-words">
+                {option.label}
+              </span>
             </button>
           );
         })}
@@ -298,7 +301,7 @@ export const ChatThemeMenu: React.FC<ChatThemeMenuProps> = ({
                 top: '4.5rem',
                 right: panelRightOffset ?? 12,
               }}
-              className={`z-50 max-h-[calc(100dvh-84px)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border p-3 shadow-xl ${
+              className={`z-50 max-h-[calc(100dvh-84px)] w-72 max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border p-3 shadow-xl ${
                 isDarkMode
                   ? 'border-stone-700 bg-[#181716] text-stone-200'
                   : 'border-stone-300 bg-white text-stone-800'
