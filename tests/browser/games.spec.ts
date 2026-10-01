@@ -9,11 +9,17 @@ async function enter(page: Page) {
 }
 
 for (const polling of [false, true]) {
-  test(`Tic Tac Toe shares invitations, turns, results and rematches (${polling ? 'REST recovery' : 'WebSocket'})`, async ({ browser }) => {
+  test(`Tic Tac Toe shares invitations, turns, results and rematches (${polling ? 'REST recovery' : 'WebSocket'})`, async ({
+    browser,
+  }) => {
     test.setTimeout(polling ? 60000 : 30000);
     const first = await browser.newContext();
-    const second = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
-    const a = await first.newPage(), b = await second.newPage();
+    const second = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+    });
+    const a = await first.newPage(),
+      b = await second.newPage();
     const errors: string[] = [];
     try {
       for (const page of [a, b]) {
@@ -29,27 +35,60 @@ for (const polling of [false, true]) {
         await expect(a.getByRole('dialog', { name: 'Games' })).toBeVisible();
         await a.locator('#chat-game-tictactoe-btn').click();
         await expect(b.getByRole('region', { name: 'Tic Tac Toe invitation' })).toBeVisible();
+        // The invitation lives with the latest messages, not at the top of the chat.
+        const inviteAfterMessages = await b.evaluate(() => {
+          const invite = document.querySelector('[aria-label="Tic Tac Toe invitation"]');
+          if (!invite) return false;
+          return [...document.querySelectorAll('[data-message-bubble]')].every(
+            (bubble) =>
+              (bubble.compareDocumentPosition(invite) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+          );
+        });
+        expect(inviteAfterMessages).toBe(true);
+        await expect(b.getByRole('button', { name: 'Review invite' })).toBeVisible();
       };
       await invite();
       await b.getByRole('button', { name: 'Decline', exact: true }).click();
       await expect(a.getByRole('region', { name: 'Tic Tac Toe invitation' })).toHaveCount(0);
       await invite();
       await b.getByRole('button', { name: 'Accept', exact: true }).click();
-      for (const page of [a, b]) await expect(page.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
+      for (const page of [a, b])
+        await expect(page.getByRole('group', { name: 'Tic Tac Toe board' })).toBeVisible();
       await expect(b.getByRole('button', { name: 'Square 1: empty', exact: true })).toBeDisabled();
-      for (const [page, square, mark] of [[a, 1, 'X'], [b, 4, 'O'], [a, 2, 'X'], [b, 5, 'O'], [a, 3, 'X']] as const) {
+      for (const [page, square, mark] of [
+        [a, 1, 'X'],
+        [b, 4, 'O'],
+        [a, 2, 'X'],
+        [b, 5, 'O'],
+        [a, 3, 'X'],
+      ] as const) {
         await page.getByRole('button', { name: `Square ${square}: empty`, exact: true }).click();
-        for (const peer of [a, b]) await expect(peer.getByRole('button', { name: `Square ${square}: ${mark}`, exact: true })).toBeDisabled();
+        for (const peer of [a, b])
+          await expect(
+            peer.getByRole('button', { name: `Square ${square}: ${mark}`, exact: true }),
+          ).toBeDisabled();
       }
       for (const page of [a, b]) {
         await expect(page.getByRole('status').filter({ hasText: /wins!/ })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Square 9: empty', exact: true })).toBeDisabled();
+        await expect(
+          page.getByRole('button', { name: 'Square 9: empty', exact: true }),
+        ).toBeDisabled();
       }
       await a.getByRole('button', { name: 'Request rematch', exact: true }).click();
       await b.getByRole('button', { name: 'Accept rematch', exact: true }).click();
       await expect(b.getByRole('button', { name: 'Square 1: empty', exact: true })).toBeEnabled();
       // O starts round two. This sequence fills the board without a winning line.
-      for (const [page, square] of [[b, 1], [a, 2], [b, 3], [a, 5], [b, 4], [a, 6], [b, 8], [a, 7], [b, 9]] as const) {
+      for (const [page, square] of [
+        [b, 1],
+        [a, 2],
+        [b, 3],
+        [a, 5],
+        [b, 4],
+        [a, 6],
+        [b, 8],
+        [a, 7],
+        [b, 9],
+      ] as const) {
         await page.getByRole('button', { name: `Square ${square}: empty`, exact: true }).click();
       }
       for (const page of [a, b]) await expect(page.getByText('Draw — well played!')).toBeVisible();
@@ -60,7 +99,10 @@ for (const polling of [false, true]) {
       await expect(b.getByText('Draw — well played!')).toBeVisible();
       expect(await b.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(errors).toEqual([]);
-    } finally { await first.close(); await second.close(); }
+    } finally {
+      await first.close();
+      await second.close();
+    }
   });
 }
 

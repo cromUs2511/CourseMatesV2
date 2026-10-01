@@ -1,6 +1,12 @@
 import { Gamepad2 } from 'lucide-react';
 
-export function GameInvitation({ game, sender, incoming, busy, onRespond }: {
+export function GameInvitation({
+  game,
+  sender,
+  incoming,
+  busy,
+  onRespond,
+}: {
   game: string;
   sender: string;
   incoming: boolean;
@@ -8,18 +14,50 @@ export function GameInvitation({ game, sender, incoming, busy, onRespond }: {
   onRespond: (accept: boolean) => void;
 }) {
   return (
-    <section aria-label={`${game} invitation`} className="mx-auto my-3 max-w-3xl border-l-4 border-[var(--chat-accent)] bg-stone-100 px-4 py-3 dark:bg-stone-900">
+    <section
+      aria-label={`${game} invitation`}
+      className="mx-auto w-full max-w-3xl rounded-2xl border border-stone-200 bg-white/95 px-4 py-3 shadow-[0_8px_24px_rgba(41,37,36,0.08)] dark:border-stone-700 dark:bg-stone-900/95"
+      style={{ borderLeft: '4px solid var(--chat-accent)' }}
+    >
       <div className="flex items-start gap-3">
-        <Gamepad2 className="mt-1 h-6 w-6 shrink-0 text-[var(--chat-accent)]" />
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--chat-accent) 12%, transparent)',
+            color: 'var(--chat-accent)',
+          }}
+        >
+          <Gamepad2 className="h-5 w-5" aria-hidden="true" />
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">Game invitation · 1v1</p>
-          <h3 className="mt-1 font-bold">{game}</h3>
-          <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
-            {incoming ? `${sender} invited you to play ${game}.` : `Invitation sent to ${sender}. Waiting for them to accept…`}
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+            Game invitation · 1v1{incoming ? ' · Action needed' : ''}
           </p>
-          <div className="mt-3 flex gap-2">
-            {incoming && <button type="button" disabled={busy} onClick={() => onRespond(true)} className="rounded-lg bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Accept</button>}
-            <button type="button" disabled={busy} onClick={() => onRespond(false)} className="rounded-lg border border-stone-400 px-4 py-2 text-sm font-semibold dark:border-stone-600 disabled:opacity-50">{incoming ? 'Decline' : 'Cancel invitation'}</button>
+          <h3 className="mt-1 text-sm font-bold text-stone-900 dark:text-white">{game}</h3>
+          <p className="mt-1 text-sm leading-relaxed text-stone-600 dark:text-stone-300">
+            {incoming
+              ? `${sender} invited you to play ${game}. Accept to start near this message.`
+              : `Invitation sent to ${sender}. Waiting for them to accept…`}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {incoming && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onRespond(true)}
+                className="chat-theme-accent-button min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50 sm:flex-none sm:px-6"
+              >
+                Accept
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onRespond(false)}
+              className="chat-theme-accent-soft min-h-11 flex-1 rounded-xl border px-4 py-2.5 text-sm font-bold disabled:opacity-50 sm:flex-none sm:px-6"
+            >
+              {incoming ? 'Decline' : 'Cancel invitation'}
+            </button>
           </div>
         </div>
       </div>

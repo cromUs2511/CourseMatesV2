@@ -1316,21 +1316,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             }
           />
         </div>
-        {activePeerEntry && !peer.isSimulated && !peerDisconnected && roomId && (
-          <div className="flex w-full shrink-0 items-center justify-center px-3 pt-2 sm:px-6">
-            <button
-              type="button"
-              onClick={() => resumePeerGame(activePeerEntry.game)}
-              className="flex w-full max-w-3xl items-center justify-center gap-2 rounded-full border border-stone-300 bg-stone-100 px-4 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-200 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
-            >
-              <Gamepad2 className="h-3.5 w-3.5 shrink-0 text-[var(--chat-accent)]" />
-              <span className="min-w-0 truncate">
-                🎮 {activePeerEntry.label} — {activePeerEntry.status}
-              </span>
-              <span className="shrink-0 underline">Resume</span>
-            </button>
-          </div>
-        )}
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -1339,72 +1324,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           className="flex-1 min-h-0 w-full px-3 py-3.5 sm:px-6 sm:py-7 overflow-y-auto overscroll-contain space-y-1 select-text"
         >
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
-            {!peer.isSimulated && !peerDisconnected && roomId && (
-              <>
-                <PeerTicTacToe
-                  ref={ticTacToeRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('tictactoe', a)}
-                />
-                <PeerRockPaperScissors
-                  ref={rpsRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('rps', a)}
-                />
-                <PeerConnectFour
-                  ref={connectFourRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('connectfour', a)}
-                />
-                <PeerChess
-                  ref={chessRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('chess', a)}
-                />
-                <PeerTrivia
-                  ref={triviaRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('trivia', a)}
-                />
-                <PeerWouldYouRather
-                  ref={wyrRef}
-                  roomId={roomId}
-                  sessionId={session.id}
-                  peerHandle={peer.handle}
-                  ws={ws}
-                  onActivity={(a) => reportPeerActivity('wyr', a)}
-                />
-              </>
-            )}
-            {unoState?.challenge && !peerDisconnected && (
-              <GameInvitation
-                game="UNO"
-                sender={unoState.challenge.fromHandle}
-                incoming={unoState.challenge.direction === 'incoming'}
-                busy={unoBusy}
-                onRespond={(accept) => void respondToUnoChallenge(accept)}
-              />
-            )}
-            {unoError && !unoOpen && (
-              <p role="alert" className="py-2 text-sm text-red-500">
-                {unoError}
-              </p>
-            )}
             {messages.map((msg, index) => {
               if (msg.type === 'system') {
                 const isUnsentMessage = msg.text === 'Message unsent.';
@@ -1663,6 +1582,77 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               );
             })}
 
+            {/* Game invitations live with the latest messages so Accept/Decline
+                is next to recent chat instead of buried at the top. */}
+            {!peer.isSimulated && !peerDisconnected && roomId && (
+              <div className="space-y-2 pt-2">
+                <PeerTicTacToe
+                  ref={ticTacToeRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('tictactoe', a)}
+                />
+                <PeerRockPaperScissors
+                  ref={rpsRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('rps', a)}
+                />
+                <PeerConnectFour
+                  ref={connectFourRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('connectfour', a)}
+                />
+                <PeerChess
+                  ref={chessRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('chess', a)}
+                />
+                <PeerTrivia
+                  ref={triviaRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('trivia', a)}
+                />
+                <PeerWouldYouRather
+                  ref={wyrRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('wyr', a)}
+                />
+              </div>
+            )}
+            {unoState?.challenge && !peerDisconnected && (
+              <div className="pt-2">
+                <GameInvitation
+                  game="UNO"
+                  sender={unoState.challenge.fromHandle}
+                  incoming={unoState.challenge.direction === 'incoming'}
+                  busy={unoBusy}
+                  onRespond={(accept) => void respondToUnoChallenge(accept)}
+                />
+              </div>
+            )}
+            {unoError && !unoOpen && (
+              <p role="alert" className="py-2 text-sm text-red-500">
+                {unoError}
+              </p>
+            )}
+
             {/* Peer Typing Indicator */}
             {isPeerTyping && (
               <div className="flex items-center space-x-2 text-xs font-mono text-stone-500 dark:text-stone-400 py-1">
@@ -1730,6 +1720,49 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             </button>
           )}
         </div>
+        {(activePeerEntry || unoState?.challenge) &&
+          !peer.isSimulated &&
+          !peerDisconnected &&
+          roomId && (
+            <div className="flex w-full shrink-0 items-center justify-center px-3 pt-2 sm:px-6">
+              <div
+                className={`flex w-full max-w-3xl items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold shadow-[0_6px_20px_rgba(41,37,36,0.08)] ${
+                  isDarkMode
+                    ? 'border-stone-700 bg-stone-900/95 text-stone-100'
+                    : 'border-stone-200 bg-white/95 text-stone-800'
+                }`}
+              >
+                <Gamepad2
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: chatTheme.accent }}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {unoState?.challenge
+                    ? `UNO — ${unoState.challenge.direction === 'incoming' ? 'Invitation received' : 'Invitation sent'}`
+                    : `${activePeerEntry?.label ?? 'Game'} — ${activePeerEntry?.status ?? ''}`}
+                </span>
+                {(unoState?.challenge?.direction === 'incoming' || activePeerEntry?.incoming) && (
+                  <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                    Action needed
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (unoState?.challenge) {
+                      setGamesOpen(false);
+                      setUnoOpen(!!unoState.game);
+                    } else if (activePeerEntry) resumePeerGame(activePeerEntry.game);
+                    scrollToLatest();
+                  }}
+                  className="chat-theme-accent-button shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold text-white"
+                >
+                  {unoState?.challenge || activePeerEntry?.incoming ? 'Review invite' : 'Resume'}
+                </button>
+              </div>
+            </div>
+          )}
 
         {/* Each chat allows three successfully sent conversation starters. */}
         {!peerDisconnected &&
