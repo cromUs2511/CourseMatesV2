@@ -373,10 +373,18 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                     : (Number(event.target.value) as 86_400_000 | 172_800_000 | 259_200_000),
                 )
               }
+              style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
               className="rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-stone-900 dark:border-stone-700 dark:text-stone-100"
             >
               {BAN_DURATIONS.map((item) => (
-                <option key={item.label} value={item.value ?? 'permanent'}>
+                <option
+                  key={item.label}
+                  value={item.value ?? 'permanent'}
+                  style={{
+                    backgroundColor: isDarkMode ? '#1a1917' : '#ffffff',
+                    color: isDarkMode ? '#f5f5f4' : '#1c1917',
+                  }}
+                >
                   {item.label}
                 </option>
               ))}
