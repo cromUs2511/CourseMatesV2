@@ -47,8 +47,8 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
           .getByRole('dialog', { name: 'Chat color themes' })
           .getByRole('button', { name: theme, exact: true })
           .click();
-        await page.getByRole('radio', { name: /Study together/ }).click();
-        await expect(page.getByRole('radio', { name: /Study together/ })).toHaveAttribute(
+        await page.getByRole('radio', { name: /Study \/ Help/ }).click();
+        await expect(page.getByRole('radio', { name: /Study \/ Help/ })).toHaveAttribute(
           'aria-checked',
           'true',
         );
@@ -90,12 +90,12 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
 
         await page.locator('#start-chat-btn').click();
         await expect(page.getByText(/Finding active study peers/)).toBeVisible();
-        await expect(page.getByRole('radio', { name: /Study together/ })).toBeDisabled();
+        await expect(page.getByRole('radio', { name: /Study \/ Help/ })).toBeDisabled();
         await page.locator('#cancel-queue-btn').click();
         await expect(page.locator('#start-chat-btn')).toBeVisible();
 
         await enter(peer);
-        await peer.getByRole('radio', { name: /Study together/ }).click();
+        await peer.getByRole('radio', { name: /Study \/ Help/ }).click();
         await page.locator('#start-chat-btn').click();
         await peer.locator('#start-chat-btn').click();
         await expect(page.locator('#chat-header')).toBeVisible();

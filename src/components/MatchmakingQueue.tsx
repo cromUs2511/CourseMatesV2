@@ -6,9 +6,7 @@ import {
   ArrowRight,
   Shield,
   Users,
-  CircleHelp,
   MessageCircleMore,
-  Sparkles,
 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
@@ -32,15 +30,16 @@ const toErrorMessage = (error: unknown) =>
       ? error.message
       : 'Unable to connect. Please try again.';
 const CHAT_INTENTS = [
-  { label: 'Study together', description: 'Focus and work alongside a peer', icon: Users },
-  { label: 'Ask for help', description: 'Get support with a question or topic', icon: CircleHelp },
   {
-    label: 'Casual conversation',
-    description: 'Have a relaxed, friendly chat',
+    label: 'Study / Help',
+    description: 'Focus together or get support with a question',
+    icon: Users,
+  },
+  {
+    label: 'Casual / Vent',
+    description: 'Relaxed chat, or talk freely in a private space',
     icon: MessageCircleMore,
   },
-  { label: 'Vent anonymously', description: 'Talk freely in a private space', icon: Shield },
-  { label: 'Surprise me', description: 'Match with any available peer', icon: Sparkles },
 ] as const;
 
 interface MatchmakingQueueProps {
@@ -67,7 +66,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const [error, setError] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(session.customHandle ? session.sessionHandle : '');
-  const [selectedIntent, setSelectedIntent] = useState<string>('Surprise me');
+  const [selectedIntent, setSelectedIntent] = useState<string | null>(null);
   const [canProceedNormally, setCanProceedNormally] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
@@ -153,11 +152,12 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
   const startMatchmaking = () => {
     if (searchingRef.current) return;
-    const interestsToMatch = selectedIntent === 'Surprise me' ? [] : [selectedIntent];
+    // No selection matches with any available peer.
+    const interestsToMatch = selectedIntent === null ? [] : [selectedIntent];
     setError('');
     setCanProceedNormally(false);
     matchingInterestsRef.current = interestsToMatch;
-    allowNormalRef.current = selectedIntent === 'Surprise me';
+    allowNormalRef.current = selectedIntent === null;
     setIsSearching(true);
     searchingRef.current = true;
     isMatchedRef.current = false;
@@ -480,10 +480,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
             <h2 className="text-xl font-bold leading-snug tracking-tight text-stone-900 dark:text-white">
-              What kind of chat do you want?
+              What kind of chat do you want? (optional)
             </h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-              We’ll prioritize someone looking for the same kind of conversation.
+              Pick one to match with similar peers, or skip to meet anyone.
             </p>
           </div>
 
@@ -502,12 +502,12 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   role="radio"
                   aria-checked={selected}
                   disabled={isSearching}
-                  onClick={() => setSelectedIntent(intent.label)}
+                  onClick={() => setSelectedIntent(selected ? null : intent.label)}
                   className={`matching-intent rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? 'chat-theme-accent-soft border-current'
                       : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
-                  } ${intent.label === 'Surprise me' ? 'sm:col-span-2' : ''}`}
+                  }`}
                 >
                   <span className="flex items-center gap-3">
                     <span className="matching-intent-indicator" aria-hidden="true" />

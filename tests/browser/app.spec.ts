@@ -144,12 +144,47 @@ test('a selected chat intent is prioritized before normal matching', async ({ br
     route.fulfill({ json: { status: 'queued', position: 1, interestMatchUnavailable: true } }),
   );
   await signIn(page, 'chat-intent');
-  await page.getByRole('radio', { name: /Study together/ }).click();
+  await page.getByRole('radio', { name: /Study \/ Help/ }).click();
   await page.locator('#start-chat-btn').click();
   await expect
     .poll(() => joinPayload)
-    .toMatchObject({ interests: ['Study together'], allowNormal: false });
+    .toMatchObject({ interests: ['Study / Help'], allowNormal: false });
   await expect(page.locator('#normal-match-btn')).toHaveText('Proceed with normal matching');
+  await context.close();
+});
+test('choosing a chat intent is optional and a selected card can be deselected', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    window.WebSocket = class {
+      constructor() {
+        throw new Error('Use HTTP fallback');
+      }
+    } as any;
+  });
+  const page = await context.newPage();
+  let joinPayload: any;
+  await page.route('**/api/match/join', async (route) => {
+    joinPayload = route.request().postDataJSON();
+    await route.fulfill({ json: { status: 'queued', position: 1 } });
+  });
+  await page.route('**/api/match/poll', (route) =>
+    route.fulfill({ json: { status: 'queued', position: 1 } }),
+  );
+  await signIn(page, 'optional-intent');
+  const cards = page.getByRole('radio');
+  await expect(cards).toHaveCount(2);
+  await expect(page.getByRole('radio', { checked: true })).toHaveCount(0);
+  const casual = page.getByRole('radio', { name: /Casual \/ Vent/ });
+  await casual.click();
+  await expect(casual).toHaveAttribute('aria-checked', 'true');
+  await casual.click();
+  await expect(casual).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('#start-chat-btn')).toBeEnabled();
+  await page.locator('#start-chat-btn').click();
+  await expect.poll(() => joinPayload).toMatchObject({ interests: [], allowNormal: true });
+  await expect(page.locator('#normal-match-btn')).toHaveCount(0);
   await context.close();
 });
 test('mobile layout, theme persistence, demo chat and music controls', async ({ page }) => {

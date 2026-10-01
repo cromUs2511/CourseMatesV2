@@ -134,7 +134,7 @@ test('every tab-reachable control shows a visible focus ring', async ({ page }) 
     reached.push(control.label);
     if (!control.visible) missing.push(control.label);
   }
-  expect(reached.length).toBeGreaterThanOrEqual(6);
+  expect(reached.length).toBeGreaterThanOrEqual(4);
   expect(reached.join(' | ')).toMatch(/Find my peers/i);
   expect(missing).toEqual([]);
 });

@@ -116,25 +116,25 @@ test('chat intents match first and normal matching requires an explicit opt-in',
     casualPeer = identity(),
     secondStudyPeer = identity();
   try {
-    const first = await request('/api/match/join', studyPeer, { interests: ['Study together'] });
+    const first = await request('/api/match/join', studyPeer, { interests: ['Study / Help'] });
     assert.equal(first.data.status, 'queued');
     assert.equal(first.data.interestMatchUnavailable, true);
 
     const incompatible = await request('/api/match/join', casualPeer, {
-      interests: ['Casual conversation'],
+      interests: ['Casual / Vent'],
     });
     assert.equal(incompatible.data.status, 'queued');
     assert.equal((await request('/api/match/poll', studyPeer)).data.status, 'queued');
 
     const intentMatch = await request('/api/match/join', secondStudyPeer, {
-      interests: ['Study together'],
+      interests: ['Study / Help'],
     });
     assert.equal(intentMatch.data.status, 'matched');
     assert.equal(intentMatch.data.peer.sessionId, studyPeer.id);
-    assert.equal(intentMatch.data.topic, 'Study together');
+    assert.equal(intentMatch.data.topic, 'Study / Help');
 
     const normal = await request('/api/match/join', casualPeer, {
-      interests: ['Casual conversation'],
+      interests: ['Casual / Vent'],
       allowNormal: true,
     });
     assert.equal(normal.data.status, 'queued');
