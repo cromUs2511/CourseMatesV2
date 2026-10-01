@@ -40,11 +40,18 @@ does this on purpose). Never commit real credentials.
 | `APP_URL` parses and is `https://` with no path/query/hash/credentials                   | `Production requires APP_URL with an HTTPS origin.` / `APP_URL must be an HTTPS origin without a path or credentials.` |
 | `SINGLE_INSTANCE=true`, `WEB_CONCURRENCY` unset or `1`, `NODE_APP_INSTANCE` unset or `0` | `This ephemeral runtime requires SINGLE_INSTANCE=true and exactly one process/replica.`                                |
 | `DATA_DIR` set                                                                           | `Production requires DATA_DIR on a persistent private volume.`                                                         |
-| `MODERATION_SECRET` and `ADMIN_TOKEN` each ≥ 32 chars                                    | `<KEY> must contain at least 32 random characters.`                                                                    |
-| The two secrets differ                                                                   | `Admin and moderation secrets must differ.`                                                                            |
+| `TRUST_PROXY_HOPS` is an explicit integer from `0` to `5`                                | `Production requires TRUST_PROXY_HOPS as an explicit integer from 0 to 5.`                                             |
+| `MODERATION_SECRET` and `ADMIN_PASSWORD` each ≥ 32 chars; `ADMIN_USERNAME` is set        | `<KEY> must contain at least 32 random characters.`                                                                    |
 
 `APP_URL` also sets the expected WebSocket `Origin` and whether cookies are
-`Secure`. Behind an HTTPS proxy set it and `TRUST_PROXY_HOPS` (0–5).
+`Secure`. Behind Render's proxy, set `TRUST_PROXY_HOPS=1` so the server records
+the connecting user's IP rather than Render's proxy address. Verify this setting
+against your deployment's proxy topology before enabling IP restrictions.
+Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in Render's environment settings;
+use a fresh password with at least 32 random characters, and rotate any password
+that has been shared outside the secret manager. Visit `/admin` to sign in;
+the dashboard uses a short-lived HttpOnly cookie and does not put credentials
+in the URL.
 
 ### Other switches
 
@@ -107,15 +114,9 @@ coverage number.
 
 ### Private metrics
 
-`GET /api/admin/metrics` requires `Authorization: Bearer $ADMIN_TOKEN` and
-returns only counters: `requests`, `errors`, `rateLimited`, `rejectedOrigins`,
-`providerFailures`, `startedAt`, plus `sessions`, `queued`, `rooms`,
-`sockets`, `mediaBytes`, `draining` and `memory` (RSS).
+`GET /api/admin/metrics` requires an authenticated admin session or the optional legacy `ADMIN_TOKEN` Bearer credential and returns only counters: `requests`, `errors`, `rateLimited`, `rejectedOrigins`, `providerFailures`, `startedAt`, plus `sessions`, `queued`, `rooms`, `sockets`, `mediaBytes`, `draining` and `memory` (RSS).
 
-It never contains chat text, media, tokens, emails, IPs or report bodies.
-`GET /api/admin/reports` returns moderation records only: category, anonymous
-actor identifiers, status and timestamps. `POST /api/admin/moderate` resolves
-reports or lifts bans with the same token.
+It never contains chat text, media, tokens, emails, IPs or report bodies. `GET /api/admin/reports` returns report metadata, active actor/IP restrictions, category, anonymous actor identifiers, reported IP, status and timestamps. Reports retain the reported IP for up to 30 days. `POST /api/admin/moderate` resolves reports, applies 1-, 2- or 3-day restrictions or permanent actor/IP bans, and lifts bans. The dashboard lists active restrictions separately so permanent bans can still be lifted after the originating report expires.
 
 ### Logs
 

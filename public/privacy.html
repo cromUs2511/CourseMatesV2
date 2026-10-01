@@ -41,9 +41,11 @@
         memory. Chats are not a permanent archive. Messages and their media are removed when
         deleted, evicted from the room buffer, or when the room ends or expires; a server restart
         clears live sessions and chats. Sign-out ends your session. The service stores limited
-        safety records separately: pseudonymous browser identifiers, report category and time, block
-        relationships, moderation action, and expiry. Safety records are retained for up to 30 days
-        and do not contain chat message text or media. Clearing your browser cookies removes the
+        safety records separately: pseudonymous browser identifiers, report category and time, the
+        reported user's connection IP, block relationships, moderation action, and expiry. Reports
+        and their IP addresses are retained for up to 30 days. Temporary restrictions expire after
+        their selected period; permanent IP restrictions remain until lifted by an operator. Safety
+        records do not contain chat message text or media. Clearing your browser cookies removes the
         local identifiers but does not immediately delete unexpired safety records.
       </p>
       <h2>Logs, hosting, and backups</h2>
@@ -67,10 +69,11 @@
       <h2>Sharing and security</h2>
       <p>
         Selected peers receive the content you send and may keep their own copies. Authorized
-        operators can access limited safety records for moderation; the operator's infrastructure
-        processes chat in transit. Production traffic uses HTTPS, but messages are not end-to-end
-        encrypted. No internet service can promise absolute security. Do not share contact details,
-        passwords, financial data, or another person's private information.
+        operators can access limited safety records, including reported IP addresses, for
+        moderation; the operator's infrastructure processes chat in transit. Production traffic uses
+        HTTPS, but messages are not end-to-end encrypted. No internet service can promise absolute
+        security. Do not share contact details, passwords, financial data, or another person's
+        private information.
       </p>
       <h2>Your choices and requests</h2>
       <p>

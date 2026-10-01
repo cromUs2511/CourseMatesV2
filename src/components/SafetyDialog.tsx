@@ -91,8 +91,8 @@ export function SafetyDialog({
         </button>
       </div>
       <p className="text-sm">
-        Reports send the reason and session identifiers to moderators. Message text, photos, and
-        recordings are not attached.
+        Reports send the reason, anonymous session identifiers, and the peer’s connection IP to
+        moderators for safety review. Message text, photos, and recordings are not attached.
       </p>
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">

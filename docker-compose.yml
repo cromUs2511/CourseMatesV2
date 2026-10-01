@@ -21,8 +21,11 @@ services:
       LOAD_LOCAL_ENV: 'false'
       SINGLE_INSTANCE: 'true'
       APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS origin}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
       MODERATION_SECRET: ${MODERATION_SECRET:?Set a stable random secret of at least 32 characters}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a separate random admin token of at least 32 characters}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Set the admin dashboard username}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set a separate random admin password of at least 32 characters}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       DATA_DIR: /app/data
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

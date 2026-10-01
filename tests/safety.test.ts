@@ -23,21 +23,58 @@ test('anonymous moderation identities are stable across restarts without storing
   assert.notEqual(actor, target);
   store.block(actor, target);
   store.ban(target);
-  const report = store.report(actor, target, 'harassment');
+  const report = store.report(actor, target, 'harassment', '::ffff:192.0.2.17');
   assert.deepEqual(Object.keys(report).sort(), [
     'category',
     'createdAt',
     'id',
+    'ipAddress',
     'reporter',
     'status',
     'target',
   ]);
+  assert.equal(report.ipAddress, '192.0.2.17');
   const reopened = new SafetyStore({ path, secret });
   assert.equal(reopened.actor('private-browser-identifier'), actor);
   assert.equal(reopened.isBlocked(target, actor), true);
   assert.equal(reopened.isBanned(target), true);
   assert.equal(reopened.listReports()[0]?.id, report.id);
+  assert.equal(reopened.listReports()[0]?.ipAddress, '192.0.2.17');
   assert.equal(readFileSync(path, 'utf8').includes('browser-identifier'), false);
+});
+
+test('legacy reports load without an IP and newly reported IPs support temporary and permanent bans', (t) => {
+  const { path } = fixture(t);
+  let now = 1000;
+  const store = new SafetyStore({ path, secret, now: () => now });
+  const reporter = store.actor('reporter');
+  const target = store.actor('target');
+  const legacyReport = store.report(reporter, target, 'spam');
+  const legacyState = JSON.parse(readFileSync(path, 'utf8'));
+  delete legacyState.reports[0].ipAddress;
+  writeFileSync(path, JSON.stringify(legacyState));
+  assert.equal(new SafetyStore({ path, secret, now: () => now }).listReports()[0]?.ipAddress, null);
+
+  const current = new SafetyStore({ path, secret, now: () => now });
+  const report = current.report(reporter, target, 'other', '2001:db8::1');
+  assert.equal(
+    current.listReports().find((item) => item.id === report.id)?.ipAddress,
+    '2001:db8::1',
+  );
+  current.ban(target, day, report.ipAddress);
+  assert.equal(current.isBanned(target, '2001:0db8:0:0:0:0:0:1'), true);
+  now += day;
+  assert.equal(current.isBanned(target, report.ipAddress), false);
+  current.ban(target, null, report.ipAddress);
+  const reopened = new SafetyStore({ path, secret, now: () => now });
+  assert.equal(reopened.isIpBanned('2001:db8::1'), true);
+  assert.equal(reopened.listBans().length, 2);
+  reopened.unbanIp('2001:db8::1');
+  assert.equal(reopened.isIpBanned('2001:db8::1'), false);
+  assert.equal(reopened.isActorBanned(target), true);
+  reopened.unban(target);
+  assert.equal(reopened.listBans().length, 0);
+  assert.equal(legacyReport.ipAddress, null);
 });
 
 test('resolved reports and ban removal persist, and callers cannot mutate reports', (t) => {

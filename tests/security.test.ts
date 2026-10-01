@@ -29,19 +29,30 @@ test('production fails closed without HTTPS, single process, persistent safety s
     APP_URL: 'https://coursemates.example',
     SINGLE_INSTANCE: 'true',
     DATA_DIR: './data',
+    TRUST_PROXY_HOPS: '0',
     MODERATION_SECRET: 'a'.repeat(32),
-    ADMIN_TOKEN: 'b'.repeat(32),
+    ADMIN_USERNAME: 'admin',
+    ADMIN_PASSWORD: 'b'.repeat(32),
   };
   assert.doesNotThrow(() => validateProductionConfig(env));
   for (const patch of [
     { APP_URL: 'http://example.com' },
     { SINGLE_INSTANCE: 'false' },
     { WEB_CONCURRENCY: '2' },
-    { ADMIN_TOKEN: '' },
+    { ADMIN_USERNAME: '' },
+    { ADMIN_PASSWORD: '' },
+    { TRUST_PROXY_HOPS: '' },
+    { TRUST_PROXY_HOPS: 'six' },
     { MODERATION_SECRET: '' },
   ]) {
     assert.throws(() => validateProductionConfig({ ...env, ...patch }));
   }
+  assert.throws(
+    () => validateProductionConfig({ ...env, ADMIN_PASSWORD: env.MODERATION_SECRET }),
+    /different/i,
+  );
+  assert.doesNotThrow(() => validateProductionConfig({ ...env, ADMIN_TOKEN: 'c'.repeat(32) }));
+  assert.throws(() => validateProductionConfig({ ...env, ADMIN_TOKEN: 'short' }), /ADMIN_TOKEN/i);
 });
 
 test('same-origin JSON writes work while cross-origin, missing-origin and form requests fail', async () => {

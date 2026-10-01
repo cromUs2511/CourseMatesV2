@@ -76,6 +76,8 @@ const server = http.createServer(app);
 const stopRuntime = attachRuntime(app, server, {
   safety,
   origin,
+  adminUsername: process.env.ADMIN_USERNAME || 'admin',
+  adminPassword: process.env.ADMIN_PASSWORD,
   adminToken: process.env.ADMIN_TOKEN,
 });
 server.requestTimeout = 30000;
@@ -129,11 +131,11 @@ app.post('/api/auth/anonymous', (req, res) => {
         ? givenId
         : crypto.randomBytes(32).toString('hex');
     const actor = safety.actor(deviceId);
-    if (safety.isBanned(actor))
+    if (safety.isBanned(actor, req.ip))
       return res.status(403).json({
         error: 'Access to this community has been restricted. Contact support to appeal.',
       });
-    const session = issueSession('', {}, false, actor);
+    const session = issueSession('', {}, false, actor, req.ip);
     res.cookie('cm_device', deviceId + '.' + sign(deviceId), {
       httpOnly: true,
       sameSite: 'strict',

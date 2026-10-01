@@ -17,7 +17,7 @@ import type { ChatVoice } from './src/data/chatVoice';
 import { normalizeMusicSnippet, type MusicSnippet } from './src/data/musicSnippet';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { WindowLimiter, constantTimeEqual, metrics } from './serverSecurity';
-import { moderateText, type SafetyStore } from './safety';
+import { moderateText, normalizeIpAddress, type SafetyStore } from './safety';
 import {
   createUnoChallenge,
   joinArena,
@@ -41,7 +41,13 @@ import { PeerChess } from './chess';
 import { PeerTrivia } from './trivia';
 import { PeerWouldYouRather } from './wouldYouRather';
 
-type Identity = StudentSession & { token: string; email: string; actor: string; expiresAt: number };
+type Identity = StudentSession & {
+  token: string;
+  email: string;
+  actor: string;
+  ipAddress?: string;
+  expiresAt: number;
+};
 type Participant = {
   id: string;
   handle: string;
@@ -157,15 +163,19 @@ export function issueSession(
   profile: any = {},
   _verified = false,
   actor: string = crypto.randomUUID(),
+  ipAddress?: string,
 ): Identity {
   if (draining || sessions.size >= limits.sessions)
     throw new Error('The service is at capacity. Please try again later.');
-  if (safety?.isBanned(actor)) throw new Error('Access to this community has been restricted.');
+  const normalizedIp = normalizeIpAddress(ipAddress);
+  if (safety?.isBanned(actor, normalizedIp))
+    throw new Error('Access to this community has been restricted.');
   const { handle, avatar } = generateAnonymousHandle();
   const session: Identity = {
     id: crypto.randomUUID(),
     email,
     actor,
+    ...(normalizedIp ? { ipAddress: normalizedIp } : {}),
     token: crypto.randomBytes(32).toString('hex'),
     campus: ['Main Campus', 'City Campus', 'North Campus', 'Digital / Online'].includes(
       profile.campus,
@@ -249,7 +259,11 @@ function sharedInterest(a: Participant, b: Participant): { score: number; topic?
 }
 function validSession(token: unknown) {
   const session = typeof token === 'string' ? sessions.get(token) : undefined;
-  if (!session || session.expiresAt <= Date.now() || safety?.isBanned(session.actor))
+  if (
+    !session ||
+    session.expiresAt <= Date.now() ||
+    safety?.isBanned(session.actor, session.ipAddress)
+  )
     return undefined;
   return session;
 }
@@ -686,6 +700,8 @@ export function attachRuntime(
     safety?: SafetyStore;
     limits?: Partial<typeof defaultLimits>;
     origin?: string;
+    adminUsername?: string;
+    adminPassword?: string;
     adminToken?: string;
   } = {},
 ) {
@@ -693,6 +709,62 @@ export function attachRuntime(
   limits = { ...defaultLimits, ...options.limits };
   draining = false;
   const unoLimiter = new WindowLimiter();
+  const adminLoginLimiter = new WindowLimiter();
+  const adminSessions = new Map<string, number>();
+  const adminCookieName = 'cm_admin';
+  const adminSessionMs = 8 * 60 * 60 * 1000;
+  const adminSessionKey = (token: string) =>
+    crypto.createHash('sha256').update(token).digest('hex');
+  const isAdminAuthenticated = (req: Request) => {
+    const bearer = req.get('authorization') || '';
+    if (options.adminToken && constantTimeEqual(bearer, 'Bearer ' + options.adminToken))
+      return true;
+    const token = cookie(req, adminCookieName);
+    if (!token) return false;
+    const key = adminSessionKey(token);
+    const expiresAt = adminSessions.get(key);
+    if (!expiresAt || expiresAt <= Date.now()) {
+      adminSessions.delete(key);
+      return false;
+    }
+    return true;
+  };
+  app.post('/api/admin/login', (req, res) => {
+    const remoteIp = req.ip || req.socket.remoteAddress || 'unknown';
+    if (!adminLoginLimiter.take(`admin-login:${remoteIp}`, 5, 15 * 60 * 1000))
+      return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.' });
+    const { username, password } = req.body ?? {};
+    if (
+      !options.adminUsername ||
+      !options.adminPassword ||
+      typeof username !== 'string' ||
+      typeof password !== 'string' ||
+      !constantTimeEqual(username, options.adminUsername) ||
+      !constantTimeEqual(password, options.adminPassword)
+    )
+      return res.status(401).json({ error: 'Invalid administrator credentials.' });
+    const token = crypto.randomBytes(32).toString('base64url');
+    adminSessions.set(adminSessionKey(token), Date.now() + adminSessionMs);
+    const secure = (options.origin || `${req.protocol}://${req.get('host')}`).startsWith('https:');
+    res.setHeader(
+      'Set-Cookie',
+      `${adminCookieName}=${token}; Path=/api/admin; HttpOnly; SameSite=Strict; Max-Age=${adminSessionMs / 1000}${secure ? '; Secure' : ''}`,
+    );
+    res.json({ authenticated: true });
+  });
+  app.get('/api/admin/session', (req, res) =>
+    res.json({ authenticated: isAdminAuthenticated(req) }),
+  );
+  app.post('/api/admin/logout', (req, res) => {
+    const token = cookie(req, adminCookieName);
+    if (token) adminSessions.delete(adminSessionKey(token));
+    const secure = (options.origin || `${req.protocol}://${req.get('host')}`).startsWith('https:');
+    res.setHeader(
+      'Set-Cookie',
+      `${adminCookieName}=; Path=/api/admin; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`,
+    );
+    res.json({ success: true });
+  });
   app.use(['/api/match', '/api/chat', '/api/ai', '/api/safety', '/api/uno'], (req, res, next) => {
     if (!authenticate(req))
       return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
@@ -1137,12 +1209,10 @@ export function attachRuntime(
   });
   app.post('/api/uno/arena', (req, res) => {
     if (process.env.CHAT_MULTIPLAYER_V2 !== 'false')
-      return res
-        .status(410)
-        .json({
-          error:
-            'UNO is now a two-player game inside your current chat. Invite your peer from Games.',
-        });
+      return res.status(410).json({
+        error:
+          'UNO is now a two-player game inside your current chat. Invite your peer from Games.',
+      });
     const session = authenticate(req)!;
     if (!unoLimiter.take('uno-arena:' + session.id, 30, 60000))
       return res.status(429).json({ error: 'You are joining too quickly. Try again shortly.' });
@@ -1273,7 +1343,12 @@ export function attachRuntime(
       const peer = identities.get(room.peers.find((p) => p.id !== session.id)!.id)!;
       try {
         if (action === 'report') {
-          const report = safety.report(session.actor, peer.actor, req.body.category);
+          const report = safety.report(
+            session.actor,
+            peer.actor,
+            req.body.category,
+            peer.ipAddress,
+          );
           return res.json({ success: true, reportId: report.id });
         }
         safety.block(session.actor, peer.actor);
@@ -1286,10 +1361,7 @@ export function attachRuntime(
       }
     });
   app.use('/api/admin', (req, res, next) => {
-    if (
-      !options.adminToken ||
-      !constantTimeEqual(req.get('authorization') || '', 'Bearer ' + options.adminToken)
-    )
+    if (!isAdminAuthenticated(req))
       return res.status(401).json({ error: 'Administrator authentication required.' });
     next();
   });
@@ -1298,7 +1370,16 @@ export function attachRuntime(
   );
   app.get('/api/admin/reports', (_req, res) => {
     try {
-      res.json({ reports: safety?.listReports() || [] });
+      const reports = safety?.listReports() || [];
+      const bans = safety?.listBans() || [];
+      res.json({
+        bans,
+        reports: reports.map((report) => ({
+          ...report,
+          actorBanned: safety?.isActorBanned(report.target) ?? false,
+          ipBanned: safety?.isIpBanned(report.ipAddress) ?? false,
+        })),
+      });
     } catch {
       res.status(503).json({ error: 'Moderation storage is unavailable.' });
     }
@@ -1309,10 +1390,26 @@ export function attachRuntime(
       const { action, actor, reportId } = req.body;
       if (action === 'resolve') safety.resolveReport(reportId);
       else if (action === 'unban') safety.unban(actor);
+      else if (action === 'unbanIp') safety.unbanIp(req.body.ipAddress);
       else if (action === 'ban') {
-        safety.ban(actor, req.body.durationMs);
+        const report = safety.listReports().find((item) => item.id === reportId);
+        const durationMs = req.body.durationMs;
+        if (!report || report.target !== actor)
+          return res
+            .status(400)
+            .json({ error: 'Select a valid report before restricting access.' });
+        if (durationMs !== null && ![86_400_000, 172_800_000, 259_200_000].includes(durationMs))
+          return res
+            .status(400)
+            .json({ error: 'Choose a 1, 2, or 3 day restriction, or permanent.' });
+        const ipAddress = req.body.includeIp === true ? report.ipAddress : null;
+        if (req.body.includeIp === true && !ipAddress)
+          return res
+            .status(400)
+            .json({ error: 'This report has no verified IP address to restrict.' });
+        safety.ban(actor, durationMs, ipAddress);
         for (const session of sessions.values())
-          if (session.actor === actor) {
+          if (session.actor === actor || (ipAddress !== null && session.ipAddress === ipAddress)) {
             leave(session.id);
             sockets.get(session.id)?.close(1008, 'Access restricted');
             sessions.delete(session.token);
@@ -1474,6 +1571,7 @@ export function attachRuntime(
     sessions.clear();
     identities.clear();
     sockets.clear();
+    adminSessions.clear();
     unoReset();
     wss.close();
   };

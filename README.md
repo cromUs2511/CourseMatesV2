@@ -58,9 +58,13 @@ configuration check. The process exits at startup unless all of these are set:
 | `SINGLE_INSTANCE`   | Must be `true`, with `WEB_CONCURRENCY` unset or `1` and `NODE_APP_INSTANCE` unset or `0`. Chat state is RAM-only and is not shared between processes. |
 | `DATA_DIR`          | A persistent private volume. It holds `moderation.json`, the durable report/block/ban store.                                                          |
 | `MODERATION_SECRET` | At least 32 random characters. Stable across restarts, otherwise browser-identity bans are lost.                                                      |
-| `ADMIN_TOKEN`       | At least 32 random characters, different from `MODERATION_SECRET`. Bearer token for `/api/admin/*`.                                                   |
+| `ADMIN_USERNAME`    | Admin sign-in username for `/admin`.                                                                                                                  |
+| `ADMIN_PASSWORD`    | At least 32 random characters; configure it in Render environment variables, never in source code or a URL.                                           |
+| `TRUST_PROXY_HOPS`  | Set to `1` behind Render's single trusted proxy so moderation records use the connecting user's IP.                                                   |
 
 `docker compose` wires all of these; see `docs/operations.md` for the runbook.
+Reports retain the reported user's IP for up to 30 days. Permanent IP restrictions
+remain in force until an administrator lifts them.
 
 CourseMates uses anonymous access. `ALLOW_ANONYMOUS_ACCESS` defaults to true in both local and Render deployments; set it to `false` only when an external access gateway is in place.
 

@@ -8,7 +8,11 @@ import { attachRuntime, issueSession, isValidEmail } from '../runtime';
 const app = express();
 app.use(express.json());
 const server = http.createServer(app);
-const stop = attachRuntime(app, server);
+const adminPassword = 'test-admin-password-longer-than-32-characters';
+const stop = attachRuntime(app, server, {
+  adminUsername: 'test-admin',
+  adminPassword,
+});
 let base: string;
 before(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -18,6 +22,52 @@ after(async () => {
   stop();
   server.closeIdleConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
+test('admin sign-in issues an HttpOnly session cookie and protects moderation APIs', async () => {
+  const denied = await fetch(base + '/api/admin/reports');
+  assert.equal(denied.status, 401);
+
+  const invalid = await fetch(base + '/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: base },
+    body: JSON.stringify({ username: 'test-admin', password: 'incorrect' }),
+  });
+  assert.equal(invalid.status, 401);
+
+  const login = await fetch(base + '/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: base },
+    body: JSON.stringify({ username: 'test-admin', password: adminPassword }),
+  });
+  assert.equal(login.status, 200);
+  const setCookie = login.headers.get('set-cookie');
+  if (!setCookie) throw new Error('Successful admin login did not issue a cookie.');
+  assert.match(setCookie, /HttpOnly/);
+  assert.match(setCookie, /SameSite=Strict/);
+  const cookie = setCookie.split(';', 1)[0];
+  if (!cookie) throw new Error('Successful admin login returned an empty cookie.');
+  assert.deepEqual(
+    await (await fetch(base + '/api/admin/session', { headers: { Cookie: cookie } })).json(),
+    {
+      authenticated: true,
+    },
+  );
+  const moderationData = await fetch(base + '/api/admin/reports', {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(moderationData.status, 200);
+  assert.deepEqual(await moderationData.json(), { bans: [], reports: [] });
+  await fetch(base + '/api/admin/logout', {
+    method: 'POST',
+    headers: { Cookie: cookie, Origin: base },
+  });
+  assert.deepEqual(
+    await (await fetch(base + '/api/admin/session', { headers: { Cookie: cookie } })).json(),
+    {
+      authenticated: false,
+    },
+  );
 });
 const identity = (verified = false) => issueSession('test@gmail.com', {}, verified);
 async function request(path: string, session?: ReturnType<typeof identity>, body?: unknown) {
@@ -514,7 +564,9 @@ test('shared music survives HTTP fallback and rejects invalid tracks and non-mem
 
 test('Tic Tac Toe REST and socket snapshots agree and room departure purges the game', async () => {
   const { a, b, roomId } = await pair();
-  const ws = new WebSocket(base.replace('http:', 'ws:') + '/ws/chat', { headers: { Cookie: 'cm_session=' + b.token, Origin: base } });
+  const ws = new WebSocket(base.replace('http:', 'ws:') + '/ws/chat', {
+    headers: { Cookie: 'cm_session=' + b.token, Origin: base },
+  });
   const events: any[] = [];
   ws.on('message', (raw) => events.push(JSON.parse(raw.toString())));
   await new Promise<void>((resolve) => ws.once('open', resolve));
@@ -527,12 +579,24 @@ test('Tic Tac Toe REST and socket snapshots agree and room departure purges the 
     const invitation = (await request(path, a, { roomId, action: 'invite' })).data;
     await waitFor(() => events.some((event) => event.type === 'tictactoe_state'));
     assert.deepEqual(events.find((event) => event.type === 'tictactoe_state').state, invitation);
-    const accepted = await request(path, b, { roomId, action: 'respond', invitationId: invitation.invitation.id, accept: true });
+    const accepted = await request(path, b, {
+      roomId,
+      action: 'respond',
+      invitationId: invitation.invitation.id,
+      accept: true,
+    });
     assert.equal(accepted.status, 200);
     assert.deepEqual((await request(path + '?roomId=' + roomId, a)).data, accepted.data);
     ws.close();
     await new Promise<void>((resolve) => ws.once('close', () => resolve()));
-    const action = { roomId, action: 'move', gameId: accepted.data.game.id, round: 1, revision: accepted.data.revision, square: 0 };
+    const action = {
+      roomId,
+      action: 'move',
+      gameId: accepted.data.game.id,
+      round: 1,
+      revision: accepted.data.revision,
+      square: 0,
+    };
     assert.equal((await request(path, b, action)).status, 409);
     const moved = (await request(path, a, action)).data;
     assert.equal(moved.game.board[0], 'X');
@@ -541,12 +605,22 @@ test('Tic Tac Toe REST and socket snapshots agree and room departure purges the 
     await request('/api/chat/leave', a, { roomId });
     assert.equal((await request(path + '?roomId=' + roomId, b)).status, 404);
     assert.equal((await request('/api/uno/arena', a, { size: 4, opponents: 'bots' })).status, 410);
-  } finally { ws.close(); await request('/api/match/cancel', a, {}); }
+  } finally {
+    ws.close();
+    await request('/api/match/cancel', a, {});
+  }
 });
 
 test('shared playback retains its clock across pauses, polls, restart and track changes', async () => {
   const { a, b, roomId } = await pair();
-  const update = { roomId, trackId: 'test', isPlaying: true, volume: 70, isMuted: false, position: 42 };
+  const update = {
+    roomId,
+    trackId: 'test',
+    isPlaying: true,
+    volume: 70,
+    isMuted: false,
+    position: 42,
+  };
   try {
     const first = (await request('/api/chat/music', a, update)).data.music;
     assert.equal(first.position, 42);
@@ -554,13 +628,18 @@ test('shared playback retains its clock across pauses, polls, restart and track 
     const poll = (await request('/api/chat/messages?roomId=' + roomId, b)).data.music;
     assert.equal(poll.updatedAt, first.updatedAt);
     assert.equal(poll.revision, first.revision);
-    const paused = (await request('/api/chat/music', b, { ...update, isPlaying: false, position: 47 })).data.music;
+    const paused = (
+      await request('/api/chat/music', b, { ...update, isPlaying: false, position: 47 })
+    ).data.music;
     assert.equal(paused.position, 47);
     const restart = (await request('/api/chat/music', a, { ...update, position: 0 })).data.music;
     assert.equal(restart.position, 0);
-    const next = (await request('/api/chat/music', b, { ...update, trackId: 'next', position: undefined })).data.music;
+    const next = (
+      await request('/api/chat/music', b, { ...update, trackId: 'next', position: undefined })
+    ).data.music;
     assert.equal(next.position, 0);
-    for (const position of [-1, '0', 604801]) assert.equal((await request('/api/chat/music', a, { ...update, position })).status, 400);
+    for (const position of [-1, '0', 604801])
+      assert.equal((await request('/api/chat/music', a, { ...update, position })).status, 400);
     // The rollout switch preserves the original play/pause contract for old clients.
     process.env.CHAT_MULTIPLAYER_V2 = 'false';
     const legacy = (await request('/api/chat/music', a, update)).data.music;

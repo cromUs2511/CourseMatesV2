@@ -65,10 +65,18 @@ export function validateProductionConfig(
     );
   if (!env.DATA_DIR)
     throw new Error('Production requires DATA_DIR on a persistent private volume.');
-  for (const key of ['MODERATION_SECRET', 'ADMIN_TOKEN'])
+  if (!/^[0-5]$/.test(env.TRUST_PROXY_HOPS || ''))
+    throw new Error('Production requires TRUST_PROXY_HOPS as an explicit integer from 0 to 5.');
+  for (const key of ['MODERATION_SECRET', 'ADMIN_PASSWORD'])
     if ((env[key]?.length || 0) < 32)
       throw new Error(`${key} must contain at least 32 random characters.`);
-  if (env.ADMIN_TOKEN === env.MODERATION_SECRET)
+  if (!env.ADMIN_USERNAME?.trim() || env.ADMIN_USERNAME.length > 100)
+    throw new Error('Production requires ADMIN_USERNAME (1 to 100 characters).');
+  if (env.ADMIN_PASSWORD === env.MODERATION_SECRET)
+    throw new Error('Admin and moderation secrets must be different.');
+  if (env.ADMIN_TOKEN && env.ADMIN_TOKEN.length < 32)
+    throw new Error('ADMIN_TOKEN must contain at least 32 random characters when configured.');
+  if (env.ADMIN_TOKEN && env.ADMIN_TOKEN === env.MODERATION_SECRET)
     throw new Error('Admin and moderation secrets must be different.');
 }
 

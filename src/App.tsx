@@ -7,6 +7,7 @@ import { StudentSession, ActivePeerInfo } from './types';
 import { apiRequest, SESSION_EXPIRED_EVENT } from './utils/api';
 import { getSoundEnabled, setSoundEnabled } from './utils/sound';
 import { CHAT_THEMES, ChatThemeMenu, type ChatTheme } from './components/ChatThemeMenu';
+import { AdminDashboard } from './components/AdminDashboard';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -36,6 +37,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [queueKey, setQueueKey] = useState(0);
   const [autoSearch, setAutoSearch] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdminRoute =
+    window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -74,6 +78,19 @@ export default function App() {
       .catch(() => {})
       .finally(() => {
         if (!disposed) setRestoring(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+  useEffect(() => {
+    let disposed = false;
+    apiRequest<{ authenticated: boolean }>('/api/admin/session')
+      .then((result) => {
+        if (!disposed) setIsAdmin(result.authenticated);
+      })
+      .catch(() => {
+        if (!disposed) setIsAdmin(false);
       });
     return () => {
       disposed = true;
@@ -149,6 +166,7 @@ export default function App() {
         return next;
       }),
   };
+  if (isAdminRoute) return <AdminDashboard isDarkMode={isDarkMode} />;
   return (
     <div
       className={
@@ -166,13 +184,24 @@ export default function App() {
         <Header
           {...headerProps}
           displayActions={
-            <ChatThemeMenu
-              theme={chatTheme}
-              onChange={handleChatThemeChange}
-              isDarkMode={isDarkMode}
-              standalone
-              compact
-            />
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <a
+                  href="/admin"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-300"
+                  aria-label="Administrator dashboard"
+                >
+                  <span aria-hidden="true">●</span> Admin
+                </a>
+              )}
+              <ChatThemeMenu
+                theme={chatTheme}
+                onChange={handleChatThemeChange}
+                isDarkMode={isDarkMode}
+                standalone
+                compact
+              />
+            </div>
           }
         />
       )}

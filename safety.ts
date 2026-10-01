@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
+import { isIP } from 'node:net';
 import patterns from './moderation-patterns.json';
 
 export const REPORT_CATEGORIES = ['harassment', 'spam', 'sexual', 'threats', 'other'] as const;
@@ -20,16 +21,22 @@ export type SafetyReport = {
   reporter: string;
   target: string;
   category: ReportCategory;
+  ipAddress: string | null;
   createdAt: number;
   status: 'open' | 'resolved';
 };
 
-type Ban = { actor: string; createdAt: number; until: number };
+export type SafetyBan = {
+  actor?: string;
+  ipAddress?: string;
+  createdAt: number;
+  until: number | null;
+};
 type Block = { actor: string; target: string; createdAt: number };
 type State = {
   version: 1;
   secretCheck: string;
-  bans: Ban[];
+  bans: SafetyBan[];
   blocks: Block[];
   reports: SafetyReport[];
 };
@@ -37,6 +44,13 @@ const DAY = 86_400_000;
 export const SAFETY_RETENTION_MS = 30 * DAY;
 const validActor = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+export function normalizeIpAddress(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 45) return null;
+  const address = value.trim().toLowerCase();
+  const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(address)?.[1];
+  if (mappedIpv4 && isIP(mappedIpv4) === 4) return mappedIpv4;
+  return isIP(address) ? address : null;
+}
 const finiteTime = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -52,7 +66,8 @@ export class SafetyStoreError extends Error {
 }
 
 /** Single-process moderation metadata. Production must use a durable private path.
- * No message content, email addresses, IP addresses, or session tokens are stored.
+ * No message content, email addresses, or session tokens are stored. Reported IPs
+ * are retained with their report for up to 30 days; permanent IP bans do not expire.
  * Storage failures stop further operations; restart after repairing the volume.
  */
 export class SafetyStore {
@@ -104,10 +119,33 @@ export class SafetyStore {
     return createHmac('sha256', this.secret).update(`actor:${browserId}`).digest('hex');
   }
 
-  isBanned(actor: string): boolean {
+  isBanned(actor: string, ipAddress?: string | null): boolean {
     this.assertActor(actor);
     this.prune();
-    return this.state.bans.some((ban) => ban.actor === actor);
+    const ip = normalizeIpAddress(ipAddress);
+    return this.state.bans.some(
+      (ban) =>
+        (ban.actor === actor || (!!ip && ban.ipAddress === ip)) &&
+        (ban.until === null || ban.until > this.now()),
+    );
+  }
+
+  isActorBanned(actor: string): boolean {
+    this.assertActor(actor);
+    this.prune();
+    return this.state.bans.some(
+      (ban) => ban.actor === actor && (ban.until === null || ban.until > this.now()),
+    );
+  }
+
+  isIpBanned(ipAddress: string | null | undefined): boolean {
+    const ip = normalizeIpAddress(ipAddress);
+    if (!ip) return false;
+    this.assertAvailable();
+    this.prune();
+    return this.state.bans.some(
+      (ban) => ban.ipAddress === ip && (ban.until === null || ban.until > this.now()),
+    );
   }
 
   block(actor: string, target: string): void {
@@ -132,7 +170,12 @@ export class SafetyStore {
     );
   }
 
-  report(reporter: string, target: string, category: ReportCategory): SafetyReport {
+  report(
+    reporter: string,
+    target: string,
+    category: ReportCategory,
+    ipAddress?: string | null,
+  ): SafetyReport {
     this.assertPair(reporter, target);
     if (!(REPORT_CATEGORIES as readonly string[]).includes(category))
       throw new SafetyStoreError('Invalid report category.');
@@ -144,11 +187,15 @@ export class SafetyStore {
       ).length >= 20
     )
       throw new SafetyStoreError('Daily report limit reached.');
+    const normalizedIp = ipAddress == null ? null : normalizeIpAddress(ipAddress);
+    if (ipAddress != null && !normalizedIp)
+      throw new SafetyStoreError('Invalid report IP address.');
     const report: SafetyReport = {
       id: randomUUID(),
       reporter,
       target,
       category,
+      ipAddress: normalizedIp,
       createdAt,
       status: 'open',
     };
@@ -160,26 +207,58 @@ export class SafetyStore {
 
   listReports(): SafetyReport[] {
     this.prune();
-    return this.state.reports.map((report) => ({ ...report }));
+    return this.state.reports.map((report) => ({ ...report, ipAddress: report.ipAddress ?? null }));
   }
 
-  ban(actor: string, durationMs = SAFETY_RETENTION_MS): void {
+  listBans(): SafetyBan[] {
+    this.prune();
+    return this.state.bans.map((ban) => ({ ...ban }));
+  }
+
+  ban(
+    actor: string,
+    durationMs: number | null = SAFETY_RETENTION_MS,
+    ipAddress?: string | null,
+  ): void {
     this.assertActor(actor);
-    if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > SAFETY_RETENTION_MS)
+    if (
+      durationMs !== null &&
+      (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > SAFETY_RETENTION_MS)
+    )
       throw new SafetyStoreError('Ban duration must be between 1 ms and 30 days.');
+    const normalizedIp = ipAddress == null ? null : normalizeIpAddress(ipAddress);
+    if (ipAddress != null && !normalizedIp) throw new SafetyStoreError('Invalid IP address.');
     this.prune();
     const createdAt = this.now();
+    const until = durationMs === null ? null : createdAt + durationMs;
     this.mutate((state) => {
-      state.bans = state.bans.filter((ban) => ban.actor !== actor);
-      state.bans.push({ actor, createdAt, until: createdAt + durationMs });
+      state.bans = state.bans.filter(
+        (ban) => ban.actor !== actor && (!normalizedIp || ban.ipAddress !== normalizedIp),
+      );
+      state.bans.push({ actor, createdAt, until });
+      if (normalizedIp) state.bans.push({ ipAddress: normalizedIp, createdAt, until });
     });
   }
 
-  unban(actor: string): void {
+  unban(actor: string, ipAddress?: string | null): void {
     this.assertActor(actor);
+    const normalizedIp = ipAddress == null ? null : normalizeIpAddress(ipAddress);
+    if (ipAddress != null && !normalizedIp) throw new SafetyStoreError('Invalid IP address.');
     this.prune();
     this.mutate((state) => {
-      state.bans = state.bans.filter((ban) => ban.actor !== actor);
+      state.bans = state.bans.filter(
+        (ban) => ban.actor !== actor && (!normalizedIp || ban.ipAddress !== normalizedIp),
+      );
+    });
+  }
+
+  unbanIp(ipAddress: string): void {
+    const normalizedIp = normalizeIpAddress(ipAddress);
+    if (!normalizedIp) throw new SafetyStoreError('Invalid IP address.');
+    this.assertAvailable();
+    this.prune();
+    this.mutate((state) => {
+      state.bans = state.bans.filter((ban) => ban.ipAddress !== normalizedIp);
     });
   }
 
@@ -223,7 +302,7 @@ export class SafetyStore {
     const cutoff = now - SAFETY_RETENTION_MS;
     const next: State = {
       ...this.state,
-      bans: this.state.bans.filter((ban) => ban.until > now),
+      bans: this.state.bans.filter((ban) => ban.until === null || ban.until > now),
       blocks: this.state.blocks.filter((block) => block.createdAt > cutoff),
       reports: this.state.reports.filter((report) => report.createdAt > cutoff),
     };
@@ -293,15 +372,22 @@ export class SafetyStore {
       throw new Error('Capacity exceeded.');
     const validCreated = (time: unknown) => finiteTime(time) && time <= this.now();
     for (const ban of value.bans) {
+      const hasActor = record(ban) && validActor(ban.actor);
+      const hasIp = record(ban) && normalizeIpAddress(ban.ipAddress) !== null;
       if (
         !record(ban) ||
-        !exactKeys(ban, ['actor', 'createdAt', 'until']) ||
-        !validActor(ban.actor) ||
+        Object.keys(ban).some(
+          (key) => !['actor', 'ipAddress', 'createdAt', 'until'].includes(key),
+        ) ||
+        hasActor === hasIp ||
+        (ban.actor !== undefined && !validActor(ban.actor)) ||
+        (ban.ipAddress !== undefined && !normalizeIpAddress(ban.ipAddress)) ||
         !finiteTime(ban.createdAt) ||
         !validCreated(ban.createdAt) ||
-        !finiteTime(ban.until) ||
-        ban.until <= ban.createdAt ||
-        ban.until - ban.createdAt > SAFETY_RETENTION_MS
+        (ban.until !== null &&
+          (!finiteTime(ban.until) ||
+            ban.until <= ban.createdAt ||
+            ban.until - ban.createdAt > SAFETY_RETENTION_MS))
       )
         throw new Error('Invalid ban.');
     }
@@ -319,7 +405,12 @@ export class SafetyStore {
     for (const report of value.reports) {
       if (
         !record(report) ||
-        !exactKeys(report, ['id', 'reporter', 'target', 'category', 'createdAt', 'status']) ||
+        Object.keys(report).some(
+          (key) =>
+            !['id', 'reporter', 'target', 'category', 'ipAddress', 'createdAt', 'status'].includes(
+              key,
+            ),
+        ) ||
         typeof report.id !== 'string' ||
         !/^[a-f0-9-]{36}$/.test(report.id) ||
         !validActor(report.reporter) ||
@@ -327,6 +418,9 @@ export class SafetyStore {
         report.reporter === report.target ||
         typeof report.category !== 'string' ||
         !(REPORT_CATEGORIES as readonly string[]).includes(report.category) ||
+        (report.ipAddress !== undefined &&
+          report.ipAddress !== null &&
+          !normalizeIpAddress(report.ipAddress)) ||
         !validCreated(report.createdAt) ||
         !['open', 'resolved'].includes(String(report.status))
       )

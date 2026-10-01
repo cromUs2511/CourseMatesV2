@@ -15,7 +15,7 @@ export async function apiRequest<T = any>(
       : AbortSignal.timeout(20000),
   });
   const data = await response.json().catch(() => null);
-  if (response.status === 401 && path !== '/api/auth/session') {
+  if (response.status === 401 && path !== '/api/auth/session' && !path.startsWith('/api/admin/')) {
     window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     throw new Error('Your session ended. Continue to start a new anonymous session.');
   }
