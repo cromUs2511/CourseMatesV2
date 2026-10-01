@@ -329,8 +329,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
-  /* Touch has no hover: a scroll or a tap on the transcript would otherwise
-     hide the send and attachment controls while the keyboard is still up. */
+  /* Touch has no hover: tapping outside the composer must not collapse it
+     through the pointer path, so touch relies on input focus/blur instead. */
   useEffect(() => {
     const query = window.matchMedia('(hover: none)');
     const sync = () => setTouchComposer(query.matches);
@@ -1159,8 +1159,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   );
   const ambientActive = ambient.active && ambient.enabled;
   const musicPlaying = ambient.active;
+  /* Attachment and send controls stay hidden until the composer is engaged
+     (focus, text, or pending media) so the chat starts clean on every device. */
   const composerControlsVisible =
-    touchComposer ||
     composerEngaged ||
     hasInputText ||
     pendingImages.length > 0 ||
@@ -1440,6 +1441,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 nextMessage.senderHandle === msg.senderHandle &&
                 nextMessage.timestamp - msg.timestamp <= 120000,
               );
+              // Voice notes and photos carry their own visuals, so a textless
+              // media message renders without the bubble frame or padding.
+              const mediaOnly =
+                !msg.text && !msg.musicSnippet && (!!msg.voice || !!msg.images?.length);
 
               return (
                 <div
@@ -1554,21 +1559,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           messageBubbleRefs.current[msg.id] = element;
                         }}
                         data-message-bubble
-                        className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl border px-3.5 text-left text-[13px] leading-[19px] shadow-[0_1px_2px_rgba(41,37,36,0.04)] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
-                          isGroupedWithPrevious ? 'gap-1 py-2' : 'gap-1.5 py-2.5'
-                        } ${
-                          msg.isMe
-                            ? 'text-white'
-                            : isDarkMode
-                              ? 'bg-stone-900/95 border-stone-700/80 text-stone-100'
-                              : 'bg-white/95 border-stone-200 text-stone-900'
+                        className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl text-left text-[13px] leading-[19px] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
+                          mediaOnly
+                            ? 'gap-0 border-0 bg-transparent p-0 shadow-none'
+                            : `border px-3.5 shadow-[0_1px_2px_rgba(41,37,36,0.04)] ${
+                                isGroupedWithPrevious ? 'gap-1 py-2' : 'gap-1.5 py-2.5'
+                              } ${
+                                msg.isMe
+                                  ? 'text-white'
+                                  : isDarkMode
+                                    ? 'bg-stone-900/95 border-stone-700/80 text-stone-100'
+                                    : 'bg-white/95 border-stone-200 text-stone-900'
+                              }`
                         }`}
                         style={{
                           transform:
                             swipe?.id === msg.id && swipe.offset !== 0
                               ? `translateX(${swipe.offset}px)`
                               : undefined,
-                          ...(msg.isMe
+                          ...(msg.isMe && !mediaOnly
                             ? { backgroundColor: chatTheme.accent, borderColor: chatTheme.accent }
                             : {}),
                         }}

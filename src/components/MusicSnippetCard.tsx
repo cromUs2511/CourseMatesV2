@@ -24,48 +24,51 @@ export function MusicSnippetCard({
     <div
       role="group"
       aria-label={`Music snippet: ${snippet.title} by ${snippet.artist}`}
-      className="music-snippet-card w-[min(72vw,18rem)] max-w-full overflow-hidden rounded-2xl border border-white/10 bg-[#19191e] p-3 text-stone-100 shadow-lg"
+      className="music-snippet-card w-[min(64vw,15rem)] max-w-full overflow-hidden rounded-xl border border-white/10 bg-black/25 p-2.5 text-stone-100"
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => {
+            setError('');
+            onToggle();
+          }}
+          aria-label={playing ? 'Pause music snippet' : 'Play music snippet'}
+          className="chat-theme-accent-button flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+        >
+          {playing ? (
+            <Pause className="h-4 w-4 fill-current" />
+          ) : (
+            <Play className="ml-0.5 h-4 w-4 fill-current" />
+          )}
+        </button>
         <div
-          className={`music-snippet-spectrum flex h-16 w-20 shrink-0 items-center justify-center gap-[3px] rounded-xl bg-gradient-to-br from-rose-950 via-stone-950 to-violet-950 px-2 shadow-inner ${playing ? 'is-playing' : ''}`}
+          className={`music-snippet-spectrum flex h-8 w-12 shrink-0 items-center justify-center gap-[2px] ${playing ? 'is-playing' : ''}`}
           aria-hidden="true"
         >
-          {Array.from({ length: 13 }, (_, index) => (
+          {Array.from({ length: 9 }, (_, index) => (
             <span
               key={index}
               style={
                 {
-                  '--spectrum-delay': `${index * -70}ms`,
-                  '--spectrum-height': `${28 + ((index * 17) % 62)}%`,
+                  '--spectrum-delay': `${index * -80}ms`,
+                  '--spectrum-height': `${30 + ((index * 23) % 60)}%`,
                 } as CSSProperties
               }
             />
           ))}
         </div>
-        <div className="relative z-20 min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-bold" title={snippet.title}>
             {snippet.title}
           </p>
           <p className="truncate text-[11px] text-stone-400" title={snippet.artist}>
             {snippet.artist}
           </p>
-          <p className="mt-1 text-[10px] text-rose-300">
-            {formatTime(snippet.startTime)}–{formatTime(snippet.startTime + snippet.duration)}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setError('');
-              onToggle();
-            }}
-            aria-label={playing ? 'Pause music snippet' : 'Play music snippet'}
-            className="mt-1.5 inline-flex h-7 items-center gap-1 rounded-full bg-rose-700 px-2.5 text-[10px] font-semibold text-white hover:bg-rose-600"
-          >
-            {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-            {playing ? 'Pause' : 'Play snippet'}
-          </button>
         </div>
+        <span className="shrink-0 text-[10px] font-semibold tabular-nums text-stone-400">
+          {formatTime(snippet.duration)}
+        </span>
       </div>
       {active && (
         <YouTubeSnippetPlayer
