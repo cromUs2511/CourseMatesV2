@@ -59,6 +59,7 @@ import type { ChatImage, ImageUpload } from '../data/chatImages';
 import type { VoiceUpload } from '../data/chatVoice';
 import { chatMediaRemainingSeconds, formatChatMediaCountdown } from '../data/chatMedia';
 import { MESSAGE_REACTIONS } from '../data/reactions';
+import '../matching-chat.css';
 
 const STUDENT_CHATBOT_NAME = 'Student Chatbot Assistant';
 const CONVERSATION_STARTER_LIMIT = 3;
@@ -1178,7 +1179,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const headerRetracted = narrowViewport && composerWriting;
   return (
     <div
-      className={`relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
+      className={`refined-chat relative w-full flex-1 min-h-0 h-full flex flex-col overflow-x-hidden overflow-y-hidden ${
         isFullscreen ? 'fixed inset-0 z-50 h-screen h-[100dvh] w-screen w-full' : ''
       } chat-theme-scope ${ambientActive ? 'ambient-playing' : ''} ${musicPlaying ? 'music-playing' : ''} ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
       style={
@@ -1292,6 +1293,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     }`}
                   >
                     <Gamepad2 className="h-4 w-4" />
+                    <span className="chat-header-action-label">Games</span>
                     {unoState?.challenge?.direction === 'incoming' && (
                       <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse motion-reduce:animate-none rounded-full bg-red-500" />
                     )}
@@ -1307,6 +1309,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                     className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] transition-colors hover:bg-white/10"
                   >
                     <LogOut className="h-4 w-4" />
+                    <span className="chat-header-action-label">End chat</span>
                   </button>
                 )}
               </>
@@ -1449,6 +1452,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               return (
                 <div
                   key={msg.id}
+                  data-grouped={isGroupedWithPrevious}
                   className={`chat-message-row group flex touch-pan-y flex-col ${msg.isMe ? 'items-end' : 'items-start'} ${isGroupedWithPrevious ? 'mt-0' : ''}`}
                   onTouchStart={(event) => {
                     const touch = event.touches[0];
@@ -1559,6 +1563,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                           messageBubbleRefs.current[msg.id] = element;
                         }}
                         data-message-bubble
+                        data-media-only={mediaOnly}
                         className={`flex min-w-0 w-fit max-w-full flex-col items-stretch rounded-2xl text-left text-[13px] leading-[19px] transition-transform duration-150 ${highlightedMessageId === msg.id ? 'reply-target-highlight' : ''} ${
                           mediaOnly
                             ? 'gap-0 border-0 bg-transparent p-0 shadow-none'
@@ -2071,11 +2076,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 if (editingMessageId) void handleEditMessage();
                 else handleSendMessage();
               }}
-              className={`flex items-center gap-1.5 rounded-2xl border p-2 transition-all duration-200 ease-out ${composerEngaged ? '-translate-y-1 shadow-[0_14px_36px_rgba(0,0,0,0.2)]' : 'translate-y-0 shadow-[0_6px_20px_rgba(41,37,36,0.08)]'} ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
+              className={`chat-composer-form flex items-center gap-1.5 rounded-2xl border p-2 transition-all duration-200 ease-out ${composerEngaged ? '-translate-y-1 shadow-[0_14px_36px_rgba(0,0,0,0.2)]' : 'translate-y-0 shadow-[0_6px_20px_rgba(41,37,36,0.08)]'} ${isDarkMode ? 'border-stone-700 bg-stone-900/95' : 'border-stone-200 bg-white/95'}`}
             >
               <div
                 aria-hidden={!composerControlsVisible}
-                className={`flex shrink-0 items-center gap-1.5 overflow-hidden transition-all duration-200 ease-out ${composerControlsVisible ? 'visible max-w-28 translate-x-0 opacity-100' : 'invisible max-w-0 -translate-x-2 opacity-0 pointer-events-none'}`}
+                className={`chat-composer-tools flex shrink-0 items-center gap-1.5 overflow-hidden transition-all duration-200 ease-out ${composerControlsVisible ? 'visible max-w-36 translate-x-0 opacity-100' : 'invisible max-w-0 -translate-x-2 opacity-0 pointer-events-none'}`}
               >
                 <ChatAttachments
                   images={pendingImages}
@@ -2172,7 +2177,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 </button>
               )}
               <div
-                className={`shrink-0 overflow-hidden transition-all duration-200 ease-out ${editingMessageId || composerControlsVisible ? 'visible max-w-8 translate-x-0 opacity-100' : 'invisible max-w-0 translate-x-2 opacity-0 pointer-events-none'}`}
+                className={`shrink-0 overflow-hidden transition-all duration-200 ease-out ${editingMessageId || composerControlsVisible ? 'visible max-w-10 translate-x-0 opacity-100' : 'invisible max-w-0 translate-x-2 opacity-0 pointer-events-none'}`}
               >
                 <button
                   id="send-message-btn"

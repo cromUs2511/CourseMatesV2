@@ -1,0 +1,238 @@
+/* Visual refinements are scoped to matching and the active chat. */
+.matching-menu {
+  --matching-selection-accent: var(--chat-accent);
+}
+
+.dark .matching-menu {
+  --matching-selection-accent: color-mix(in srgb, var(--chat-accent) 55%, #fafaf9);
+}
+
+.matching-menu .matching-identity {
+  gap: 1rem;
+  box-shadow: 0 3px 12px rgb(41 37 36 / 0.04);
+}
+
+.matching-menu .matching-identity > div:first-child {
+  flex: 1;
+}
+
+.matching-menu .matching-name-action {
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+}
+
+.dark .matching-menu .matching-name-action {
+  color: color-mix(in srgb, var(--chat-accent) 25%, #fafaf9);
+}
+
+.matching-menu .matching-name-form input {
+  width: min(100%, 16rem);
+  min-width: 0;
+  min-height: 2.75rem;
+  padding-inline: 0.75rem;
+}
+
+.matching-menu .matching-name-form button {
+  min-height: 2.75rem;
+  padding-inline: 0.875rem;
+  font-size: 0.75rem;
+}
+
+.matching-menu .matching-preferences > div:first-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.matching-menu .matching-intent {
+  min-height: 6rem;
+}
+
+.matching-menu .matching-intent[aria-checked='true'] {
+  border-color: var(--matching-selection-accent);
+  box-shadow: inset 0 0 0 1px var(--matching-selection-accent);
+  color: #292524;
+}
+
+.dark .matching-menu .matching-intent[aria-checked='true'] {
+  color: #fafaf9;
+  background-color: color-mix(in srgb, var(--chat-accent) 18%, #1c1b1a);
+}
+
+.matching-menu .matching-intent-indicator {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid #a8a29e;
+  border-radius: 50%;
+}
+
+.matching-menu [aria-checked='true'] .matching-intent-indicator {
+  border: 5px solid var(--matching-selection-accent);
+  background: white;
+}
+
+.matching-menu .matching-intent-icon {
+  background: rgb(120 113 108 / 0.07);
+}
+
+.matching-menu .matching-intent-description {
+  color: #57534e;
+}
+
+.dark .matching-menu .matching-intent-description {
+  color: #d6d3d1;
+}
+
+.matching-menu #start-chat-btn {
+  min-height: 3.25rem;
+  font-size: 0.9375rem;
+}
+
+.matching-menu #cancel-queue-btn,
+.matching-menu #normal-match-btn,
+.matching-menu #simulate-peer-btn {
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+}
+
+.refined-chat #chat-header .chat-header-peer-name {
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+}
+
+.refined-chat #chat-header .chat-header-status {
+  margin-top: 0.125rem;
+  font-size: 0.6875rem;
+}
+
+.refined-chat #chat-header button[aria-controls='header-settings'],
+.refined-chat #chat-header .chat-actions #chat-games-btn,
+.refined-chat #chat-header .chat-actions #leave-chat-btn,
+.refined-chat #chat-header .chat-actions #top-music-bar,
+.refined-chat #chat-header .chat-actions #top-music-bar > button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.refined-chat .chat-header-action-label {
+  display: none;
+}
+
+/* Match the layer of the existing accent-only utilities so dark controls
+   remain theme-colored with enough contrast against the header surface. */
+@layer base {
+  .dark .refined-chat.chat-theme-scope .chat-display-control {
+    color: color-mix(in srgb, var(--chat-accent) 35%, #fafaf9) !important;
+  }
+}
+
+.dark .refined-chat #main-header .brand-script {
+  color: color-mix(in srgb, var(--chat-accent) 55%, #fafaf9);
+}
+
+.refined-chat .chat-message-row[data-grouped='false'] {
+  margin-top: 1rem;
+}
+
+.refined-chat .chat-message-row[data-grouped='true'] {
+  margin-top: 0.25rem;
+}
+
+.refined-chat [data-message-bubble][data-media-only='false'] {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 1rem;
+}
+
+.refined-chat .chat-composer-form:focus-within {
+  border-color: color-mix(in srgb, var(--chat-accent) 65%, #a8a29e);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chat-accent) 10%, transparent);
+}
+
+.refined-chat .chat-composer-tools > button,
+.refined-chat #send-message-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.refined-chat .chat-composer-tools > button > svg,
+.refined-chat #send-message-btn > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Give the recording timer its own row rather than clipping its stop control. */
+.refined-chat .chat-composer-form:has(button[aria-label='Stop voice recording']) {
+  flex-wrap: wrap;
+}
+
+.refined-chat .chat-composer-tools:has(button[aria-label='Stop voice recording']) {
+  order: 3;
+  width: 100%;
+  max-width: none;
+}
+
+.refined-chat .chat-composer-tools > button[aria-label='Stop voice recording'] {
+  width: auto;
+}
+
+@media (min-width: 1024px) {
+  .refined-chat #chat-header .chat-actions #chat-games-btn,
+  .refined-chat #chat-header .chat-actions #leave-chat-btn {
+    width: auto;
+    gap: 0.5rem;
+    padding-inline: 0.875rem;
+  }
+
+  .refined-chat .chat-header-action-label {
+    display: inline;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 639px) {
+  .matching-menu {
+    padding: 1rem 0.75rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  .matching-menu .matching-preferences {
+    padding: 1.25rem 1rem;
+  }
+
+  .matching-menu .matching-intent {
+    min-height: 5.25rem;
+    padding: 0.875rem 0.75rem;
+  }
+
+  .matching-menu .matching-identity > div:last-child {
+    padding-top: 0.75rem;
+  }
+
+  .refined-chat #chat-header .chat-header-peer-name {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+
+  .refined-chat .chat-composer-form {
+    gap: 0.25rem;
+    padding: 0.375rem;
+  }
+
+  .refined-chat .chat-composer-tools {
+    gap: 0.25rem;
+  }
+
+  .refined-chat #chat-message-input {
+    padding-inline: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matching-menu #start-chat-btn,
+  .refined-chat .chat-composer-form,
+  .refined-chat .chat-composer-form > div {
+    transition: none;
+  }
+}

@@ -354,7 +354,7 @@ test('send appears after focusing the composer and the theme control remains a l
   await expect(page.getByRole('button', { name: 'Record with microphone' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send music snippet' })).toBeVisible();
   const sendBox = (await send.boundingBox())!;
-  expect(sendBox.width).toBe(32);
+  expect(sendBox.width).toBe(40);
   expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(375);
 
   const mobileToggle = page.locator('#mobile-dark-mode-toggle-btn');
@@ -383,8 +383,8 @@ test('chat bubbles leave breathing room below metadata while keeping compact rea
   const row = page.locator('.chat-message-row').last();
   const metadata = row.locator(':scope > div').first();
   const bubble = row.locator('[data-message-bubble]');
-  await expect(bubble).toHaveCSS('font-size', '13px');
-  await expect(bubble).toHaveCSS('line-height', '19px');
+  await expect(bubble).toHaveCSS('font-size', '14px');
+  await expect(bubble).toHaveCSS('line-height', '21px');
   const metadataBox = (await metadata.boundingBox())!;
   const bubbleBox = (await bubble.boundingBox())!;
   expect(bubbleBox.y - (metadataBox.y + metadataBox.height)).toBeGreaterThanOrEqual(8);

@@ -15,6 +15,7 @@ import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import type { ChatTheme } from './ChatThemeMenu';
+import '../matching-chat.css';
 
 const MATCH_POLL_INTERVAL_MS = 400;
 const MATCH_SOCKET_TIMEOUT_MS = 1500;
@@ -374,7 +375,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
   return (
     <div
-      className="ambient-grid chat-theme-scope flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
+      className="matching-menu ambient-grid chat-theme-scope flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
       style={
         {
           backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
@@ -384,9 +385,9 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       }
     >
       <div className="w-full max-w-2xl space-y-4 my-auto">
-        {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
+        {/* Identity and name controls stay together at every screen size. */}
         <div
-          className={`ui-surface rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+          className={`matching-identity ui-surface rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
             isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
@@ -402,7 +403,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       onClick={onRerollHandle}
                       disabled={isSearching}
                       title="Shuffle default name"
-                      className="chat-theme-accent-soft rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
+                      className="matching-name-action chat-theme-accent-soft inline-flex items-center justify-center rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
                     >
                       <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
                     </button>
@@ -414,7 +415,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       setIsEditingName(true);
                     }}
                     disabled={isSearching}
-                    className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                    className="matching-name-action chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
                   >
                     {session.customHandle ? 'Edit name' : 'Use a custom name'}
                   </button>
@@ -423,14 +424,17 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       type="button"
                       onClick={onRerollHandle}
                       disabled={isSearching}
-                      className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                      className="matching-name-action chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
                     >
                       Use random name
                     </button>
                   )}
                 </div>
               ) : (
-                <form onSubmit={saveName} className="flex items-center gap-2">
+                <form
+                  onSubmit={saveName}
+                  className="matching-name-form flex flex-wrap items-center gap-2"
+                >
                   <input
                     autoFocus
                     maxLength={40}
@@ -470,12 +474,12 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
         {/* Main chat intent selection card */}
         <div
-          className={`ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
+          className={`matching-preferences ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
             isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
-            <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">
+            <h2 className="text-xl font-bold leading-snug tracking-tight text-stone-900 dark:text-white">
               What kind of chat do you want?
             </h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
@@ -484,7 +488,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
 
           <div
-            className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             role="radiogroup"
             aria-label="Chat preference"
           >
@@ -499,25 +503,25 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   aria-checked={selected}
                   disabled={isSearching}
                   onClick={() => setSelectedIntent(intent.label)}
-                  className={`rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`matching-intent rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? 'chat-theme-accent-soft border-current'
                       : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
                   } ${intent.label === 'Surprise me' ? 'sm:col-span-2' : ''}`}
                 >
                   <span className="flex items-center gap-3">
+                    <span className="matching-intent-indicator" aria-hidden="true" />
                     <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
-                        selected
-                          ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-500'
-                          : 'border-stone-300 bg-stone-100 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'
-                      }`}
+                      className="matching-intent-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      aria-hidden="true"
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-5 w-5" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-bold">{intent.label}</span>
-                      <span className="mt-0.5 block text-xs font-normal">{intent.description}</span>
+                      <span className="matching-intent-description mt-1 block text-xs font-normal leading-relaxed">
+                        {intent.description}
+                      </span>
                     </span>
                   </span>
                 </button>
@@ -551,7 +555,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             ) : (
               <div className="rounded-xl p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
                 <div className="flex items-center justify-center space-x-2">
-                  <Loader2 className="chat-theme-accent-text w-4 h-4 animate-spin" />
+                  <Loader2 className="chat-theme-accent-text w-4 h-4 animate-spin motion-reduce:animate-none" />
                   <span className="font-semibold text-xs text-stone-800 dark:text-stone-200">
                     Finding active study peers... ({queueTime}s)
                   </span>
@@ -602,7 +606,9 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
         </div>
 
-        <p className="text-center text-xs text-stone-500 dark:text-stone-400">Match with a peer to chat, share music, or invite them to UNO and Tic Tac Toe.</p>
+        <p className="text-center text-xs text-stone-500 dark:text-stone-400">
+          Match with a peer to chat, share music, or invite them to UNO and Tic Tac Toe.
+        </p>
       </div>
     </div>
   );

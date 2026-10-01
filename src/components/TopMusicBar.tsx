@@ -136,10 +136,18 @@ export const TopMusicBar = React.forwardRef<
   const applyRemoteRef = useRef<(remote: RoomMusicState) => void>(() => {});
   const expectedPosition = () => {
     const clock = clockRef.current;
-    return clock ? clock.position + (clock.playing ? (performance.now() - clock.receivedAt) / 1000 : 0) : 0;
+    return clock
+      ? clock.position + (clock.playing ? (performance.now() - clock.receivedAt) / 1000 : 0)
+      : 0;
   };
   const broadcast = (
-    state: { trackId: string; isPlaying: boolean; volume: number; isMuted: boolean; position?: number },
+    state: {
+      trackId: string;
+      isPlaying: boolean;
+      volume: number;
+      isMuted: boolean;
+      position?: number;
+    },
     track = tracks.find((item) => item.id === state.trackId),
   ) => {
     if (!roomId || isSimulated) return;
@@ -148,7 +156,15 @@ export const TopMusicBar = React.forwardRef<
     const sentAt = performance.now();
     updateQueue.current = updateQueue.current.then(async () => {
       try {
-        const payload = { roomId, ...state, position: Math.max(0, position + (state.isPlaying ? (performance.now() - sentAt) / 1000 : 0)), ...(track ? { track } : {}) };
+        const payload = {
+          roomId,
+          ...state,
+          position: Math.max(
+            0,
+            position + (state.isPlaying ? (performance.now() - sentAt) / 1000 : 0),
+          ),
+          ...(track ? { track } : {}),
+        };
         let data: { music: RoomMusicState } | null = null;
         let lastError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -190,8 +206,16 @@ export const TopMusicBar = React.forwardRef<
         const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
         if (!track) return;
         appliedRevision.current = remote.revision;
-        const position = (remote.position ?? 0) + (remote.isPlaying ? Math.max(0, (remote.serverNow ?? remote.updatedAt ?? 0) - (remote.updatedAt ?? 0)) / 1000 : 0);
-        clockRef.current = remote.position === undefined ? null : { position, receivedAt: performance.now(), playing: remote.isPlaying };
+        const position =
+          (remote.position ?? 0) +
+          (remote.isPlaying
+            ? Math.max(0, (remote.serverNow ?? remote.updatedAt ?? 0) - (remote.updatedAt ?? 0)) /
+              1000
+            : 0);
+        clockRef.current =
+          remote.position === undefined
+            ? null
+            : { position, receivedAt: performance.now(), playing: remote.isPlaying };
         if (index < 0) {
           index = tracks.length;
           setTracks((previous) => [...previous, track]);
@@ -215,7 +239,10 @@ export const TopMusicBar = React.forwardRef<
             if (remote.isPlaying) playerRef.current.loadVideoById(video);
             else playerRef.current.cueVideoById(video);
           } else {
-            if (remote.position !== undefined && Math.abs(playerRef.current.getCurrentTime() - position) > 0.75)
+            if (
+              remote.position !== undefined &&
+              Math.abs(playerRef.current.getCurrentTime() - position) > 0.75
+            )
               playerRef.current.seekTo(position, true);
             if (remote.isPlaying) playerRef.current.playVideo();
             else playerRef.current.pauseVideo();
@@ -245,14 +272,25 @@ export const TopMusicBar = React.forwardRef<
   useEffect(() => {
     const correctDrift = () => {
       const player = playerRef.current;
-      if (!playerReadyRef.current || !player || !clockRef.current?.playing || !wantsPlaybackRef.current || loadingTrackRef.current || document.hidden) return;
+      if (
+        !playerReadyRef.current ||
+        !player ||
+        !clockRef.current?.playing ||
+        !wantsPlaybackRef.current ||
+        loadingTrackRef.current ||
+        document.hidden
+      )
+        return;
       const clock = clockRef.current;
       const expected = clock.position + (performance.now() - clock.receivedAt) / 1000;
       if (Math.abs(player.getCurrentTime() - expected) > 1.5) player.seekTo(expected, true);
     };
     const timer = window.setInterval(correctDrift, 4000);
     document.addEventListener('visibilitychange', correctDrift);
-    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', correctDrift); };
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', correctDrift);
+    };
   }, []);
 
   useEffect(() => {
@@ -333,9 +371,15 @@ export const TopMusicBar = React.forwardRef<
               else target.unMute();
               if (wantsPlaybackRef.current) {
                 loadingTrackRef.current = true;
-                target.loadVideoById({ videoId: latestRef.current.currentTrack.youtubeVideoId, startSeconds: expectedPosition() });
+                target.loadVideoById({
+                  videoId: latestRef.current.currentTrack.youtubeVideoId,
+                  startSeconds: expectedPosition(),
+                });
               } else {
-                target.cueVideoById({ videoId: latestRef.current.currentTrack.youtubeVideoId, startSeconds: expectedPosition() });
+                target.cueVideoById({
+                  videoId: latestRef.current.currentTrack.youtubeVideoId,
+                  startSeconds: expectedPosition(),
+                });
                 setIsLoading(false);
               }
             },
@@ -356,8 +400,8 @@ export const TopMusicBar = React.forwardRef<
                     trackId: latest.currentTrack.id,
                     isPlaying: false,
                     volume: latest.volume,
-                      isMuted: latest.isMuted,
-                      position: 0,
+                    isMuted: latest.isMuted,
+                    position: 0,
                   },
                   latest.currentTrack,
                 );
@@ -405,7 +449,17 @@ export const TopMusicBar = React.forwardRef<
     } else {
       setPlayerEnabled(true);
     }
-    if (sync) broadcast({ trackId: track.id, isPlaying: true, volume, isMuted, ...(!resume ? { position: 0 } : {}) }, track);
+    if (sync)
+      broadcast(
+        {
+          trackId: track.id,
+          isPlaying: true,
+          volume,
+          isMuted,
+          ...(!resume ? { position: 0 } : {}),
+        },
+        track,
+      );
   };
 
   const togglePlay = () => {
@@ -534,6 +588,7 @@ export const TopMusicBar = React.forwardRef<
   };
   const searchResultIds = new Set(searchResults.map((track) => track.id));
   const libraryTracks = tracks.filter((track) => !searchResultIds.has(track.id));
+  const panelAccent = isDarkMode ? `color-mix(in srgb, ${accent} 35%, #fafaf9)` : accent;
   const renderCatalogRow = (track: MusicTrack) => {
     const isActive = currentTrack.id === track.id;
     return (
@@ -544,14 +599,17 @@ export const TopMusicBar = React.forwardRef<
         aria-pressed={isActive}
         style={
           isActive
-            ? { backgroundColor: `color-mix(in srgb, ${accent} 28%, transparent)`, color: accent }
+            ? {
+                backgroundColor: `color-mix(in srgb, ${accent} ${isDarkMode ? 28 : 9}%, transparent)`,
+                color: panelAccent,
+              }
             : undefined
         }
-        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors motion-reduce:transition-none ${isActive ? '' : 'text-stone-100 hover:bg-white/10'}`}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors motion-reduce:transition-none ${isActive ? '' : 'text-stone-800 hover:bg-stone-100 dark:text-stone-100 dark:hover:bg-white/10'}`}
       >
         <span
           aria-hidden="true"
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? 'bg-black/20' : 'bg-white/5 text-stone-400'}`}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? 'bg-black/5 dark:bg-black/20' : 'bg-stone-100 text-stone-500 dark:bg-white/5 dark:text-stone-400'}`}
         >
           {isActive && playbackActive ? (
             <Pause className="h-3.5 w-3.5 fill-current" />
@@ -561,11 +619,13 @@ export const TopMusicBar = React.forwardRef<
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-bold">{track.title}</span>
-          <span className="block truncate text-[10px] text-stone-500">{track.artist}</span>
+          <span className="block truncate text-[10px] text-stone-600 dark:text-stone-400">
+            {track.artist}
+          </span>
         </span>
         <span
           aria-hidden="true"
-          className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${isActive ? 'border-current opacity-80' : 'border-stone-700 text-stone-500'}`}
+          className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${isActive ? 'border-current opacity-80' : 'border-stone-300 text-stone-600 dark:border-stone-700 dark:text-stone-400'}`}
         >
           {track.category}
         </span>
@@ -636,11 +696,12 @@ export const TopMusicBar = React.forwardRef<
               id="music-tracks-dropdown"
               role="region"
               aria-label="Choose music"
-              className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[#383838] bg-[#191919] p-3 font-mono text-stone-200 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-4"
+              style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
+              className="music-controls-panel relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-stone-300 bg-[#fffdfa] p-3 font-mono text-stone-800 shadow-2xl dark:border-[#383838] dark:bg-[#191919] dark:text-stone-200 sm:max-h-[calc(100dvh-2.5rem)] sm:p-4"
             >
               <div className="mb-3 flex shrink-0 items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Music2 className="h-4 w-4" style={{ color: accent }} />
+                  <Music2 className="h-4 w-4" style={{ color: panelAccent }} />
                   <span className="text-sm font-bold">Music controls</span>
                 </div>
                 <button
@@ -650,19 +711,19 @@ export const TopMusicBar = React.forwardRef<
                     setIsMenuOpen(false);
                     menuButtonRef.current?.focus();
                   }}
-                  className="rounded-lg p-2 text-stone-300 hover:bg-white/10 hover:text-white"
+                  className="rounded-lg p-2 text-stone-600 hover:bg-stone-100 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="min-h-0 overflow-y-auto pr-1">
-                <div className="mb-3 flex items-center gap-3 rounded-xl border border-[#363636] bg-[#1f1f1f] px-3 py-2.5">
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5 dark:border-[#363636] dark:bg-[#1f1f1f]">
                   <span
                     aria-hidden="true"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                     style={{
-                      backgroundColor: `color-mix(in srgb, ${accent} 30%, #1f1f1f)`,
-                      color: accent,
+                      backgroundColor: `color-mix(in srgb, ${accent} ${isDarkMode ? 30 : 9}%, transparent)`,
+                      color: panelAccent,
                     }}
                   >
                     {isLoading ? (
@@ -674,22 +735,24 @@ export const TopMusicBar = React.forwardRef<
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
                       {playbackActive ? 'Now playing' : 'Selected'}
                     </p>
                     <p
-                      className="truncate text-xs font-bold text-stone-100"
+                      className="truncate text-xs font-bold text-stone-900 dark:text-stone-100"
                       title={currentTrack.title}
                     >
                       {currentTrack.title}
                     </p>
-                    <p className="truncate text-[10px] text-stone-500">{currentTrack.artist}</p>
+                    <p className="truncate text-[10px] text-stone-600 dark:text-stone-400">
+                      {currentTrack.artist}
+                    </p>
                   </div>
                 </div>
                 <div
                   role="group"
                   aria-label="Music playback controls"
-                  className="mb-4 border-b border-[#363636] pb-4"
+                  className="mb-4 border-b border-stone-200 pb-4 dark:border-[#363636]"
                 >
                   <div className="mb-3 flex items-center gap-2">
                     <button
@@ -707,7 +770,7 @@ export const TopMusicBar = React.forwardRef<
                       className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255_/_0.08)]"
                     >
                       {isLoading ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                       ) : isPlaying ? (
                         <Pause className="h-4 w-4 fill-current" />
                       ) : (
@@ -721,11 +784,18 @@ export const TopMusicBar = React.forwardRef<
                       onClick={toggleMute}
                       aria-label={isMuted ? 'Unmute music' : 'Mute music'}
                       aria-pressed={isMuted}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-500 bg-[#1c1c1c] text-stone-100 hover:bg-[#292929]"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 dark:border-stone-500 dark:bg-[#1c1c1c] dark:text-stone-100 dark:hover:bg-[#292929]"
                     >
                       {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                     </button>
-                    <button type="button" aria-label="Restart shared track" onClick={() => startTrack(currentTrack)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-500 text-stone-100 hover:bg-white/10"><RotateCcw className="h-4 w-4" /></button>
+                    <button
+                      type="button"
+                      aria-label="Restart shared track"
+                      onClick={() => startTrack(currentTrack)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-100 dark:border-stone-500 dark:text-stone-100 dark:hover:bg-white/10"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -735,15 +805,15 @@ export const TopMusicBar = React.forwardRef<
                       value={isMuted ? 0 : volume}
                       onChange={(event) => changeVolume(Number(event.target.value))}
                       aria-label="Music volume"
-                      style={{ accentColor: '#b91c1c' }}
+                      style={{ accentColor: panelAccent }}
                       className="h-8 min-w-0 flex-1 cursor-pointer"
                     />
-                    <span className="w-9 text-right text-[11px] tabular-nums text-stone-300">
+                    <span className="w-9 text-right text-[11px] tabular-nums text-stone-600 dark:text-stone-300">
                       {isMuted ? 0 : volume}%
                     </span>
                   </div>
                 </div>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#363636] pb-4 text-xs">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4 text-xs dark:border-[#363636]">
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -754,7 +824,7 @@ export const TopMusicBar = React.forwardRef<
                     <span className="font-bold">Ambient glow</span>
                   </label>
                   <label className="flex items-center gap-2">
-                    <span className="text-stone-500">Custom</span>
+                    <span className="text-stone-600 dark:text-stone-400">Custom</span>
                     <input
                       type="color"
                       value={glowColor}
@@ -764,10 +834,10 @@ export const TopMusicBar = React.forwardRef<
                     />
                   </label>
                 </div>
-                <div className="mb-4 border-b border-[#363636] pb-4">
+                <div className="mb-4 border-b border-stone-200 pb-4 dark:border-[#363636]">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-xs font-bold">Aurora color</span>
-                    <span className="text-[10px] text-stone-500">
+                    <span className="text-[10px] text-stone-600 dark:text-stone-400">
                       {AMBIENT_GLOW_COLORS.find(
                         (option) => option.color.toLowerCase() === glowColor.toLowerCase(),
                       )?.name || 'Custom color'}
@@ -782,7 +852,7 @@ export const TopMusicBar = React.forwardRef<
                         aria-pressed={glowColor.toLowerCase() === option.color.toLowerCase()}
                         title={option.name}
                         onClick={() => updateGlowColor(option.color)}
-                        className="group flex h-8 items-center justify-center rounded-lg border border-stone-600 bg-[#202020] transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2"
+                        className="group flex h-8 items-center justify-center rounded-lg border border-stone-300 bg-stone-50 transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2 dark:border-stone-600 dark:bg-[#202020] motion-reduce:transition-none motion-reduce:hover:scale-100"
                         style={{
                           outlineColor: option.color,
                           borderColor:
@@ -812,8 +882,8 @@ export const TopMusicBar = React.forwardRef<
                     onChange={(event) => setSearch(event.target.value)}
                     aria-label="Search music or paste a YouTube link"
                     placeholder="Search or paste a YouTube link"
-                    style={{ borderColor: accent }}
-                    className="w-full min-w-0 rounded-lg border bg-transparent px-3 py-2.5 text-xs text-stone-100 outline-none placeholder:text-stone-500 focus:border-[var(--chat-accent)]"
+                    style={{ borderColor: panelAccent }}
+                    className="w-full min-w-0 rounded-lg border bg-white px-3 py-2.5 text-xs text-stone-900 outline-none placeholder:text-stone-500 dark:bg-transparent dark:text-stone-100 dark:placeholder:text-stone-400"
                   />
                   <button
                     type="submit"
@@ -836,32 +906,34 @@ export const TopMusicBar = React.forwardRef<
                   </button>
                 </form>
                 {isSearching && (
-                  <p role="status" className="mt-2 text-xs text-stone-500">
+                  <p role="status" className="mt-2 text-xs text-stone-600 dark:text-stone-400">
                     Searching the catalog…
                   </p>
                 )}
                 {searchError && (
-                  <p role="status" className="mt-2 text-xs text-red-500">
+                  <p role="status" className="mt-2 text-xs text-red-700 dark:text-red-400">
                     {searchError}
                   </p>
                 )}
                 <div className="mt-3 space-y-1">
                   {searchResults.length > 0 && (
                     <>
-                      <p className="flex items-center justify-between px-2.5 py-1 text-[10px] uppercase tracking-wide text-stone-500">
+                      <p className="flex items-center justify-between px-2.5 py-1 text-[10px] uppercase tracking-wide text-stone-600 dark:text-stone-400">
                         <span>Search results</span>
-                        <span className="text-stone-600">{searchResults.length}</span>
+                        <span>{searchResults.length}</span>
                       </p>
                       {searchResults.map(renderCatalogRow)}
                     </>
                   )}
-                  <p className="flex items-center justify-between px-2.5 pb-1 pt-3 text-[10px] uppercase tracking-wide text-stone-500">
+                  <p className="flex items-center justify-between px-2.5 pb-1 pt-3 text-[10px] uppercase tracking-wide text-stone-600 dark:text-stone-400">
                     <span>Library</span>
-                    <span className="text-stone-600">{libraryTracks.length} tracks</span>
+                    <span>{libraryTracks.length} tracks</span>
                   </p>
                   {libraryTracks.map(renderCatalogRow)}
                   {libraryTracks.length === 0 && searchResults.length === 0 && (
-                    <p className="px-2.5 py-3 text-xs text-stone-500">No tracks available yet.</p>
+                    <p className="px-2.5 py-3 text-xs text-stone-600 dark:text-stone-400">
+                      No tracks available yet.
+                    </p>
                   )}
                 </div>
               </div>
@@ -888,11 +960,19 @@ export const TopMusicBar = React.forwardRef<
                   <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                     Enable sound on this device to join your peer at the current playback position.
                   </p>
-                  <button id="music-join-btn" type="button" onClick={() => {
-                    setNeedsGesture(false);
-                    if (playerReadyRef.current) playerRef.current?.seekTo(expectedPosition(), true);
-                    startTrack(currentTrack, true, false);
-                  }} className="mt-3 rounded-lg bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-white">Join shared music</button>
+                  <button
+                    id="music-join-btn"
+                    type="button"
+                    onClick={() => {
+                      setNeedsGesture(false);
+                      if (playerReadyRef.current)
+                        playerRef.current?.seekTo(expectedPosition(), true);
+                      startTrack(currentTrack, true, false);
+                    }}
+                    className="mt-3 rounded-lg bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    Join shared music
+                  </button>
                 </div>
                 <button
                   type="button"
