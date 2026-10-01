@@ -1554,58 +1554,80 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           aiSuggestions.length > 0 && (
             <div id="ai-suggestions-bar" className="shrink-0 px-3 pb-1.5 sm:px-6 sm:pb-3">
               <div
-                className={`mx-auto max-w-3xl border-t px-1 py-2.5 ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center space-x-1.5 shrink-0 text-stone-500 dark:text-stone-400">
-                    <Sparkles className="h-3.5 w-3.5" style={{ color: chatTheme.accent }} />
-                    <span
-                      className="brand-script text-sm font-bold"
-                      style={{ color: chatTheme.accent }}
-                    >
-                      Break the ice
-                    </span>
-                    <span className="text-[10px]" aria-live="polite">
-                      {CONVERSATION_STARTER_LIMIT - startersSent} left
-                    </span>
-                  </div>
-
-                  {/* Shuffle button */}
-                  <button
-                    type="button"
-                    onClick={() => fetchAiSuggestions()}
-                    disabled={isSuggestionsLoading || isSending}
-                    title="Shuffle and generate new topic prompts"
-                    className="chat-theme-accent-soft flex items-center space-x-1 rounded-md px-2 py-0.5 border text-[10px] uppercase text-stone-600 dark:text-stone-300 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              className={`mx-auto max-w-3xl rounded-2xl border px-3 py-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-sm ${
+                isDarkMode
+                  ? 'border-stone-700 bg-stone-950/80'
+                  : 'border-stone-200 bg-white/85'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
+                    style={{
+                      borderColor: `${chatTheme.accent}66`,
+                      backgroundColor: `${chatTheme.accent}1a`,
+                    }}
                   >
-                    <RefreshCw
-                      className={`chat-theme-accent-text w-3 h-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`}
-                    />
-                    <span>Shuffle</span>
-                  </button>
+                    <Sparkles className="h-3.5 w-3.5" style={{ color: chatTheme.accent }} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="brand-script text-sm font-bold leading-none"
+                        style={{ color: chatTheme.accent }}
+                      >
+                        Break the ice
+                      </span>
+                      <span
+                        className="rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                        aria-live="polite"
+                        style={{
+                          borderColor: `${chatTheme.accent}66`,
+                          color: chatTheme.accent,
+                          backgroundColor: `${chatTheme.accent}12`,
+                        }}
+                      >
+                        {CONVERSATION_STARTER_LIMIT - startersSent} left
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Suggestions list */}
-                <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
-                  {aiSuggestions.map((prompt, idx) => (
-                    <button
-                      key={idx}
-                      disabled={isSending}
-                      onClick={() => handleSuggestionClick(prompt)}
-                      title="Use this conversation starter"
-                      className={`text-xs px-3 py-1.5 whitespace-nowrap rounded-full border transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${
-                        isDarkMode
-                          ? 'bg-stone-900 border-stone-700 text-stone-300 hover:border-stone-500 hover:text-white'
-                          : 'bg-white border-stone-200 text-stone-700 hover:border-stone-400 hover:bg-stone-50'
-                      }`}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchAiSuggestions()}
+                  disabled={isSuggestionsLoading || isSending}
+                  title="Shuffle and generate new topic prompts"
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-stone-300 bg-stone-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-700 transition-colors hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                >
+                  <RefreshCw
+                    className={`h-3 w-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`}
+                  />
+                  <span>Shuffle</span>
+                </button>
+              </div>
+
+              <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+                {aiSuggestions.map((prompt, idx) => (
+                  <button
+                    key={idx}
+                    disabled={isSending}
+                    onClick={() => handleSuggestionClick(prompt)}
+                    title="Use this conversation starter"
+                    className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isDarkMode
+                        ? 'border-stone-700 bg-stone-900 text-stone-300 hover:border-stone-500 hover:text-white'
+                        : 'border-stone-200 bg-stone-50 text-stone-700 hover:border-stone-300 hover:bg-white'
+                    }`}
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
         {deleteMenuMessageId &&
           messageActionsPosition &&
           createPortal(
