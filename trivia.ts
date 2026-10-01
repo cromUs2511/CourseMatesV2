@@ -454,7 +454,7 @@ function getQuestions(category: TriviaCategory, count: number = 10): TriviaQuest
 }
 
 export class PeerTrivia {
-  private state: TriviaState = { revision: 0, invitation: null, game: null };
+  private state: TriviaState = { revision: 0, invitation: null, game: null, leftBy: null };
   private pendingCategory: TriviaCategory = 'general';
 
   snapshot(now = Date.now()): TriviaState {
@@ -534,6 +534,7 @@ export class PeerTrivia {
         expiresAt: Date.now() + 90000,
       };
       this.pendingCategory = action.category;
+      state.leftBy = null;
     } else if (action.action === 'respond') {
       const invitation = state.invitation;
       if (!invitation || invitation.id !== action.invitationId)
@@ -559,6 +560,14 @@ export class PeerTrivia {
         };
       }
       state.invitation = null;
+      state.leftBy = null;
+    } else if (action.action === 'leave') {
+      state.invitation = null;
+      if (state.game) {
+        const leaver = state.game.players.find((p) => p.id === actor);
+        state.leftBy = { id: actor, handle: leaver?.handle ?? 'Your peer' };
+        state.game = null;
+      }
     } else {
       const game = state.game!;
       if (!game || game.id !== action.gameId || game.round !== action.round)

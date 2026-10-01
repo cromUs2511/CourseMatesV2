@@ -436,6 +436,99 @@ test('connect four records the last move and detects a horizontal win', () => {
   assert.throws(() => drop('b', 4), /round is over/);
 });
 
+// -------------------------------------------------- Leave the game ---
+
+test('leaving clears the match and records who left', () => {
+  const game = new PeerRockPaperScissors();
+  startGame(
+    game,
+    { action: 'invite' } as never,
+    (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
+  );
+  game.act('a', peers, { action: 'leave' } as never);
+  const cleared = game.snapshot();
+  assert.equal(cleared.game, null);
+  assert.equal(cleared.invitation, null);
+  assert.deepEqual(cleared.leftBy, { id: 'a', handle: 'Alice' });
+  // Leaving with nothing active is a harmless no-op.
+  game.act('b', peers, { action: 'leave' } as never);
+  assert.equal(game.snapshot().game, null);
+  // A fresh invite clears the notice.
+  game.act('b', peers, { action: 'invite' } as never);
+  assert.equal(game.snapshot().leftBy, null);
+});
+
+test('rps tracks draws and locked players, and rematch resets the scoreboard', () => {
+  const game = new PeerRockPaperScissors();
+  startGame(
+    game,
+    { action: 'invite' } as never,
+    (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
+  );
+  const id = game.snapshot().game!.id;
+  game.act('a', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 1,
+    revision: 0,
+    choice: 'rock',
+  } as never);
+  assert.deepEqual(game.snapshot().game!.locked, ['a']);
+  game.act('b', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 1,
+    revision: 0,
+    choice: 'rock',
+  } as never);
+  let state = game.snapshot().game!;
+  assert.equal(state.turn, 'revealing');
+  assert.equal(state.draws, 1);
+  assert.deepEqual(state.scores, { a: 0, b: 0 });
+  game.act('a', peers, { action: 'next', gameId: id, round: 1, revision: 0 } as never);
+  state = game.snapshot().game!;
+  assert.deepEqual(state.locked, []);
+  // Finish the match, then rematch resets everything.
+  game.act('a', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 2,
+    revision: 0,
+    choice: 'rock',
+  } as never);
+  game.act('b', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 2,
+    revision: 0,
+    choice: 'scissors',
+  } as never);
+  game.act('a', peers, { action: 'next', gameId: id, round: 2, revision: 0 } as never);
+  game.act('a', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 3,
+    revision: 0,
+    choice: 'rock',
+  } as never);
+  game.act('b', peers, {
+    action: 'choose',
+    gameId: id,
+    round: 3,
+    revision: 0,
+    choice: 'scissors',
+  } as never);
+  state = game.snapshot().game!;
+  assert.equal(state.turn, 'round-end');
+  game.act('a', peers, { action: 'rematch', gameId: id, round: 3 } as never);
+  game.act('b', peers, { action: 'rematch', gameId: id, round: 3 } as never);
+  state = game.snapshot().game!;
+  assert.deepEqual(state.scores, { a: 0, b: 0 });
+  assert.equal(state.draws, 0);
+  assert.deepEqual(state.locked, []);
+  assert.equal(state.turn, 'choosing');
+});
+
 // --------------------------------------- Single active game (HTTP) ---
 
 const app = express();
@@ -499,8 +592,27 @@ test('only one peer game can be active per room', async () => {
     assert.equal(unoBlocked.status, 409);
     assert.match(unoBlocked.data.error, /Chess/);
 
-    // Ending the game frees the slot.
-    const gameId = accepted.data.game.id;
+    // Leaving the game clears the match and tells the peer who left.
+    const left = await request('/api/chat/chess', b, { roomId, action: 'leave' });
+    assert.equal(left.status, 200);
+    assert.equal(left.data.game, null);
+    assert.equal(left.data.leftBy.id, b.id);
+    const peerView = await request('/api/chat/chess?roomId=' + roomId, a);
+    assert.equal(peerView.data.game, null);
+    assert.equal(peerView.data.leftBy.id, b.id);
+
+    // Ending the game frees the slot: start over, then resign instead.
+    const chessAgain = await request('/api/chat/chess', a, { roomId, action: 'invite' });
+    assert.equal(chessAgain.status, 200);
+    const acceptedAgain = await request('/api/chat/chess', b, {
+      roomId,
+      action: 'respond',
+      invitationId: chessAgain.data.invitation.id,
+      accept: true,
+    });
+    assert.equal(acceptedAgain.status, 200);
+    assert.equal(acceptedAgain.data.leftBy, null);
+    const gameId = acceptedAgain.data.game.id;
     const resigned = await request('/api/chat/chess', a, {
       roomId,
       action: 'resign',

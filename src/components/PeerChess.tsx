@@ -12,6 +12,7 @@ import type {
   PeerGameActivity,
 } from '../data/peerGames';
 import { GameInvitation } from './GameInvitation';
+import { LeaveGameButton, LeftGameNotice } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 
 export type PeerChessHandle = { open: () => void };
@@ -48,7 +49,12 @@ export const PeerChess = forwardRef<
     onActivity?: (activity: PeerGameActivity | null) => void;
   }
 >(function PeerChess({ roomId, sessionId, peerHandle, ws, onActivity }, ref) {
-  const [state, setState] = useState<ChessState>({ revision: -1, game: null, invitation: null });
+  const [state, setState] = useState<ChessState>({
+    revision: -1,
+    game: null,
+    invitation: null,
+    leftBy: null,
+  });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -101,7 +107,11 @@ export const PeerChess = forwardRef<
   }, [apply, roomId, ws, isLive]);
   const game = state.game;
   useEffect(() => {
-    if (!game) return;
+    // A cleared match (peer left) closes the board for both sides.
+    if (!game) {
+      setOpen(false);
+      return;
+    }
     const round = `${game.id}:${game.round}`;
     if (seenRound.current !== round) {
       seenRound.current = round;
@@ -149,6 +159,9 @@ export const PeerChess = forwardRef<
   const inCheck = game?.inCheck === yourColor;
   const opponentInCheck = game?.inCheck && game.inCheck !== yourColor;
   const lastMove = game?.lastMove;
+  // Each player sees their own pieces at the bottom: black auto-flips,
+  // and the manual toggle inverts whichever default applies.
+  const boardFlipped = flipped !== (yourColor === 'black');
   const chessActivity = state.invitation
     ? {
         status: state.invitation.fromId === sessionId ? 'Invitation sent' : 'Invitation received',
@@ -166,7 +179,7 @@ export const PeerChess = forwardRef<
       : null;
   usePeerGameActivity(onActivity, 'chess', 'Chess', chessActivity);
   const getSquareCoords = (row: number, col: number): [number, number] => {
-    if (flipped) return [7 - row, 7 - col];
+    if (boardFlipped) return [7 - row, 7 - col];
     return [row, col];
   };
   const handleSquareClick = (row: number, col: number) => {
@@ -363,7 +376,7 @@ export const PeerChess = forwardRef<
         .fill(null)
         .map(() => Array(8).fill(null));
     const board = game.board;
-    if (flipped) {
+    if (boardFlipped) {
       return board.map((row) => [...row].reverse()).reverse();
     }
     return board;
@@ -430,6 +443,9 @@ export const PeerChess = forwardRef<
           }
         />
       )}
+      {!game && !state.invitation && (
+        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Chess" />
+      )}
       {error && !open && (
         <p role="alert" className="mx-auto max-w-3xl py-2 text-sm text-red-500">
           {error}
@@ -459,6 +475,11 @@ export const PeerChess = forwardRef<
               >
                 <RotateCw className="h-5 w-5" />
               </button>
+              <LeaveGameButton
+                gameId={game.id}
+                busy={busy}
+                onLeave={() => void send({ action: 'leave' })}
+              />
               <button
                 type="button"
                 aria-label="Minimize Chess"
@@ -553,15 +574,17 @@ export const PeerChess = forwardRef<
             {displayBoard.map((row, rowIndex) => (
               <div key={rowIndex} className="flex" style={{ height: '12.5%' }}>
                 {row.map((piece, colIndex) => {
+                  // Selection, hints and last-move state live in board
+                  // coordinates; map the displayed square back first.
+                  const lr = boardFlipped ? 7 - rowIndex : rowIndex;
+                  const lc = boardFlipped ? 7 - colIndex : colIndex;
                   const isSelected =
-                    selectedSquare &&
-                    selectedSquare[0] === rowIndex &&
-                    selectedSquare[1] === colIndex;
-                  const isLegal = legalMoves.some(([r, c]) => r === rowIndex && c === colIndex);
+                    selectedSquare && selectedSquare[0] === lr && selectedSquare[1] === lc;
+                  const isLegal = legalMoves.some(([r, c]) => r === lr && c === lc);
                   const isLastMoveSquare =
                     lastMove &&
-                    ((lastMove.from[0] === rowIndex && lastMove.from[1] === colIndex) ||
-                      (lastMove.to[0] === rowIndex && lastMove.to[1] === colIndex));
+                    ((lastMove.from[0] === lr && lastMove.from[1] === lc) ||
+                      (lastMove.to[0] === lr && lastMove.to[1] === lc));
                   const isCheck =
                     game.inCheck && piece && piece.color === game.inCheck && piece.type === 'king';
                   return (
@@ -576,7 +599,7 @@ export const PeerChess = forwardRef<
                           : 'bg-amber-900 dark:bg-stone-900'
                       } ${isSelected ? 'ring-2 ring-blue-500' : ''} ${isLegal ? 'bg-green-500/30' : ''} ${isLastMoveSquare ? 'ring-2 ring-blue-400' : ''} ${isCheck ? 'ring-2 ring-red-500' : ''}`}
                       style={{ width: '12.5%' }}
-                      aria-label={`${FILES[colIndex]}${RANKS[rowIndex]}${piece ? `, ${piece.color} ${piece.type}` : ', empty'}`}
+                      aria-label={`${FILES[lc]}${RANKS[lr]}${piece ? `, ${piece.color} ${piece.type}` : ', empty'}`}
                     >
                       {piece && PIECE_SYMBOLS[getPieceKey(piece)]}
                       {isLegal && !piece && (
@@ -594,7 +617,7 @@ export const PeerChess = forwardRef<
                   className="flex items-center justify-center text-xs text-stone-500 dark:text-stone-400"
                   style={{ width: '12.5%' }}
                 >
-                  {flipped ? FILES[7 - i] : file}
+                  {boardFlipped ? FILES[7 - i] : file}
                 </div>
               ))}
             </div>

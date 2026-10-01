@@ -2,14 +2,19 @@ import crypto from 'node:crypto';
 import type { TicTacToeAction, TicTacToeState } from './src/data/peerGames';
 
 const LINES = [
-  [0, 1, 2], [3, 4, 5], [6, 7, 8],
-  [0, 3, 6], [1, 4, 7], [2, 5, 8],
-  [0, 4, 8], [2, 4, 6],
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
 ];
 
 /** Owned by the chat room; no separate queue, tokens, timers, or retained history. */
 export class PeerTicTacToe {
-  private state: TicTacToeState = { revision: 0, invitation: null, game: null };
+  private state: TicTacToeState = { revision: 0, invitation: null, game: null, leftBy: null };
 
   snapshot(now = Date.now()): TicTacToeState {
     if (this.state.invitation && this.state.invitation.expiresAt <= now) {
@@ -28,10 +33,12 @@ export class PeerTicTacToe {
       if (state.game) throw new Error('Open the current game to play or request a rematch.');
       if (state.invitation) throw new Error('Answer the pending invitation first.');
       state.invitation = {
-        id: crypto.randomUUID(), fromId: actor,
+        id: crypto.randomUUID(),
+        fromId: actor,
         fromHandle: peers.find((peer) => peer.id === actor)!.handle,
         expiresAt: Date.now() + 90000,
       };
+      state.leftBy = null;
     } else if (action.action === 'respond') {
       const invitation = state.invitation;
       if (!invitation || invitation.id !== action.invitationId)
@@ -39,14 +46,27 @@ export class PeerTicTacToe {
       if (action.accept && invitation.fromId === actor)
         throw new Error('Only your peer can accept this invitation.');
       if (action.accept) {
-        const ordered = [...peers].sort((a) => a.id === invitation.fromId ? -1 : 1);
+        const ordered = [...peers].sort((a) => (a.id === invitation.fromId ? -1 : 1));
         state.game = {
-          id: crypto.randomUUID(), round: 1,
+          id: crypto.randomUUID(),
+          round: 1,
           players: ordered.map((peer, index) => ({ ...peer, mark: index === 0 ? 'X' : 'O' })),
-          board: Array(9).fill(null), turn: 'X', result: null, winningLine: [], rematch: [],
+          board: Array(9).fill(null),
+          turn: 'X',
+          result: null,
+          winningLine: [],
+          rematch: [],
         };
       }
       state.invitation = null;
+      state.leftBy = null;
+    } else if (action.action === 'leave') {
+      state.invitation = null;
+      if (state.game) {
+        const leaver = state.game.players.find((peer) => peer.id === actor);
+        state.leftBy = { id: actor, handle: leaver?.handle ?? 'Your peer' };
+        state.game = null;
+      }
     } else {
       const game = state.game;
       if (!game || game.id !== action.gameId || game.round !== action.round)
@@ -68,11 +88,21 @@ export class PeerTicTacToe {
         if (game.result) throw new Error('This round is over.');
         const player = game.players.find((peer) => peer.id === actor)!;
         if (player.mark !== game.turn) throw new Error('It is not your turn.');
-        if (!Number.isInteger(action.square) || action.square < 0 || action.square > 8 || game.board[action.square])
+        if (
+          !Number.isInteger(action.square) ||
+          action.square < 0 ||
+          action.square > 8 ||
+          game.board[action.square]
+        )
           throw new Error('Choose an empty square.');
         game.board[action.square] = player.mark;
-        game.winningLine = LINES.find((line) => line.every((square) => game.board[square] === player.mark)) ?? [];
-        game.result = game.winningLine.length ? player.mark : game.board.every(Boolean) ? 'draw' : null;
+        game.winningLine =
+          LINES.find((line) => line.every((square) => game.board[square] === player.mark)) ?? [];
+        game.result = game.winningLine.length
+          ? player.mark
+          : game.board.every(Boolean)
+            ? 'draw'
+            : null;
         if (!game.result) game.turn = game.turn === 'X' ? 'O' : 'X';
       } else throw new Error('Invalid game action.');
     }

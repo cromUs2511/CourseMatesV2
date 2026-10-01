@@ -46,7 +46,7 @@ function isDraw(board: (('red' | 'yellow') | null)[][]): boolean {
 }
 
 export class PeerConnectFour {
-  private state: ConnectFourState = { revision: 0, invitation: null, game: null };
+  private state: ConnectFourState = { revision: 0, invitation: null, game: null, leftBy: null };
 
   snapshot(now = Date.now()): ConnectFourState {
     if (this.state.invitation && this.state.invitation.expiresAt <= now) {
@@ -71,6 +71,7 @@ export class PeerConnectFour {
         fromHandle: peers.find((peer) => peer.id === actor)!.handle,
         expiresAt: Date.now() + 90000,
       };
+      state.leftBy = null;
     } else if (action.action === 'respond') {
       const invitation = state.invitation;
       if (!invitation || invitation.id !== action.invitationId)
@@ -94,6 +95,14 @@ export class PeerConnectFour {
         };
       }
       state.invitation = null;
+      state.leftBy = null;
+    } else if (action.action === 'leave') {
+      state.invitation = null;
+      if (state.game) {
+        const leaver = state.game.players.find((p) => p.id === actor);
+        state.leftBy = { id: actor, handle: leaver?.handle ?? 'Your peer' };
+        state.game = null;
+      }
     } else {
       const game = state.game;
       if (!game || game.id !== action.gameId || game.round !== action.round)

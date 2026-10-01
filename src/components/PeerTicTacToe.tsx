@@ -3,6 +3,7 @@ import { Minimize2 } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import type { TicTacToeAction, TicTacToeState, PeerGameActivity } from '../data/peerGames';
 import { GameInvitation } from './GameInvitation';
+import { LeaveGameButton, LeftGameNotice } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 
 export type PeerTicTacToeHandle = { open: () => void };
@@ -21,6 +22,7 @@ export const PeerTicTacToe = forwardRef<
     revision: -1,
     game: null,
     invitation: null,
+    leftBy: null,
   });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -69,7 +71,11 @@ export const PeerTicTacToe = forwardRef<
   }, [apply, roomId, ws, isLive]);
   const game = state.game;
   useEffect(() => {
-    if (!game) return;
+    // A cleared match (peer left) closes the board for both sides.
+    if (!game) {
+      setOpen(false);
+      return;
+    }
     const round = `${game.id}:${game.round}`;
     if (seenRound.current !== round) {
       seenRound.current = round;
@@ -134,6 +140,9 @@ export const PeerTicTacToe = forwardRef<
           }
         />
       )}
+      {!game && !state.invitation && (
+        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Tic Tac Toe" />
+      )}
       {error && !open && (
         <p role="alert" className="mx-auto max-w-3xl py-2 text-sm text-red-500">
           {error}
@@ -153,14 +162,21 @@ export const PeerTicTacToe = forwardRef<
                 Chat 1v1 · Round {game.round}
               </p>
             </div>
-            <button
-              type="button"
-              aria-label="Minimize Tic Tac Toe"
-              onClick={() => setOpen(false)}
-              className="rounded-lg p-3 hover:bg-stone-500/10"
-            >
-              <Minimize2 className="h-5 w-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <LeaveGameButton
+                gameId={game.id}
+                busy={busy}
+                onLeave={() => void send({ action: 'leave' })}
+              />
+              <button
+                type="button"
+                aria-label="Minimize Tic Tac Toe"
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-3 hover:bg-stone-500/10"
+              >
+                <Minimize2 className="h-5 w-5" />
+              </button>
+            </div>
           </header>
           <div className="my-4 flex justify-between gap-4 text-sm">
             {game.players.map((player) => (

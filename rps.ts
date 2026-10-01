@@ -8,7 +8,7 @@ const BEATS: Record<RpsChoice, RpsChoice> = {
 };
 
 export class PeerRockPaperScissors {
-  private state: RpsState = { revision: 0, invitation: null, game: null };
+  private state: RpsState = { revision: 0, invitation: null, game: null, leftBy: null };
 
   snapshot(now = Date.now()): RpsState {
     if (this.state.invitation && this.state.invitation.expiresAt <= now) {
@@ -50,6 +50,7 @@ export class PeerRockPaperScissors {
         fromHandle: peers.find((peer) => peer.id === actor)!.handle,
         expiresAt: Date.now() + 90000,
       };
+      state.leftBy = null;
     } else if (action.action === 'respond') {
       const invitation = state.invitation;
       if (!invitation || invitation.id !== action.invitationId)
@@ -64,6 +65,8 @@ export class PeerRockPaperScissors {
           players: ordered.map((peer) => ({ ...peer, choice: null })),
           choices: {},
           scores: { [ordered[0]!.id]: 0, [ordered[1]!.id]: 0 },
+          draws: 0,
+          locked: [],
           turn: 'choosing',
           result: null,
           bestOf: 3,
@@ -71,6 +74,14 @@ export class PeerRockPaperScissors {
         };
       }
       state.invitation = null;
+      state.leftBy = null;
+    } else if (action.action === 'leave') {
+      state.invitation = null;
+      if (state.game) {
+        const leaver = state.game.players.find((p) => p.id === actor);
+        state.leftBy = { id: actor, handle: leaver?.handle ?? 'Your peer' };
+        state.game = null;
+      }
     } else {
       const game = state.game!;
       if (!game || game.id !== action.gameId || game.round !== action.round)
@@ -86,6 +97,9 @@ export class PeerRockPaperScissors {
             p.choice = null;
           });
           game.choices = {};
+          game.scores = { [game.players[0]!.id]: 0, [game.players[1]!.id]: 0 };
+          game.draws = 0;
+          game.locked = [];
           game.turn = 'choosing';
           game.result = null;
           game.rematch = [];
@@ -97,6 +111,7 @@ export class PeerRockPaperScissors {
           p.choice = null;
         });
         game.choices = {};
+        game.locked = [];
         game.turn = 'choosing';
         game.result = null;
       } else if (action.action === 'choose') {
@@ -109,6 +124,7 @@ export class PeerRockPaperScissors {
         game.choices[actor] = action.choice;
         const player = game.players.find((p) => p.id === actor)!;
         player.choice = action.choice;
+        if (!game.locked.includes(actor)) game.locked.push(actor);
 
         if (Object.keys(game.choices).length === 2) {
           game.turn = 'revealing';
@@ -119,7 +135,9 @@ export class PeerRockPaperScissors {
 
           const isDraw = c1 === c2;
           const winnerId = isDraw ? null : BEATS[c1] === c2 ? p1.id : p2.id;
-          if (!isDraw) {
+          if (isDraw) {
+            game.draws++;
+          } else {
             game.scores[winnerId!]!++;
           }
 
