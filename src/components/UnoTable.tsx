@@ -152,6 +152,8 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
   const [confirmLeave, setConfirmLeave] = useState(false);
   const yourTurn = state.turn === 'you' && state.status === 'playing';
   const gameOver = state.status === 'over';
+  const opponentCountdown = Math.max(0, Math.ceil((state.opponentCountdownMs ?? 0) / 1000));
+  const ownCountdown = Math.max(0, Math.ceil((state.awayCountdownMs ?? 0) / 1000));
 
   useEffect(() => {
     if (gameOver) playChime('match');
@@ -229,6 +231,12 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           </button>
         </div>
       </header>
+
+      {(state.opponentAway || state.youAway || ownCountdown > 0 || opponentCountdown > 0) && !gameOver && (
+        <div className="z-30 border-b border-amber-500/40 bg-amber-950/60 px-3 py-2 text-center text-xs font-black uppercase tracking-[0.18em] text-amber-200 shadow-lg backdrop-blur-sm">
+          {state.opponentAway ? `Your opponent is away — table auto-ends in ${opponentCountdown}s` : state.youAway ? `You are away — return before ${ownCountdown}s or the table will end` : `Table timer: ${Math.max(opponentCountdown, ownCountdown)}s`}
+        </div>
+      )}
 
       <main className="uno-stage relative flex min-h-0 flex-1 flex-col items-center justify-between overflow-hidden p-2 md:p-4">
 

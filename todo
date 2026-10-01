@@ -1,200 +1,503 @@
-# CourseMates UI + Multiplayer Improvement Brief
+Add the following new multiplayer games to the existing CourseMates in-chat Games menu:
 
-## Objective
-Improve the existing CourseMates chat, games, and media experience while preserving current product behavior unless a change is explicitly requested below.
+1. Rock Paper Scissors
+2. Connect Four
+3. Chess
+4. Trivia
+5. Would You Rather
 
-## Priority Order
-1. Functional multiplayer behavior
-   - UNO game state
-   - Tic-Tac-Toe game state
-   - Game invitations
-   - Music synchronization
-2. Interaction polish
-   - responsiveness
-   - animations
-   - visual clarity
-   - mobile/desktop consistency
-3. Final UI refinement
-   - stronger hierarchy
-   - cleaner dark-mode layout
-   - less clutter and more intentional design
+These games must follow the same design direction as the existing UNO and Tic-Tac-Toe features.
 
----
+## Core Requirement
 
-## 1) Improve the UNO Game UI
-Redesign the UNO interface for both desktop and mobile so it feels like a real digital UNO table for two players.
+All games must exist **inside the active chat interface only**.
 
-### Requirements
-- Local player's cards stay clearly visible at the bottom.
-- Opponent is positioned clearly across from the local player.
-- Center of the board clearly shows the draw pile and discard pile.
-- Player names, card counts, turn status, and key game information are easy to understand.
-- Layout must be responsive for desktop and mobile.
-- Add a polished turn indicator (glow, pulse, highlight, or other subtle visual cue) when it is a player's turn.
-- Card draw, card play, turn transitions, UNO calls, and victory interactions should feel smooth.
-- Goal: remove the unfinished stacked layout and make the table feel like an actual multiplayer card game.
+Do not add separate game pages or place these games on the main homepage.
 
----
+The expected flow should be:
 
-## 2) Fix UNO Match Completion
-UNO should behave as a proper 1v1 game between the two current chat participants.
+Chat  
+→ Games icon/button  
+→ Game catalog  
+→ Select game  
+→ Send challenge to current peer  
+→ Peer accepts or declines  
+→ Game opens directly inside the chat  
+→ Both users interact with the same synchronized game session
 
-### Requirements
-- Match ends only when one player successfully empties their hand.
-- When a player wins:
-  - clearly display the winner
-  - show a proper victory state or animation
-  - disable further card interaction after the match ends
-  - allow both players to request or start a rematch
-- Both users must receive the same final game result.
+The game interface should feel integrated with CourseMates rather than opening an unrelated full-screen application.
 
----
+## Game Catalog
 
-## 3) Move Games Inside the Chat Interface
-UNO and Tic-Tac-Toe should no longer appear as standalone major interface sections.
+Update the existing in-chat Games catalog to contain:
 
-### Requirements
-- Add a Games icon or button inside the chat controls.
-- When clicked, open a small game catalog with at least:
-  - UNO
-  - Tic-Tac-Toe
-- After selecting a game, the user can invite the person they are currently chatting with.
-- The game flow should feel integrated into the conversation rather than like a separate app section.
+- UNO
+- Tic-Tac-Toe
+- Rock Paper Scissors
+- Connect Four
+- Chess
+- Trivia
+- Would You Rather
 
----
+Each game should have:
 
-## 4) Fix Tic-Tac-Toe Multiplayer
-The current Tic-Tac-Toe experience appears broken or non-responsive and must be repaired for real-time 2-player play.
+- Game name
+- Small icon or visual
+- Short one-line description
+- Play/Challenge button
+- Clear disabled state when no peer is currently connected
 
-### Requirements
-- Both users see the same board state.
-- Clicking a valid square updates the board for both users.
-- Turns alternate correctly.
-- A user cannot play during the opponent's turn.
-- A square cannot be selected twice.
-- Wins are detected correctly.
-- Draws are detected correctly.
-- The game clearly indicates whose turn it is.
-- The game displays the winner or draw result.
-- Both players can request or start a rematch.
-- Game state remains synchronized between both users.
+Keep the catalog visually consistent with the current CourseMates dark UI.
+
+## Multiplayer Synchronization
+
+All games must work between the two users currently connected in the chat.
+
+Use the existing real-time/WebSocket system wherever possible.
+
+Game state must be synchronized for both players.
+
+For every multiplayer game:
+
+- Both users must always see the same game state.
+- Moves must immediately appear for the other user.
+- Prevent users from making moves when it is not their turn.
+- Prevent duplicate or invalid moves.
+- Clearly indicate whose turn it is.
+- Handle disconnections safely.
+- Handle rematches.
+- Prevent one user from creating multiple overlapping sessions.
+- Clean up the game session when the chat ends or users disconnect.
+
+Do not use bots.
+
+All of these games are intended primarily for the two currently matched users.
 
 ---
 
-## 5) Fix Music Synchronization
-Currently, shared music playback can be inconsistent and may only play for one user.
+# 1. Rock Paper Scissors
 
-### Requirements
-- Ensure both users in the chat experience the same shared music session.
-- Shared actions must synchronize for both participants, including:
-  - play
-  - pause
-  - track change
-  - current song
-  - playback position
-  - restart
-  - skip (if supported)
-- Both users should remain approximately synchronized instead of drifting into separate playback states.
-- Prevent unnecessary synchronization loops where one client's update repeatedly triggers the other client.
+Implement a synchronized Rock Paper Scissors game.
 
----
+Flow:
 
-## 6) Simplify UNO to Two Players Only
-UNO should be limited to the two users in the active chat.
+User A challenges User B.
 
-### Requirements
-- Remove the 4-player UNO option.
-- Remove bot-player options.
-- Remove player-count selectors.
-- Automatically treat the two users in the current chat as the UNO players.
-- Do not show multiplayer setup options that are no longer needed.
-- Keep the experience focused on quick, simple 1v1 matches inside the conversation.
+After acceptance, both users secretly choose:
 
----
+- Rock
+- Paper
+- Scissors
 
-## 7) Improve the Game Invitation UI
-The current invitation flow is easy to miss and should be redesigned to stand out inside the conversation.
+Do not reveal either player's selection until both players have submitted their choice.
 
-### Requirements
-- Show a proper game invitation card inside the chat.
-- It must clearly display:
-  - selected game
-  - sender of the invitation
-  - recognizable game icon or visual
-  - accept button
-  - decline button
-- The invitation should visually stand out from normal chat messages while still fitting the CourseMates design language.
-- Once accepted, both users should automatically enter or initialize the same game session.
+After both choices are locked:
 
----
+- Reveal both selections simultaneously.
+- Show the winner.
+- Show whether the round was a draw.
+- Update the score.
 
-## 8) Add a Time Limit to the Ice Breaker
-The Ice Breaker should only appear temporarily at the start of a new chat.
+Use a Best of 3 system by default.
 
-### Requirements
-- Show the Ice Breaker when a conversation begins.
-- Keep it available for approximately 1 minute to 1 minute 30 seconds.
-- After that period, automatically hide or dismiss it.
-- If users begin chatting before the timer ends, it may disappear earlier.
-- The timer must not constantly reset on page re-renders or normal chat updates.
-- The Ice Breaker should feel temporary, not permanent.
+Example:
+
+Enzo  
+Rock
+
+Peer  
+Scissors
+
+Enzo wins the round.
+
+Score:
+
+Enzo 1  
+Peer 0
+
+Include:
+
+- rematch
+- next round
+- animated choice reveal
+- countdown before revealing choices
 
 ---
 
-## 9) Improve the Overall UI
-Refine the general interface so it feels more intentional, polished, and human-designed.
+# 2. Connect Four
 
-### Avoid
-- excessive rounded cards
-- too many floating containers
-- random gradients
-- oversized empty sections
-- excessive glow effects
-- too many decorative elements
-- inconsistent spacing
-- repeated card-within-card layouts
-- generic dashboard styling
+Add a fully interactive two-player Connect Four board.
 
-### Prefer
-- stronger visual hierarchy
-- cleaner spacing consistency
-- fewer unnecessary containers
-- readable typography
-- cohesive dark-mode design
-- obvious interactive elements without visual noise
-- a recognizable CourseMates identity
+Requirements:
 
----
+- Standard 7-column × 6-row board.
+- Players alternate placing pieces.
+- Clicking/tapping a column should drop the piece into the lowest available space.
+- Clearly distinguish Player 1 and Player 2 pieces.
+- Highlight whose turn it is.
+- Detect four connected pieces horizontally, vertically, or diagonally.
+- Detect draws.
+- Prevent placing pieces in full columns.
+- Prevent users from playing during the opponent's turn.
 
-## 10) Fix the Header Options
-Review and redesign the header controls to reduce clutter and improve layout quality.
+When someone wins:
 
-### Requirements
-- Keep only the most important actions immediately visible.
-- Place secondary actions inside an overflow, settings, or contextual menu.
-- The chat header should prioritize:
-  - user/chat information
-  - important conversation actions
-  - games access
-  - music/shared-session controls when relevant
-  - settings or additional options
-- Header layout must adapt properly between desktop and mobile.
+- Highlight the four winning pieces.
+- Show a victory message.
+- Offer a rematch.
+
+Add a small drop animation when a piece is placed.
 
 ---
 
-## Overall Requirement
-These improvements must work as part of the existing CourseMates application and not as disconnected mockups.
+# 3. Chess
 
-### Must preserve
-- the current chat system
-- the product identity
-- existing app behavior unless explicitly modified above
+Add a two-player chess mode inside chat.
 
-### Priority order for implementation
-1. UNO multiplayer game state
-2. Tic-Tac-Toe multiplayer game state
-3. Game invitations
-4. Music synchronization
-5. UI polish, animation, and responsiveness
+Use a standard 8×8 chessboard.
 
-This is the primary focus. Functional multiplayer reliability comes before visual refinement.
+Requirements:
+
+- Assign one user White and the other Black.
+- White moves first.
+- Only allow legal moves.
+- Prevent players from moving the opponent's pieces.
+- Detect:
+  - check
+  - checkmate
+  - stalemate
+  - draw where applicable
+- Support:
+  - castling
+  - pawn promotion
+  - en passant
+- Highlight:
+  - selected piece
+  - available legal moves
+  - last move
+  - king in check
+
+Add:
+
+- resign button
+- offer draw button
+- rematch button
+
+The board should automatically rotate so each player views their own pieces from the bottom.
+
+Do not build chess AI.
+
+This is strictly peer-versus-peer.
+
+If practical, use a reliable chess rules library rather than manually implementing every chess rule.
+
+---
+
+# 4. Trivia
+
+Create a two-player Trivia game.
+
+The users should receive the same question at the same time.
+
+Each question should contain:
+
+- question
+- four multiple-choice answers
+- countdown timer
+
+Example:
+
+Which planet is known as the Red Planet?
+
+A. Venus  
+B. Mars  
+C. Jupiter  
+D. Mercury
+
+Players independently choose an answer.
+
+Do not immediately reveal the opponent's answer.
+
+After both players answer or the timer expires:
+
+- reveal the correct answer
+- reveal each player's selection
+- award points
+- display updated scores
+- proceed to the next question
+
+Default format:
+
+10 questions per match.
+
+Scoring:
+
+Correct answer = 1 point.
+
+Optionally award a small speed bonus later, but prioritize correctness and synchronization first.
+
+Trivia categories should include:
+
+- General Knowledge
+- Science
+- Technology
+- Gaming
+- Movies
+- Music
+- History
+- Random
+
+Before the match starts, allow the challenger to select a category.
+
+Store trivia questions separately from UI logic so additional questions can easily be added later.
+
+Avoid repeating the same questions constantly.
+
+---
+
+# 5. Would You Rather
+
+Add a casual synchronized Would You Rather game.
+
+Each round displays one question such as:
+
+Would you rather:
+
+A. Be able to fly
+
+or
+
+B. Be able to become invisible
+
+Both players choose privately.
+
+After both users submit their answers:
+
+Reveal:
+
+- each player's choice
+- whether they selected the same option
+
+Example:
+
+You chose: Fly  
+Peer chose: Invisibility
+
+Different answers!
+
+Then provide:
+
+Next Question
+
+Unlike the competitive games, this should feel more like a conversation starter.
+
+After revealing the results, allow users to continue discussing the question directly in chat.
+
+Add categories such as:
+
+- Funny
+- Random
+- Gaming
+- School
+- Technology
+- Difficult Choices
+
+Do not include sexual, offensive, discriminatory, dangerous, or highly sensitive questions.
+
+---
+
+# Challenge System
+
+Use one consistent challenge system for every game.
+
+Example chat card:
+
+Enzo challenged you to Connect Four.
+
+[Accept] [Decline]
+
+After acceptance, replace or expand the challenge card into the live game.
+
+If declined:
+
+Peer declined the game challenge.
+
+Users should also be able to cancel a pending challenge.
+
+---
+
+# Game Header
+
+Every active game should contain a small header such as:
+
+Connect Four
+
+Enzo vs Peer
+
+Your Turn
+
+Include:
+
+- minimize
+- quit game
+- game rules/help
+- rematch when appropriate
+
+Minimizing the game should allow users to continue chatting while preserving the active game state.
+
+A compact indicator can remain visible:
+
+🎮 Connect Four — Your Turn
+
+Clicking it should reopen the game.
+
+---
+
+# Chat Integration
+
+Game events may optionally create lightweight system messages such as:
+
+Enzo started a Connect Four game.
+
+Peer made a move.
+
+Enzo won the match.
+
+Keep these subtle and do not flood the conversation.
+
+Normal text messaging should remain usable while games are active.
+
+Music, images, reactions, replies, and normal chat functionality must continue working while a game session exists.
+
+---
+
+# Responsive Design
+
+All games must work correctly on:
+
+- desktop
+- tablet
+- mobile
+
+Do not simply shrink desktop boards.
+
+Create proper responsive layouts.
+
+For mobile:
+
+- large touch targets
+- readable text
+- boards fit within screen width
+- no horizontal overflow
+- game controls remain easy to reach
+
+Chess and Connect Four especially need careful mobile scaling.
+
+---
+
+# Animation and Feedback
+
+Use subtle animations consistent with CourseMates.
+
+Examples:
+
+Rock Paper Scissors:
+choice reveal animation
+
+Connect Four:
+piece dropping animation
+
+Chess:
+smooth piece movement
+
+Trivia:
+answer selection and correct-answer reveal
+
+Would You Rather:
+choice reveal animation
+
+Do not make animations excessive or distracting.
+
+---
+
+# Reliability
+
+Make sure game sessions cannot break the existing chat.
+
+Handle:
+
+- refreshing the page
+- temporary connection loss
+- peer disconnect
+- peer clicking Next Peer
+- user leaving chat
+- duplicate WebSocket events
+- simultaneous actions
+- reconnecting to the same active session where practical
+
+The server should remain authoritative for important game state wherever cheating or conflicting moves could occur.
+
+Do not rely entirely on client-side validation.
+
+---
+
+# Code Structure
+
+Do not place all game logic into one giant file.
+
+Create reusable structures such as:
+
+GameManager
+
+GameSession
+
+GameChallenge
+
+GameState
+
+Then separate modules/components for:
+
+rockPaperScissors
+
+connectFour
+
+chess
+
+trivia
+
+wouldYouRather
+
+Reuse shared functionality for:
+
+- challenges
+- player assignment
+- turns
+- timers
+- reconnect handling
+- rematches
+- cleanup
+- WebSocket events
+
+Keep the implementation modular so additional games can easily be added later.
+
+---
+
+# Important
+
+Do not remove or break:
+
+- UNO
+- Tic-Tac-Toe
+- current chat
+- matchmaking
+- music synchronization
+- image sending
+- replies
+- reactions
+- moderation
+- Next Peer functionality
+- responsive UI
+
+The goal is to expand the existing Games system rather than redesign CourseMates from scratch.
+
+Before finishing, thoroughly test all five games between two separate users/browser sessions and verify that both clients always remain synchronized.

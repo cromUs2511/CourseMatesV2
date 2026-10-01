@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Bot, ArrowRight, Shield } from 'lucide-react';
+import {
+  RefreshCw,
+  Loader2,
+  Bot,
+  ArrowRight,
+  Shield,
+  Users,
+  CircleHelp,
+  MessageCircleMore,
+  Sparkles,
+} from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
@@ -21,11 +31,15 @@ const toErrorMessage = (error: unknown) =>
       ? error.message
       : 'Unable to connect. Please try again.';
 const CHAT_INTENTS = [
-  { label: 'Study together', description: 'Focus and work alongside a peer' },
-  { label: 'Ask for help', description: 'Get support with a question or topic' },
-  { label: 'Casual conversation', description: 'Have a relaxed, friendly chat' },
-  { label: 'Vent anonymously', description: 'Talk freely in a private space' },
-  { label: 'Surprise me', description: 'Match with any available peer' },
+  { label: 'Study together', description: 'Focus and work alongside a peer', icon: Users },
+  { label: 'Ask for help', description: 'Get support with a question or topic', icon: CircleHelp },
+  {
+    label: 'Casual conversation',
+    description: 'Have a relaxed, friendly chat',
+    icon: MessageCircleMore,
+  },
+  { label: 'Vent anonymously', description: 'Talk freely in a private space', icon: Shield },
+  { label: 'Surprise me', description: 'Match with any available peer', icon: Sparkles },
 ] as const;
 
 interface MatchmakingQueueProps {
@@ -476,6 +490,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           >
             {CHAT_INTENTS.map((intent) => {
               const selected = selectedIntent === intent.label;
+              const Icon = intent.icon;
               return (
                 <button
                   key={intent.label}
@@ -490,8 +505,21 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
                   } ${intent.label === 'Surprise me' ? 'sm:col-span-2' : ''}`}
                 >
-                  <span className="block text-sm font-bold">{intent.label}</span>
-                  <span className="mt-0.5 block text-xs font-normal">{intent.description}</span>
+                  <span className="flex items-center gap-3">
+                    <span
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
+                        selected
+                          ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-500'
+                          : 'border-stone-300 bg-stone-100 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">{intent.label}</span>
+                      <span className="mt-0.5 block text-xs font-normal">{intent.description}</span>
+                    </span>
+                  </span>
                 </button>
               );
             })}

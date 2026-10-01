@@ -1,12 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { Gamepad2, X } from 'lucide-react';
-import { TicTacToeLogo } from './GameLogos';
+import { Gamepad2, X, Target, GitBranch, Crown, HelpCircle, Brain } from 'lucide-react';
+import { TicTacToeLogo, RockPaperScissorsLogo, ConnectFourLogo, ChessLogo, TriviaLogo, WouldYouRatherLogo } from './GameLogos';
 
 export type GamesCatalogProps = {
   hasGame: boolean;
   hasChallenge: boolean;
   onSelectUno: () => void;
   onSelectTicTacToe: () => void;
+  onSelectRps: () => void;
+  onSelectConnectFour: () => void;
+  onSelectChess: () => void;
+  onSelectTrivia: () => void;
+  onSelectWyr: () => void;
   onClose: () => void;
 };
 
@@ -15,6 +20,11 @@ export function GamesCatalogDialog({
   hasChallenge,
   onSelectUno,
   onSelectTicTacToe,
+  onSelectRps,
+  onSelectConnectFour,
+  onSelectChess,
+  onSelectTrivia,
+  onSelectWyr,
   onClose,
 }: GamesCatalogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -89,6 +99,71 @@ export function GamesCatalogDialog({
           </span>
           <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
             Invite your peer to a live two-player game, or reopen your board.
+          </span>
+        </button>
+        <button
+          type="button"
+          id="chat-game-rps-btn"
+          onClick={onSelectRps}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <RockPaperScissorsLogo className="h-5 w-5" /> Rock Paper Scissors
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            Best of 3 — choose secretly, reveal together.
+          </span>
+        </button>
+        <button
+          type="button"
+          id="chat-game-connectfour-btn"
+          onClick={onSelectConnectFour}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <ConnectFourLogo className="h-5 w-5" /> Connect Four
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            Drop pieces, connect four to win.
+          </span>
+        </button>
+        <button
+          type="button"
+          id="chat-game-chess-btn"
+          onClick={onSelectChess}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <ChessLogo className="h-5 w-5" /> Chess
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            Full chess with castling, promotion, en passant.
+          </span>
+        </button>
+        <button
+          type="button"
+          id="chat-game-trivia-btn"
+          onClick={onSelectTrivia}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <TriviaLogo className="h-5 w-5" /> Trivia
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            10 questions, multiple choice, timed.
+          </span>
+        </button>
+        <button
+          type="button"
+          id="chat-game-wyr-btn"
+          onClick={onSelectWyr}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <WouldYouRatherLogo className="h-5 w-5" /> Would You Rather
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            Fun choices, reveal together, discuss after.
           </span>
         </button>
       </div>

@@ -103,6 +103,9 @@ export class UnoGame {
   lastSeen = Date.now();
   round = 1;
   rematchRequests = new Set<string>();
+  awayBy: Set<string> = new Set();
+  awayDeadline = 0;
+  autoEndAt = 0;
 
   constructor(
     first: UnoSeat,
@@ -442,7 +445,61 @@ export class UnoGame {
     this.notice = 'The game ended — the table timed out.';
   }
 
+  private updateAwayState(now = Date.now()): void {
+    if (this.status !== 'playing') {
+      this.awayBy.clear();
+      this.awayDeadline = 0;
+      this.autoEndAt = 0;
+      return;
+    }
+    const activeIds = new Set(this.players.map((player) => player.id));
+    for (const id of [...this.awayBy]) {
+      if (!activeIds.has(id)) this.awayBy.delete(id);
+    }
+    const awayCount = this.awayBy.size;
+    if (awayCount === 0) {
+      this.awayDeadline = 0;
+      this.autoEndAt = 0;
+      return;
+    }
+    if (awayCount > 1) {
+      this.awayDeadline = 0;
+      this.autoEndAt = 0;
+      return;
+    }
+    if (!this.awayDeadline) this.awayDeadline = now + 30000;
+    this.autoEndAt = this.awayDeadline;
+    if (now >= this.awayDeadline) {
+      const leaverId = [...this.awayBy][0]!;
+      const leaver = this.players.find((player) => player.id === leaverId);
+      this.status = 'over';
+      this.winner =
+        this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? null : this.players.findIndex((player) => player.id !== leaverId);
+      this.notice = leaver ? `${leaver.handle} left or minimized the table.` : 'A player left or minimized the table.';
+      this.awayBy.clear();
+      this.awayDeadline = 0;
+      this.autoEndAt = 0;
+    }
+  }
+
+  markAway(sessionId: string, away: boolean, now = Date.now()): void {
+    if (this.status !== 'playing') return;
+    const index = this.players.findIndex((player) => player.id === sessionId);
+    if (index === -1) return;
+    if (away) this.awayBy.add(sessionId);
+    else this.awayBy.delete(sessionId);
+    this.updateAwayState(now);
+    if (this.status === 'playing') {
+      this.notice = away
+        ? `${this.players[index]!.handle} went away — the other player has 30 seconds before the table ends.`
+        : `${this.players[index]!.handle} rejoined the table.`;
+    }
+    this.touch();
+  }
+
   stateFor(sessionId: string): UnoViewerState | null {
+    const now = Date.now();
+    this.updateAwayState(now);
     const youIndex = this.players.findIndex((player) => player.id === sessionId);
     if (youIndex === -1) return null;
     const you = this.players[youIndex]!;
@@ -466,6 +523,9 @@ export class UnoGame {
             .filter((card) => unoCardIsPlayable(card, this.top(), this.activeColor))
             .map((card) => card.id)
         : [];
+    const opponentAway = this.status === 'playing' && this.awayBy.has(rival.id);
+    const yourAway = this.status === 'playing' && this.awayBy.has(sessionId);
+    const awayCountdownMs = this.status === 'playing' && this.awayBy.size > 0 && this.awayDeadline > 0 ? Math.max(0, this.awayDeadline - now) : 0;
     return {
       gameId: this.id,
       source: this.source,
@@ -499,6 +559,10 @@ export class UnoGame {
       winnerHandle:
         this.status === 'over' && this.winner !== null ? this.players[this.winner]!.handle : null,
       notice: this.notice,
+      opponentAway,
+      opponentCountdownMs: opponentAway ? awayCountdownMs : 0,
+      youAway: yourAway,
+      awayCountdownMs: yourAway ? awayCountdownMs : 0,
       round: this.round,
       rematchRequested: this.rematchRequests.has(sessionId),
       opponentRequestedRematch: [...this.rematchRequests].some((id) => id !== sessionId),

@@ -46,6 +46,11 @@ import { MusicSnippetCard } from './MusicSnippetCard';
 import { UnoTable } from './UnoTable';
 import { GamesCatalogDialog } from './GamesCatalogDialog';
 import { PeerTicTacToe, type PeerTicTacToeHandle } from './PeerTicTacToe';
+import { PeerRockPaperScissors, type PeerRpsHandle } from './PeerRockPaperScissors';
+import { PeerConnectFour, type PeerConnectFourHandle } from './PeerConnectFour';
+import { PeerChess, type PeerChessHandle } from './PeerChess';
+import { PeerTrivia, type PeerTriviaHandle } from './PeerTrivia';
+import { PeerWouldYouRather, type PeerWouldYouRatherHandle } from './PeerWouldYouRather';
 import { GameInvitation } from './GameInvitation';
 import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { MusicSnippet } from '../data/musicSnippet';
@@ -173,6 +178,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [unoError, setUnoError] = useState('');
   const [gamesOpen, setGamesOpen] = useState(false);
   const ticTacToeRef = useRef<PeerTicTacToeHandle>(null);
+  const rpsRef = useRef<PeerRpsHandle>(null);
+  const connectFourRef = useRef<PeerConnectFourHandle>(null);
+  const chessRef = useRef<PeerChessHandle>(null);
+  const triviaRef = useRef<PeerTriviaHandle>(null);
+  const wyrRef = useRef<PeerWouldYouRatherHandle>(null);
   const unoSeenRound = useRef('');
   const unoSending = useRef(false);
   const applyUno = useCallback((next: UnoStateResponse) => {
@@ -629,7 +639,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     }
   };
 
-  const openGameFromCatalog = (game: 'uno' | 'tictactoe') => {
+  type GameType = 'uno' | 'tictactoe' | 'rps' | 'connectfour' | 'chess' | 'trivia' | 'wyr';
+
+  const openGameFromCatalog = (game: GameType) => {
     setGamesOpen(false);
     if (game === 'uno') {
       if (unoState?.game) {
@@ -639,7 +651,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       return;
     }
     setUnoOpen(false);
-    ticTacToeRef.current?.open();
+    if (game === 'tictactoe') ticTacToeRef.current?.open();
+    else if (game === 'rps') rpsRef.current?.open();
+    else if (game === 'connectfour') connectFourRef.current?.open();
+    else if (game === 'chess') chessRef.current?.open();
+    else if (game === 'trivia') triviaRef.current?.open();
+    else if (game === 'wyr') wyrRef.current?.open();
   };
 
   const respondToUnoChallenge = async (accept: boolean) => {
@@ -671,6 +688,31 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     }
     await refreshUno();
   };
+
+  useEffect(() => {
+    if (!unoState?.game) return;
+    const away = () => {
+      void apiRequest('/api/uno/away', { away: true }).catch(() => undefined);
+    };
+    const resume = () => {
+      void apiRequest('/api/uno/away', { away: false }).catch(() => undefined);
+    };
+    const onVisibility = () => {
+      if (document.hidden) away();
+      else resume();
+    };
+    const onBlur = () => away();
+    const onFocus = () => resume();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+      resume();
+    };
+  }, [unoState?.game]);
 
   const sendTyping = (isTyping: boolean) => {
     if (roomId && !peer.isSimulated && !peerDisconnected) {
@@ -1226,7 +1268,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         >
           <div className="max-w-3xl mx-auto w-full space-y-0.5">
             {!peer.isSimulated && !peerDisconnected && roomId && (
-              <PeerTicTacToe ref={ticTacToeRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+              <>
+                <PeerTicTacToe ref={ticTacToeRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerRockPaperScissors ref={rpsRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerConnectFour ref={connectFourRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerChess ref={chessRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerTrivia ref={triviaRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+                <PeerWouldYouRather ref={wyrRef} roomId={roomId} sessionId={session.id} peerHandle={peer.handle} ws={ws} />
+              </>
             )}
             {unoState?.challenge && !peerDisconnected && (
               <GameInvitation game="UNO" sender={unoState.challenge.fromHandle} incoming={unoState.challenge.direction === 'incoming'} busy={unoBusy} onRespond={(accept) => void respondToUnoChallenge(accept)} />
@@ -2046,6 +2095,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               onClose={() => {
                 setUnoOpen(false);
                 setUnoError('');
+                void apiRequest('/api/uno/away', { away: true }).catch(() => undefined);
               }}
             />
           </div>
@@ -2057,6 +2107,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           hasChallenge={Boolean(unoState?.challenge)}
           onSelectUno={() => openGameFromCatalog('uno')}
           onSelectTicTacToe={() => openGameFromCatalog('tictactoe')}
+          onSelectRps={() => openGameFromCatalog('rps')}
+          onSelectConnectFour={() => openGameFromCatalog('connectfour')}
+          onSelectChess={() => openGameFromCatalog('chess')}
+          onSelectTrivia={() => openGameFromCatalog('trivia')}
+          onSelectWyr={() => openGameFromCatalog('wyr')}
           onClose={() => setGamesOpen(false)}
         />
       )}

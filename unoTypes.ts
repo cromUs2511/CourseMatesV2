@@ -59,6 +59,10 @@ export type UnoViewerState = {
   winner: 'you' | 'opponent' | null;
   winnerHandle: string | null;
   notice: string;
+  opponentAway?: boolean;
+  opponentCountdownMs?: number;
+  youAway?: boolean;
+  awayCountdownMs?: number;
   round?: number;
   rematchRequested?: boolean;
   opponentRequestedRematch?: boolean;
