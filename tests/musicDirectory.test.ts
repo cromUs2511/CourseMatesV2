@@ -37,14 +37,6 @@ test('leaves unrelated music on the standard ambient effect', () => {
   );
 });
 
-test('offers the selected Brand New Day room-theme tracks in the music menu', () => {
-  const selectedTracks = DEFAULT_MUSIC_DIRECTORY.filter(
-    (track) =>
-      (track.title === 'Loser' && track.artist === 'Tame Impala') ||
-      (track.title === 'oh yeah?' && track.artist === 'Steve Lacy'),
-  );
-  assert.deepEqual(
-    selectedTracks.map((track) => track.youtubeVideoId),
-    ['s3a4OQR-10M', 'yGHEis32s2Y'],
-  );
+test('does not seed the music catalog with library tracks', () => {
+  assert.deepEqual(DEFAULT_MUSIC_DIRECTORY, []);
 });

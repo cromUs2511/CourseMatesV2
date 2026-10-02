@@ -1,15 +1,35 @@
 import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, Pause, RotateCcw, Volume2, VolumeX, LoaderCircle, Music2, X } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  LoaderCircle,
+  ListPlus,
+  Music2,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { MusicTrack, RoomMusicState } from '../types';
 import {
-  DEFAULT_MUSIC_DIRECTORY,
   extractYouTubeVideoId,
   isSpiderManTrack,
   normalizeSharedTrack,
 } from '../data/musicDirectory';
 import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
+
+const EMPTY_MUSIC_TRACK: MusicTrack = {
+  id: '',
+  title: 'No song selected',
+  artist: '',
+  youtubeUrl: '',
+  youtubeVideoId: '',
+  category: 'custom',
+};
+const MAX_MUSIC_QUEUE_LENGTH = 50;
 
 const AMBIENT_GLOW_COLORS = [
   { name: 'Aurora mint', color: '#6ee7b7' },
@@ -63,8 +83,9 @@ export const TopMusicBar = React.forwardRef<
   },
   ref,
 ) {
-  const [tracks, setTracks] = useState<MusicTrack[]>(DEFAULT_MUSIC_DIRECTORY);
+  const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
+  const [playQueue, setPlayQueue] = useState<MusicTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolume] = useState(70);
@@ -126,6 +147,12 @@ export const TopMusicBar = React.forwardRef<
   const playerRef = useRef<YouTubePlayer | null>(null);
   const playerReadyRef = useRef(false);
   const wantsPlaybackRef = useRef(false);
+  const lastTrackEndedRef = useRef(false);
+  const playQueueRef = useRef(playQueue);
+  playQueueRef.current = playQueue;
+  const startTrackRef = useRef<
+    (track: MusicTrack, resume?: boolean, sync?: boolean, queue?: MusicTrack[]) => void
+  >(() => {});
   const loadingTrackRef = useRef(false);
   const hasSelectedTrackRef = useRef(false);
   const appliedRevision = useRef(0);
@@ -147,6 +174,8 @@ export const TopMusicBar = React.forwardRef<
       volume: number;
       isMuted: boolean;
       position?: number;
+      queue?: MusicTrack[];
+      ended?: boolean;
     },
     track = tracks.find((item) => item.id === state.trackId),
   ) => {
@@ -190,10 +219,8 @@ export const TopMusicBar = React.forwardRef<
     });
   };
 
-  const broadcastRef = useRef(broadcast);
-  broadcastRef.current = broadcast;
-
-  const currentTrack = tracks[currentTrackIndex] || tracks[0] || DEFAULT_MUSIC_DIRECTORY[0]!;
+  const currentTrack = tracks[currentTrackIndex] || tracks[0] || EMPTY_MUSIC_TRACK;
+  const hasCurrentTrack = Boolean(currentTrack.id);
   const latestRef = useRef({ currentTrack, isMuted, volume });
   latestRef.current = { currentTrack, isMuted, volume };
 
@@ -205,6 +232,12 @@ export const TopMusicBar = React.forwardRef<
         const sharedTrack = normalizeSharedTrack(remote.track);
         const track = sharedTrack?.id === remote.trackId ? sharedTrack : tracks[index];
         if (!track) return;
+        const queue = Array.isArray(remote.queue)
+          ? remote.queue
+              .map(normalizeSharedTrack)
+              .filter((queuedTrack): queuedTrack is MusicTrack => !!queuedTrack)
+              .slice(0, MAX_MUSIC_QUEUE_LENGTH)
+          : [];
         appliedRevision.current = remote.revision;
         const position =
           (remote.position ?? 0) +
@@ -216,24 +249,31 @@ export const TopMusicBar = React.forwardRef<
           remote.position === undefined
             ? null
             : { position, receivedAt: performance.now(), playing: remote.isPlaying };
+        playQueueRef.current = queue;
+        setPlayQueue(queue);
         if (index < 0) {
           index = tracks.length;
           setTracks((previous) => [...previous, track]);
         }
         hasSelectedTrackRef.current = true;
-        const trackChanged = latestRef.current.currentTrack.youtubeVideoId !== track.youtubeVideoId;
+        const trackChanged =
+          latestRef.current.currentTrack.id !== track.id ||
+          latestRef.current.currentTrack.youtubeVideoId !== track.youtubeVideoId;
+        const shouldLoadTrack = trackChanged || (remote.isPlaying && remote.position === 0);
         latestRef.current = { currentTrack: track, volume: remote.volume, isMuted: remote.isMuted };
         setPlayerError('');
         setCurrentTrackIndex(index);
         setVolume(remote.volume);
         setIsMuted(remote.isMuted);
+        setIsPlaying(remote.isPlaying);
+        lastTrackEndedRef.current = remote.ended === true;
         wantsPlaybackRef.current = remote.isPlaying;
         setIsLoading(remote.isPlaying);
         if (playerReadyRef.current && playerRef.current) {
           playerRef.current.setVolume(remote.volume);
           if (remote.isMuted) playerRef.current.mute();
           else playerRef.current.unMute();
-          if (trackChanged) {
+          if (shouldLoadTrack) {
             loadingTrackRef.current = remote.isPlaying;
             const video = { videoId: track.youtubeVideoId, startSeconds: position };
             if (remote.isPlaying) playerRef.current.loadVideoById(video);
@@ -245,6 +285,7 @@ export const TopMusicBar = React.forwardRef<
             )
               playerRef.current.seekTo(position, true);
             if (remote.isPlaying) playerRef.current.playVideo();
+            else if (remote.position === 0) playerRef.current.stopVideo();
             else playerRef.current.pauseVideo();
           }
         } else {
@@ -291,47 +332,6 @@ export const TopMusicBar = React.forwardRef<
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', correctDrift);
     };
-  }, []);
-
-  useEffect(() => {
-    // Fetch custom directory from server if available
-    const controller = new AbortController();
-    fetch('/api/music/directory', { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error('Directory unavailable');
-        return res.json();
-      })
-      .then((data) => {
-        // A slow directory response must not replace a user's selected/custom track.
-        if (
-          !controller.signal.aborted &&
-          !hasSelectedTrackRef.current &&
-          Array.isArray(data.tracks)
-        ) {
-          const validTracks = data.tracks.filter((track: unknown): track is MusicTrack => {
-            if (!track || typeof track !== 'object') return false;
-            const candidate = track as Partial<MusicTrack>;
-            return (
-              typeof candidate.id === 'string' &&
-              typeof candidate.title === 'string' &&
-              typeof candidate.artist === 'string' &&
-              typeof candidate.youtubeUrl === 'string' &&
-              ['lofi', 'ambient', 'piano', 'synthwave', 'chill', 'classical', 'custom'].includes(
-                candidate.category ?? '',
-              ) &&
-              typeof candidate.youtubeVideoId === 'string' &&
-              /^[a-zA-Z0-9_-]{11}$/.test(candidate.youtubeVideoId)
-            );
-          });
-          if (validTracks.length > 0) setTracks(validTracks);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          console.error('Unable to load the music directory.', error);
-        }
-      });
-    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -394,17 +394,28 @@ export const TopMusicBar = React.forwardRef<
                 setNeedsGesture(false);
               } else if (data === 0 && wantsPlaybackRef.current) {
                 wantsPlaybackRef.current = false;
-                const latest = latestRef.current;
-                broadcastRef.current(
-                  {
-                    trackId: latest.currentTrack.id,
-                    isPlaying: false,
-                    volume: latest.volume,
-                    isMuted: latest.isMuted,
-                    position: 0,
-                  },
-                  latest.currentTrack,
-                );
+                lastTrackEndedRef.current = true;
+                target.stopVideo();
+                setIsPlaying(false);
+                setIsLoading(false);
+                if (roomId && !isSimulated) {
+                  void apiRequest<{ music: RoomMusicState }>('/api/chat/music/next', {
+                    roomId,
+                    trackId: latestRef.current.currentTrack.id,
+                    revision: appliedRevision.current,
+                  })
+                    .then(({ music }) => applyRemoteRef.current(music))
+                    .catch((error: unknown) =>
+                      setSyncError(
+                        error instanceof Error ? error.message : 'The queue could not advance.',
+                      ),
+                    );
+                } else {
+                  const [nextTrack, ...remaining] = playQueueRef.current;
+                  playQueueRef.current = remaining;
+                  setPlayQueue(remaining);
+                  if (nextTrack) startTrackRef.current(nextTrack, false, false, remaining);
+                }
               }
             },
             onError: ({ data }) => {
@@ -432,10 +443,23 @@ export const TopMusicBar = React.forwardRef<
       playerRef.current = null;
       player?.destroy();
     };
-  }, [playerEnabled, playerAttempt]);
+  }, [playerEnabled, playerAttempt, roomId, isSimulated]);
 
-  const startTrack = (track: MusicTrack, resume = false, sync = true) => {
+  const startTrack = (
+    track: MusicTrack,
+    resume = false,
+    sync = true,
+    queue = playQueueRef.current,
+  ) => {
+    const index = tracks.findIndex((item) => item.id === track.id);
+    if (index < 0) {
+      setTracks((previous) => [...previous, track]);
+      setCurrentTrackIndex(tracks.length);
+    } else setCurrentTrackIndex(index);
+    playQueueRef.current = queue;
+    setPlayQueue(queue);
     latestRef.current = { currentTrack: track, volume, isMuted };
+    lastTrackEndedRef.current = false;
     hasSelectedTrackRef.current = true;
     wantsPlaybackRef.current = true;
     setPlayerError('');
@@ -456,9 +480,28 @@ export const TopMusicBar = React.forwardRef<
           isPlaying: true,
           volume,
           isMuted,
+          queue,
+          ended: false,
           ...(!resume ? { position: 0 } : {}),
         },
         track,
+      );
+  };
+  startTrackRef.current = startTrack;
+  const syncQueue = (queue: MusicTrack[]) => {
+    playQueueRef.current = queue;
+    setPlayQueue(queue);
+    if (hasCurrentTrack)
+      broadcast(
+        {
+          trackId: currentTrack.id,
+          isPlaying: wantsPlaybackRef.current,
+          volume,
+          isMuted,
+          queue,
+          ended: lastTrackEndedRef.current,
+        },
+        currentTrack,
       );
   };
 
@@ -468,9 +511,19 @@ export const TopMusicBar = React.forwardRef<
       if (playerReadyRef.current) playerRef.current?.pauseVideo();
       setIsLoading(false);
       setIsPlaying(false);
-      broadcast({ trackId: currentTrack.id, isPlaying: false, volume, isMuted });
+      if (hasCurrentTrack)
+        broadcast({
+          trackId: currentTrack.id,
+          isPlaying: false,
+          volume,
+          isMuted,
+          ended: false,
+        });
     } else {
-      startTrack(currentTrack, true);
+      const [nextTrack, ...remaining] = playQueueRef.current;
+      if (nextTrack && (!hasCurrentTrack || lastTrackEndedRef.current))
+        startTrack(nextTrack, false, true, remaining);
+      else if (hasCurrentTrack) startTrack(currentTrack, true);
     }
   };
 
@@ -485,12 +538,13 @@ export const TopMusicBar = React.forwardRef<
       if (muted) playerRef.current.mute();
       else playerRef.current.unMute();
     }
-    broadcast({
-      trackId: currentTrack.id,
-      isPlaying: wantsPlaybackRef.current,
-      volume,
-      isMuted: muted,
-    });
+    if (hasCurrentTrack)
+      broadcast({
+        trackId: currentTrack.id,
+        isPlaying: wantsPlaybackRef.current,
+        volume,
+        isMuted: muted,
+      });
   };
   const changeVolume = (nextVolume: number) => {
     setVolume(nextVolume);
@@ -501,22 +555,39 @@ export const TopMusicBar = React.forwardRef<
       if (nextVolume === 0) playerRef.current.mute();
       else playerRef.current.unMute();
     }
-    broadcast({
-      trackId: currentTrack.id,
-      isPlaying: wantsPlaybackRef.current,
-      volume: nextVolume,
-      isMuted: nextVolume === 0,
-    });
+    if (hasCurrentTrack)
+      broadcast({
+        trackId: currentTrack.id,
+        isPlaying: wantsPlaybackRef.current,
+        volume: nextVolume,
+        isMuted: nextVolume === 0,
+      });
   };
 
   const selectTrack = (track: MusicTrack) => {
     const index = tracks.findIndex((item) => item.id === track.id);
     if (index < 0) setTracks((previous) => [...previous, track]);
     setCurrentTrackIndex(index < 0 ? tracks.length : index);
-    startTrack(track);
+    startTrack(track, false, true);
     setIsMenuOpen(false);
     menuButtonRef.current?.focus();
   };
+  const addToQueue = (track: MusicTrack) => {
+    if (playQueueRef.current.length >= MAX_MUSIC_QUEUE_LENGTH) {
+      setSearchError(`The queue can hold up to ${MAX_MUSIC_QUEUE_LENGTH} songs.`);
+      return;
+    }
+    if (!tracks.some((item) => item.id === track.id)) setTracks((previous) => [...previous, track]);
+    const nextQueue = [...playQueueRef.current, track];
+    const firstTrack = hasCurrentTrack ? undefined : nextQueue.shift();
+    const remaining = nextQueue;
+    if (firstTrack) {
+      startTrack(firstTrack, false, true, remaining);
+    } else syncQueue(remaining);
+    setSearchError('');
+  };
+  const removeFromQueue = (index: number) =>
+    syncQueue(playQueueRef.current.filter((_track, itemIndex) => itemIndex !== index));
 
   const searchMusic = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -586,50 +657,45 @@ export const TopMusicBar = React.forwardRef<
       localStorage.setItem('coursemates_music_glow_color', color);
     } catch {}
   };
-  const searchResultIds = new Set(searchResults.map((track) => track.id));
-  const libraryTracks = tracks.filter((track) => !searchResultIds.has(track.id));
   const panelAccent = isDarkMode ? `color-mix(in srgb, ${accent} 35%, #fafaf9)` : accent;
   const renderCatalogRow = (track: MusicTrack) => {
     const isActive = currentTrack.id === track.id;
     return (
-      <button
+      <div
         key={track.id}
-        type="button"
-        onClick={() => selectTrack(track)}
-        aria-pressed={isActive}
-        style={
-          isActive
-            ? {
-                backgroundColor: `color-mix(in srgb, ${accent} ${isDarkMode ? 28 : 9}%, transparent)`,
-                color: panelAccent,
-              }
-            : undefined
-        }
-        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors motion-reduce:transition-none ${isActive ? '' : 'text-stone-800 hover:bg-stone-100 dark:text-stone-100 dark:hover:bg-white/10'}`}
+        className={`flex w-full items-center gap-1 rounded-lg px-2 py-1 text-xs ${isActive ? 'bg-stone-100 dark:bg-white/10' : ''}`}
       >
-        <span
-          aria-hidden="true"
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? 'bg-black/5 dark:bg-black/20' : 'bg-stone-100 text-stone-500 dark:bg-white/5 dark:text-stone-400'}`}
+        <button
+          type="button"
+          onClick={() => selectTrack(track)}
+          aria-label={`Play ${track.title} by ${track.artist}`}
+          aria-pressed={isActive}
+          className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-1.5 text-left transition-colors motion-reduce:transition-none ${isActive ? '' : 'text-stone-800 hover:bg-stone-100 dark:text-stone-100 dark:hover:bg-white/10'}`}
         >
-          {isActive && playbackActive ? (
-            <Pause className="h-3.5 w-3.5 fill-current" />
-          ) : (
-            <Play className="h-3.5 w-3.5 fill-current" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-bold">{track.title}</span>
-          <span className="block truncate text-[10px] text-stone-600 dark:text-stone-400">
-            {track.artist}
+          <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center">
+            {isActive && playbackActive ? (
+              <Pause className="h-3.5 w-3.5 fill-current" />
+            ) : (
+              <Play className="h-3.5 w-3.5 fill-current" />
+            )}
           </span>
-        </span>
-        <span
-          aria-hidden="true"
-          className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${isActive ? 'border-current opacity-80' : 'border-stone-300 text-stone-600 dark:border-stone-700 dark:text-stone-400'}`}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-bold">{track.title}</span>
+            <span className="block truncate text-[10px] text-stone-600 dark:text-stone-400">
+              {track.artist}
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label={`Add ${track.title} to queue`}
+          title="Add to queue"
+          onClick={() => addToQueue(track)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-200 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-white/10 dark:hover:text-white"
         >
-          {track.category}
-        </span>
-      </button>
+          <ListPlus className="h-4 w-4" />
+        </button>
+      </div>
     );
   };
 
@@ -745,7 +811,7 @@ export const TopMusicBar = React.forwardRef<
                       {currentTrack.title}
                     </p>
                     <p className="truncate text-[10px] text-stone-600 dark:text-stone-400">
-                      {currentTrack.artist}
+                      {currentTrack.artist || 'Search YouTube to choose a song'}
                     </p>
                   </div>
                 </div>
@@ -760,6 +826,7 @@ export const TopMusicBar = React.forwardRef<
                       type="button"
                       onClick={togglePlay}
                       aria-label={isPlaying || isLoading ? 'Pause Study Music' : 'Play Study Music'}
+                      disabled={!hasCurrentTrack && playQueue.length === 0}
                       style={{ backgroundColor: accent }}
                       onMouseEnter={(event) => {
                         event.currentTarget.style.backgroundColor = accentHover;
@@ -792,6 +859,7 @@ export const TopMusicBar = React.forwardRef<
                       type="button"
                       aria-label="Restart shared track"
                       onClick={() => startTrack(currentTrack)}
+                      disabled={!hasCurrentTrack}
                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-100 dark:border-stone-500 dark:text-stone-100 dark:hover:bg-white/10"
                     >
                       <RotateCcw className="h-4 w-4" />
@@ -925,14 +993,58 @@ export const TopMusicBar = React.forwardRef<
                       {searchResults.map(renderCatalogRow)}
                     </>
                   )}
-                  <p className="flex items-center justify-between px-2.5 pb-1 pt-3 text-[10px] uppercase tracking-wide text-stone-600 dark:text-stone-400">
-                    <span>Library</span>
-                    <span>{libraryTracks.length} tracks</span>
-                  </p>
-                  {libraryTracks.map(renderCatalogRow)}
-                  {libraryTracks.length === 0 && searchResults.length === 0 && (
+                  {searchResults.length === 0 && (
                     <p className="px-2.5 py-3 text-xs text-stone-600 dark:text-stone-400">
-                      No tracks available yet.
+                      Search YouTube or paste a video link to play or queue a song.
+                    </p>
+                  )}
+                </div>
+                <div
+                  role="group"
+                  aria-label="Music queue"
+                  className="mt-3 border-t border-stone-200 pt-3 dark:border-[#363636]"
+                >
+                  <div className="mb-2 flex items-center justify-between px-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-stone-600 dark:text-stone-400">
+                      Up next ({playQueue.length})
+                    </span>
+                    {playQueue.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => syncQueue([])}
+                        className="rounded px-2 py-1 text-[10px] text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10"
+                      >
+                        Clear queue
+                      </button>
+                    )}
+                  </div>
+                  {playQueue.map((track, index) => (
+                    <div
+                      key={`${track.id}-${index}`}
+                      className="flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="w-4 shrink-0 text-right text-[10px] text-stone-500">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-bold">{track.title}</span>
+                        <span className="block truncate text-[10px] text-stone-600 dark:text-stone-400">
+                          {track.artist}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${track.title} from queue`}
+                        onClick={() => removeFromQueue(index)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-200 dark:text-stone-300 dark:hover:bg-white/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {playQueue.length === 0 && (
+                    <p className="px-2.5 py-2 text-xs text-stone-600 dark:text-stone-400">
+                      Queue is empty. Add songs from your search results.
                     </p>
                   )}
                 </div>

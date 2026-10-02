@@ -478,7 +478,28 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
       await openMusic(a);
       await a.getByRole('slider', { name: 'Music volume' }).fill('45');
       await expect(a.getByRole('button', { name: 'Play Study Music' })).toBeVisible();
-      await a.getByRole('button', { name: 'Play Study Music' }).click();
+      await a.route('**/api/music/search?q=*', (route) =>
+        route.fulfill({
+          json: {
+            tracks: [
+              {
+                id: 'custom-dQw4w9WgXcQ',
+                title: 'Search result music',
+                artist: 'Test artist',
+                youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                youtubeVideoId: 'dQw4w9WgXcQ',
+                category: 'custom',
+              },
+            ],
+          },
+        }),
+      );
+      await a
+        .getByRole('searchbox', { name: 'Search music or paste a YouTube link' })
+        .fill('test music');
+      await a.getByRole('button', { name: 'Go', exact: true }).click();
+      await a.getByRole('button', { name: 'Play Search result music by Test artist' }).click();
+      await openMusic(a);
       if (source === 'mobile autoplay') {
         await b.getByRole('button', { name: 'Join shared music' }).click();
         await openMusic(b);
@@ -500,37 +521,6 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
           );
       }
       await openMusic(a);
-      await a.getByRole('button', { name: /lofi hip hop radio/ }).click();
-      for (const page of [a, b])
-        await expect
-          .poll(() => page.evaluate(() => (window as any).musicLoads.at(-1)))
-          .toBe('jfKfPfyJRdk');
-      await a.route('**/api/music/search?q=*', (route) =>
-        route.fulfill({
-          json: {
-            tracks: [
-              {
-                id: 'custom-dQw4w9WgXcQ',
-                title: 'Search result music',
-                artist: 'Test artist',
-                youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-                youtubeVideoId: 'dQw4w9WgXcQ',
-                category: 'custom',
-              },
-            ],
-          },
-        }),
-      );
-      await openMusic(a);
-      await a
-        .getByRole('searchbox', { name: 'Search music or paste a YouTube link' })
-        .fill('test music');
-      await a.getByRole('button', { name: 'Go', exact: true }).click();
-      await a.getByRole('button', { name: /Search result music/ }).click();
-      for (const page of [a, b])
-        await expect
-          .poll(() => page.evaluate(() => (window as any).musicLoads.at(-1)))
-          .toBe('dQw4w9WgXcQ');
       await openMusic(b);
       await b
         .getByRole('searchbox', { name: 'Search music or paste a YouTube link' })

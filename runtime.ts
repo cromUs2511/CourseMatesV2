@@ -737,6 +737,16 @@ function updateMusic(session: Identity, room: Room, data: any) {
   const track = normalizeSharedTrack(data.track);
   if (data.track !== undefined && (!track || track.id !== trackId))
     throw new Error('Invalid music track.');
+  let nextQueue = room.music?.queue ?? [];
+  if (data.queue !== undefined) {
+    if (!Array.isArray(data.queue) || data.queue.length > 50)
+      throw new Error('The music queue can contain up to 50 songs.');
+    nextQueue = data.queue.map((item: unknown) => {
+      const queuedTrack = normalizeSharedTrack(item);
+      if (!queuedTrack) throw new Error('Invalid song in music queue.');
+      return queuedTrack;
+    });
+  }
   const currentMusic = room.music;
   if (
     data.position !== undefined &&
@@ -756,7 +766,9 @@ function updateMusic(session: Identity, room: Room, data: any) {
     revision: (room.music?.revision || 0) + 1,
     trackId,
     ...(sharedTrack ? { track: sharedTrack } : {}),
+    queue: nextQueue,
     isPlaying: data.isPlaying === true,
+    ended: data.ended === undefined ? currentMusic?.ended === true : data.ended === true,
     volume,
     isMuted: data.isMuted === true,
     ...(process.env.CHAT_MULTIPLAYER_V2 !== 'false'
@@ -766,6 +778,42 @@ function updateMusic(session: Identity, room: Room, data: any) {
   for (const peer of room.peers)
     if (peer.id !== session.id)
       notify(peer.ws, { type: 'music_state', roomId: room.id, music: room.music });
+}
+function advanceMusic(room: Room, trackId: string, revision: number) {
+  const current = room.music;
+  if (
+    !current ||
+    !current.isPlaying ||
+    current.trackId !== trackId ||
+    current.revision !== revision
+  )
+    return current;
+  const [nextTrack, ...queue] = current.queue ?? [];
+  const now = Date.now();
+  room.music = nextTrack
+    ? {
+        ...current,
+        revision: current.revision + 1,
+        trackId: nextTrack.id,
+        track: nextTrack,
+        queue,
+        isPlaying: true,
+        ended: false,
+        position: 0,
+        updatedAt: now,
+        serverNow: now,
+      }
+    : {
+        ...current,
+        revision: current.revision + 1,
+        queue: [],
+        isPlaying: false,
+        ended: true,
+        position: 0,
+        updatedAt: now,
+        serverNow: now,
+      };
+  return room.music;
 }
 export function attachRuntime(
   app: Express,
@@ -1016,6 +1064,24 @@ export function attachRuntime(
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });
     }
+  });
+  app.post('/api/chat/music/next', (req, res) => {
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    if (
+      typeof req.body.trackId !== 'string' ||
+      !Number.isSafeInteger(req.body.revision) ||
+      req.body.revision < 1
+    )
+      return res.status(400).json({ error: 'Invalid music queue transition.' });
+    const music = advanceMusic(room, req.body.trackId, req.body.revision);
+    if (!music) return res.status(409).json({ error: 'Music playback has not started.' });
+    if (music.revision === req.body.revision + 1)
+      for (const peer of room.peers)
+        if (peer.id !== session.id)
+          notify(peer.ws, { type: 'music_state', roomId: room.id, music });
+    res.json({ music });
   });
   app.get('/api/chat/tictactoe', (req, res) => {
     if (process.env.CHAT_MULTIPLAYER_V2 === 'false')

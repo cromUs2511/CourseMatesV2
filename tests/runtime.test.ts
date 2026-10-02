@@ -431,6 +431,74 @@ test('session responses exclude credentials and bearer authentication is rejecte
   assert.equal(bearer.status, 401);
 });
 
+test('shared music queue advances once and stops when its final track ends', async () => {
+  const { a, b, roomId } = await pair();
+  const first = {
+    id: 'queue-first',
+    title: 'First track',
+    artist: 'Test artist',
+    youtubeVideoId: 'dQw4w9WgXcQ',
+  };
+  const second = {
+    id: 'queue-second',
+    title: 'Second track',
+    artist: 'Test artist',
+    youtubeVideoId: 's3a4OQR-10M',
+  };
+  const third = {
+    id: 'queue-third',
+    title: 'Third track',
+    artist: 'Test artist',
+    youtubeVideoId: 'yGHEis32s2Y',
+  };
+  const start = await request('/api/chat/music', a, {
+    roomId,
+    trackId: first.id,
+    track: first,
+    queue: [second, third],
+    isPlaying: true,
+  });
+  assert.equal(start.status, 200);
+
+  const next = await request('/api/chat/music/next', b, {
+    roomId,
+    trackId: first.id,
+    revision: start.data.music.revision,
+  });
+  assert.equal(next.data.music.trackId, second.id);
+  assert.deepEqual(
+    next.data.music.queue.map((track: { id: string }) => track.id),
+    [third.id],
+  );
+  assert.equal(next.data.music.isPlaying, true);
+
+  const duplicate = await request('/api/chat/music/next', a, {
+    roomId,
+    trackId: first.id,
+    revision: start.data.music.revision,
+  });
+  assert.equal(duplicate.data.music.revision, next.data.music.revision);
+  assert.equal(duplicate.data.music.trackId, second.id);
+
+  const last = await request('/api/chat/music/next', a, {
+    roomId,
+    trackId: second.id,
+    revision: next.data.music.revision,
+  });
+  assert.equal(last.data.music.trackId, third.id);
+  assert.equal(last.data.music.isPlaying, true);
+
+  const stopped = await request('/api/chat/music/next', b, {
+    roomId,
+    trackId: third.id,
+    revision: last.data.music.revision,
+  });
+  assert.equal(stopped.data.music.isPlaying, false);
+  assert.equal(stopped.data.music.ended, true);
+  assert.equal(stopped.data.music.position, 0);
+  assert.deepEqual(stopped.data.music.queue, []);
+});
+
 test('foreign-origin WebSocket upgrade fails even with a valid cookie', async () => {
   const a = identity();
   const ws = new WebSocket(base.replace('http:', 'ws:') + '/ws/chat', {

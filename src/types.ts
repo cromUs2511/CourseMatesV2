@@ -111,7 +111,9 @@ export interface RoomMusicState {
   serverNow?: number;
   trackId: string;
   track?: MusicTrack;
+  queue?: MusicTrack[];
   isPlaying: boolean;
+  ended?: boolean;
   volume: number;
   isMuted: boolean;
   revision: number;
