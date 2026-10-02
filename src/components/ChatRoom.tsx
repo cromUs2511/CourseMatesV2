@@ -757,7 +757,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
 
   // Reopening a minimized table is what marks the player present again.
   useEffect(() => {
-    if (unoOpen && unoGameId) void apiRequest('/api/uno/away', { away: false }).catch(() => undefined);
+    if (unoOpen && unoGameId)
+      void apiRequest('/api/uno/away', { away: false }).catch(() => undefined);
   }, [unoOpen, unoGameId]);
 
   const sendTyping = (isTyping: boolean) => {
@@ -975,6 +976,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       scrollAfterOwnMessageRef.current = true;
       setReplyingTo(null);
       setMusicPickerOpen(false);
+      setComposerEngaged(false);
       sendTyping(false);
       playChime('message');
     } catch (err) {

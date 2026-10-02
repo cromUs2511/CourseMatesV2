@@ -7,6 +7,7 @@ import {
   Shield,
   Users,
   MessageCircleMore,
+  Pencil,
 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
@@ -395,6 +396,9 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             <div className="min-w-0">
               {!isEditingName ? (
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="min-h-10 max-w-full break-words rounded-lg py-2 text-left text-base font-bold tracking-tight text-stone-900 dark:text-white">
+                    {session.sessionHandle}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -402,13 +406,15 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       setIsEditingName(true);
                     }}
                     disabled={isSearching}
-                    title="Change name"
-                    className="min-h-10 max-w-full break-words rounded-lg text-left text-base font-bold tracking-tight text-stone-900 dark:text-white cursor-pointer hover:underline disabled:cursor-not-allowed disabled:no-underline"
+                    title="Edit anonymous name"
+                    aria-label="Edit anonymous name"
+                    className="matching-name-action inline-flex items-center justify-center rounded-lg border bg-stone-50/80 p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800/80"
                   >
-                    {session.sessionHandle}
+                    <Pencil className="h-3.5 w-3.5 text-stone-600 dark:text-stone-300" />
                   </button>
                   {!session.customHandle && (
                     <button
+                      type="button"
                       onClick={onRerollHandle}
                       disabled={isSearching}
                       title="Shuffle default name"
@@ -424,7 +430,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       disabled={isSearching}
                       className="matching-name-action chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
                     >
-                      Use random name
+                      Use default name
                     </button>
                   )}
                 </div>
@@ -435,8 +441,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 >
                   <input
                     autoFocus
+                    minLength={2}
                     maxLength={40}
                     aria-label="Custom name"
+                    required
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
                     placeholder="Enter a name"

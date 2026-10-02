@@ -7,6 +7,21 @@ async function enter(page: Page) {
   await expect(page.getByRole('heading', { name: 'What kind of chat do you want?' })).toBeVisible();
 }
 
+test('anonymous name can be edited and restored to a default name', async ({ page }) => {
+  await enter(page);
+  await page.getByRole('button', { name: 'Edit anonymous name' }).click();
+  await page.getByRole('textbox', { name: 'Custom name' }).fill('Study Partner');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Study Partner', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use default name' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText('Study Partner', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Use default name' }).click();
+  await expect(page.getByRole('button', { name: 'Use default name' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Edit anonymous name' })).toBeVisible();
+});
+
 test('anonymous access uses only an HttpOnly cookie and restores after reload', async ({
   page,
   context,

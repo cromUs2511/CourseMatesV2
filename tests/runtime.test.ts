@@ -111,6 +111,37 @@ test('queue requires a real session and handles repeated joins and cancellation'
   await request('/api/match/cancel', a, {});
   assert.equal((await request('/api/match/poll', a)).data.status, 'idle');
 });
+test('custom handles are used throughout a chat and can be reset to a default handle', async () => {
+  const a = identity();
+  const b = identity();
+
+  const saved = await request('/api/auth/handle', a, { name: 'Study Buddy' });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.session.sessionHandle, 'Study Buddy');
+  assert.equal(saved.data.session.customHandle, true);
+  assert.equal((await request('/api/auth/session', a)).data.session.sessionHandle, 'Study Buddy');
+
+  assert.equal(
+    (await request('/api/match/join', a, { interests: ['Calculus'] })).data.status,
+    'queued',
+  );
+  const matched = await request('/api/match/join', b, { interests: ['Calculus'] });
+  assert.equal(matched.data.peer.handle, 'Study Buddy');
+
+  const sent = await request('/api/chat/send', a, {
+    roomId: matched.data.roomId,
+    text: 'Hello!',
+    clientMessageId: 'custom-handle-message',
+  });
+  assert.equal(sent.data.message.senderHandle, 'Study Buddy');
+
+  assert.equal((await request('/api/auth/reroll', a, {})).status, 409);
+  await request('/api/chat/leave', a, { roomId: matched.data.roomId });
+  const reset = await request('/api/auth/reroll', a, {});
+  assert.equal(reset.status, 200);
+  assert.notEqual(reset.data.session.sessionHandle, 'Study Buddy');
+  assert.equal(reset.data.session.customHandle, false);
+});
 test('chat intents match first and normal matching requires an explicit opt-in', async () => {
   const studyPeer = identity(),
     casualPeer = identity(),

@@ -4,7 +4,14 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
   browser,
 }) => {
   test.setTimeout(90000);
-  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  const contexts = await Promise.all([
+    browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    }),
+    browser.newContext(),
+  ]);
   try {
     for (const context of contexts)
       await context.addInitScript(() => {
@@ -65,11 +72,12 @@ test('a chosen music slice reaches the peer with its caption, playback window, a
       .toMatchObject({ videoId: 's3a4OQR-10M', startSeconds: 45, endSeconds: 75 });
     await picker.getByRole('button', { name: 'Send snippet' }).click();
     await expect(picker).toHaveCount(0);
+    await expect(a.locator('#chat-header')).toBeVisible();
 
     const card = b.getByRole('group', { name: 'Music snippet: Loser by Tame Impala' });
     await expect(card).toBeVisible();
     await expect(b.getByText('Listening to this vibe right now', { exact: true })).toBeVisible();
-    await expect(card.getByText('0:45–1:15')).toBeVisible();
+    await expect(card.getByText('0:30')).toBeVisible();
     await card.getByRole('button', { name: 'Play music snippet' }).click();
     await expect
       .poll(() => b.evaluate(() => (window as any).snippetLoads.at(-1)))
