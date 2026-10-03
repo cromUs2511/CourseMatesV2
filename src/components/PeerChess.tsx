@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties} from 'react';
 import { Minimize2, RotateCw, Flag, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -20,23 +20,29 @@ export type PeerChessHandle = { open: () => void };
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
-const PIECE_SYMBOLS: Record<string, string> = {
-  'white-king': '♔',
-  'white-queen': '♕',
-  'white-rook': '♖',
-  'white-bishop': '♗',
-  'white-knight': '♘',
-  'white-pawn': '♙',
-  'black-king': '♚',
-  'black-queen': '♛',
-  'black-rook': '♜',
-  'black-bishop': '♝',
-  'black-knight': '♞',
-  'black-pawn': '♟',
+// Solid glyphs for both sides; the \uFE0E selector stops emoji rendering.
+const SOLID_SYMBOLS: Record<ChessPieceType, string> = {
+  king: '♚\uFE0E',
+  queen: '♛\uFE0E',
+  rook: '♜\uFE0E',
+  bishop: '♝\uFE0E',
+  knight: '♞\uFE0E',
+  pawn: '♟\uFE0E',
 };
 
-function getPieceKey(piece: ChessPiece): string {
-  return `${piece.color}-${piece.type}`;
+// White pieces: white fill, black outline. Black pieces: near-black fill, white outline.
+function pieceStyle(color: ChessPieceColor): CSSProperties {
+  return color === 'white'
+    ? {
+        color: '#ffffff',
+        textShadow:
+          '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000',
+      }
+    : {
+        color: '#111111',
+        textShadow:
+          '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 3px #fff',
+      };
 }
 
 export const PeerChess = forwardRef<
@@ -64,8 +70,10 @@ export const PeerChess = forwardRef<
   const sending = useRef(false);
   const seenRound = useRef('');
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const promotionSquare = useRef<[number, number] | null>(null);
-  const promotionFrom = useRef<[number, number] | null>(null);
+  const [promotion, setPromotion] = useState<{
+    from: [number, number];
+    to: [number, number];
+  } | null>(null);
   const apply = useCallback((next: ChessState) => {
     setState((current) => (next.revision > current.revision ? next : current));
   }, []);
@@ -115,6 +123,10 @@ export const PeerChess = forwardRef<
     const round = `${game.id}:${game.round}`;
     if (seenRound.current !== round) {
       seenRound.current = round;
+      // Colors can swap between rounds: drop any stale selection/highlights.
+      setSelectedSquare(null);
+      setLegalMoves([]);
+      setPromotion(null);
       setOpen(true);
     }
   }, [game]);
@@ -199,8 +211,7 @@ export const PeerChess = forwardRef<
         const movingPiece = game.board[sr]![sc];
         const isPromotion = movingPiece?.type === 'pawn' && (r === 0 || r === 7);
         if (isPromotion) {
-          promotionSquare.current = [r, c];
-          promotionFrom.current = [sr, sc];
+          setPromotion({ from: [sr, sc], to: [r, c] });
           setSelectedSquare(null);
           setLegalMoves([]);
           return;
@@ -228,20 +239,18 @@ export const PeerChess = forwardRef<
     }
   };
   const handlePromotion = (promotionType: ChessPieceType) => {
-    if (!promotionSquare.current || !promotionFrom.current || !game) return;
-    const [sr, sc] = promotionFrom.current;
-    const [tr, tc] = promotionSquare.current;
+    if (!promotion || !game) return;
+    const { from, to } = promotion;
+    setPromotion(null);
     void send({
       action: 'move',
       gameId: game.id,
       round: game.round,
       revision: state.revision,
-      from: [sr, sc],
-      to: [tr, tc],
+      from,
+      to,
       promotion: promotionType,
     } as ChessAction);
-    promotionSquare.current = null;
-    promotionFrom.current = null;
   };
   const calculateLegalMoves = (
     gameState: ChessState['game'],
@@ -398,37 +407,6 @@ export const PeerChess = forwardRef<
     });
   const handleResign = () =>
     void send({ action: 'resign', gameId: game!.id, round: game!.round, revision: state.revision });
-  if (promotionSquare.current && yourTurn && !gameOver) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-        onClick={() => {
-          promotionSquare.current = null;
-          promotionFrom.current = null;
-        }}
-      >
-        <div
-          className="bg-stone-900 rounded-2xl p-6 text-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 className="mb-4 text-lg font-bold text-white">Promote pawn to:</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {['queen', 'rook', 'bishop', 'knight'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => handlePromotion(type as ChessPieceType)}
-                className="p-3 rounded-xl border border-stone-700 bg-stone-800 text-white font-bold hover:bg-stone-700"
-              >
-                {PIECE_SYMBOLS[`${yourColor}-${type}`]}{' '}
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
   const displayBoard = getDisplayBoard();
   return (
     <>
@@ -497,7 +475,11 @@ export const PeerChess = forwardRef<
                   {player.id === sessionId ? 'You' : player.handle}
                 </strong>{' '}
                 <span
-                  className={`text-xs uppercase ${player.color === 'white' ? 'text-stone-600' : 'text-stone-900'}`}
+                  className={`rounded px-1.5 py-0.5 text-xs font-bold uppercase ring-1 ${
+                    player.color === 'white'
+                      ? 'bg-white text-stone-900 ring-stone-400'
+                      : 'bg-stone-900 text-white ring-stone-600'
+                  }`}
                 >
                   {player.color}
                 </span>
@@ -593,17 +575,26 @@ export const PeerChess = forwardRef<
                       type="button"
                       onClick={() => handleSquareClick(rowIndex, colIndex)}
                       disabled={busy || gameOver || !yourTurn}
-                      className={`chess-square flex aspect-square items-center justify-center text-3xl transition-colors motion-reduce:transition-none ${
-                        (rowIndex + colIndex) % 2 === 0
-                          ? 'bg-amber-100 dark:bg-stone-700'
-                          : 'bg-amber-900 dark:bg-stone-900'
-                      } ${isSelected ? 'ring-2 ring-blue-500' : ''} ${isLegal ? 'bg-green-500/30' : ''} ${isLastMoveSquare ? 'ring-2 ring-blue-400' : ''} ${isCheck ? 'ring-2 ring-red-500' : ''}`}
+                      className={`chess-square flex aspect-square items-center justify-center text-4xl transition-colors motion-reduce:transition-none ${
+                        isLegal
+                          ? 'bg-green-300 dark:bg-green-700'
+                          : (rowIndex + colIndex) % 2 === 0
+                            ? 'bg-amber-100 dark:bg-stone-400'
+                            : 'bg-amber-700 dark:bg-stone-600'
+                      } ${isSelected ? 'ring-2 ring-blue-500' : ''} ${isLastMoveSquare ? 'ring-2 ring-blue-400' : ''} ${isCheck ? 'ring-2 ring-red-500' : ''}`}
                       style={{ width: '12.5%' }}
                       aria-label={`${FILES[lc]}${RANKS[lr]}${piece ? `, ${piece.color} ${piece.type}` : ', empty'}`}
                     >
-                      {piece && PIECE_SYMBOLS[getPieceKey(piece)]}
+                      {piece && (
+                        <span style={pieceStyle(piece.color)} className="select-none leading-none">
+                          {SOLID_SYMBOLS[piece.type]}
+                        </span>
+                      )}
                       {isLegal && !piece && (
-                        <span className="h-2 w-2 rounded-full bg-green-500/50" aria-hidden="true" />
+                        <span
+                          className="h-3 w-3 rounded-full bg-green-800 dark:bg-green-200"
+                          aria-hidden="true"
+                        />
                       )}
                     </button>
                   );
@@ -614,7 +605,7 @@ export const PeerChess = forwardRef<
               {FILES.map((file, i) => (
                 <div
                   key={file}
-                  className="flex items-center justify-center text-xs text-stone-500 dark:text-stone-400"
+                  className="flex items-center justify-center text-xs text-stone-700 dark:text-stone-300"
                   style={{ width: '12.5%' }}
                 >
                   {boardFlipped ? FILES[7 - i] : file}
@@ -622,6 +613,32 @@ export const PeerChess = forwardRef<
               ))}
             </div>
           </div>
+          {promotion && yourTurn && !gameOver && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setPromotion(null)}
+            >
+              <div
+                className="rounded-2xl bg-stone-900 p-6 text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="mb-4 text-lg font-bold text-white">Promote pawn to:</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['queen', 'rook', 'bishop', 'knight'] as ChessPieceType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => handlePromotion(type)}
+                      className="rounded-xl border border-stone-600 bg-stone-800 p-3 font-bold text-white hover:bg-stone-700"
+                    >
+                      <span className="mr-1 text-2xl">{SOLID_SYMBOLS[type]}</span>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           {error && (
             <p role="alert" className="mt-3 text-sm text-red-500">
               {error}
