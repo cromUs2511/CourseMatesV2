@@ -26,6 +26,9 @@ const PROMOTION_SYMBOL: Record<ChessPiece['type'], PieceSymbol> = {
   king: 'k',
 };
 
+// Only these four pieces are legal promotion targets.
+const PROMOTABLE: ReadonlySet<string> = new Set(['queen', 'rook', 'bishop', 'knight']);
+
 /**
  * Convert a chess.js position to the CourseMates board shape.
  * chess.board() returns rank 8 first, matching board[0] === rank 8.
@@ -179,7 +182,7 @@ export class PeerChess {
         if (player.color !== turnColor) throw new Error('It is not your turn.');
         if (!isSquare(action.from) || !isSquare(action.to))
           throw new Error('Choose two squares on the board.');
-        if (action.promotion !== undefined && !(action.promotion in PROMOTION_SYMBOL))
+        if (action.promotion !== undefined && !PROMOTABLE.has(action.promotion))
           throw new Error('Choose a valid promotion piece.');
 
         try {
