@@ -40,6 +40,7 @@ import { PeerConnectFour } from './connectFour';
 import { PeerChess } from './chess';
 import { PeerTrivia } from './trivia';
 import { PeerWouldYouRather } from './wouldYouRather';
+import { PeerDrawGuess } from './drawGuess';
 
 type Identity = StudentSession & {
   token: string;
@@ -93,6 +94,7 @@ type Room = {
   chess?: PeerChess;
   trivia?: PeerTrivia;
   wouldYouRather?: PeerWouldYouRather;
+  drawing?: PeerDrawGuess;
 };
 export const sessions = new Map<string, Identity>();
 const queue = new Map<string, Participant>();
@@ -480,7 +482,7 @@ function join(session: Identity, data: any, ws?: WebSocket) {
   const topCandidate = rankedInterestMatches[0];
   const interestMatch = topCandidate
     ? { peer: topCandidate.peer, match: sharedInterest(participant, topCandidate.peer) }
-    : { peer: undefined, match: { score: 0 } };
+    : { peer: undefined, match: { score: 0, topic: undefined } };
   const peer =
     interestMatch?.peer ||
     (participant.allowNormal
@@ -541,6 +543,7 @@ function activePeerGame(room: Room, except?: string): string | null {
     ['chess', 'Chess', room.chess],
     ['trivia', 'Trivia', room.trivia],
     ['wyr', 'Would You Rather', room.wouldYouRather],
+    ['drawing', 'Draw & Guess', room.drawing],
   ];
   for (const [key, label, instance] of entries) {
     if (!instance || key === except) continue;
@@ -1103,6 +1106,7 @@ export function attachRuntime(
       room.ticTacToe ??= new PeerTicTacToe();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'tictactoe');
@@ -1142,6 +1146,7 @@ export function attachRuntime(
       room.rockPaperScissors ??= new PeerRockPaperScissors();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'rps');
@@ -1183,6 +1188,7 @@ export function attachRuntime(
       room.connectFour ??= new PeerConnectFour();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'connectfour');
@@ -1221,6 +1227,7 @@ export function attachRuntime(
       room.chess ??= new PeerChess();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'chess');
@@ -1233,6 +1240,57 @@ export function attachRuntime(
       for (const peer of room.peers)
         notify(peer.ws, { type: 'chess_state', roomId: room.id, state });
       res.json(state);
+    } catch (error) {
+      res.status(409).json({ error: (error as Error).message });
+    }
+  });
+
+  // Drawing: secrets are serialized separately for each viewer.
+  app.get('/api/chat/drawing', (req, res) => {
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.query.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    room.drawing ??= new PeerDrawGuess();
+    res.json(room.drawing.serializeFor(session.id));
+  });
+  app.post('/api/chat/drawing', (req, res) => {
+    if (process.env.CHAT_MULTIPLAYER_V2 === 'false')
+      return res.status(503).json({ error: 'Peer games are temporarily unavailable.' });
+    const session = authenticate(req)!;
+    const room = requireRoom(session, req.body.roomId);
+    if (!room) return res.status(404).json({ error: 'Chat ended or is unavailable.' });
+    const stroke = req.body.action === 'stroke';
+    if (
+      !unoLimiter.take(
+        'drawing:' + session.id + (stroke ? ':stroke' : ':control'),
+        stroke ? 300 : 120,
+        60000,
+      ) ||
+      (stroke && !unoLimiter.take('drawing:burst:' + session.id, 8, 1000))
+    )
+      return res.status(429).json({ error: 'Too many drawing actions. Slow down briefly.' });
+    try {
+      room.drawing ??= new PeerDrawGuess();
+      if (
+        req.body.action === 'invite' ||
+        req.body.action === 'rematch' ||
+        (req.body.action === 'respond' && req.body.accept === true)
+      )
+        assertRoomGameFree(room, 'drawing');
+      room.drawing.act(
+        session.id,
+        room.peers.map(({ id, handle }) => ({ id, handle })),
+        req.body,
+      );
+      for (const peer of room.peers)
+        notify(peer.ws, {
+          type: 'drawing_state',
+          roomId: room.id,
+          state: room.drawing.serializeFor(peer.id),
+        });
+      res.json(room.drawing.serializeFor(session.id));
     } catch (error) {
       res.status(409).json({ error: (error as Error).message });
     }
@@ -1260,6 +1318,7 @@ export function attachRuntime(
       room.trivia ??= new PeerTrivia();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'trivia');
@@ -1302,6 +1361,7 @@ export function attachRuntime(
       room.wouldYouRather ??= new PeerWouldYouRather();
       if (
         req.body?.action === 'invite' ||
+        req.body?.action === 'rematch' ||
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'wyr');
@@ -1566,6 +1626,9 @@ export function attachRuntime(
   const socketLimiter = new WindowLimiter();
   server.on('upgrade', (req, socket, head) => {
     const reject = (status: number) => {
+      // Rejected upgrades still own a raw TCP socket. A peer resetting that
+      // connection must not become an uncaught server error.
+      socket.on('error', () => socket.destroy());
       socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
     };
     if (req.url !== '/ws/chat') {
@@ -1682,8 +1745,15 @@ export function attachRuntime(
   });
   const cleanup = setInterval(() => {
     for (const [id, p] of queue) if (Date.now() - p.lastSeen > 30000) queue.delete(id);
-    for (const room of rooms.values())
-      if (room.peers.some((p) => Date.now() - p.lastSeen > 30000)) leave(room.peers[0].id);
+    for (const room of rooms.values()) {
+      const now = Date.now();
+      const drawing = room.drawing?.snapshot(now).game;
+      // Mobile browsers suspend timers while backgrounded. Retain only an
+      // unfinished drawing turn through its deadline plus a bounded grace.
+      const drawingGrace = drawing && !drawing.result && now <= drawing.deadline + 30000;
+      if (!drawingGrace && room.peers.some((p) => now - p.lastSeen > 30000))
+        leave(room.peers[0].id);
+    }
     for (const game of unoCleanup()) pushUnoGame(game);
     for (const [token, session] of sessions)
       if (session.expiresAt <= Date.now()) {

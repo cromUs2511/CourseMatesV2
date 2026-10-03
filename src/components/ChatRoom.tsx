@@ -51,6 +51,7 @@ import { PeerConnectFour, type PeerConnectFourHandle } from './PeerConnectFour';
 import { PeerChess, type PeerChessHandle } from './PeerChess';
 import { PeerTrivia, type PeerTriviaHandle } from './PeerTrivia';
 import { PeerWouldYouRather, type PeerWouldYouRatherHandle } from './PeerWouldYouRather';
+import { PeerDrawGuess, type PeerDrawGuessHandle } from './PeerDrawGuess';
 import { GameInvitation } from './GameInvitation';
 import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { PeerGameActivity, PeerGameKey } from '../data/peerGames';
@@ -185,6 +186,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const chessRef = useRef<PeerChessHandle>(null);
   const triviaRef = useRef<PeerTriviaHandle>(null);
   const wyrRef = useRef<PeerWouldYouRatherHandle>(null);
+  const drawingRef = useRef<PeerDrawGuessHandle>(null);
   const [peerActivities, setPeerActivities] = useState<
     Partial<Record<PeerGameKey, PeerGameActivity>>
   >({});
@@ -214,6 +216,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     else if (game === 'chess') chessRef.current?.open();
     else if (game === 'trivia') triviaRef.current?.open();
     else if (game === 'wyr') wyrRef.current?.open();
+    else if (game === 'drawing') drawingRef.current?.open();
   };
   const unoSeenRound = useRef('');
   const unoSending = useRef(false);
@@ -674,7 +677,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     }
   };
 
-  type GameType = 'uno' | 'tictactoe' | 'rps' | 'connectfour' | 'chess' | 'trivia' | 'wyr';
+  type GameType = 'uno' | PeerGameKey;
 
   const openGameFromCatalog = (game: GameType) => {
     setGamesOpen(false);
@@ -692,6 +695,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     else if (game === 'chess') chessRef.current?.open();
     else if (game === 'trivia') triviaRef.current?.open();
     else if (game === 'wyr') wyrRef.current?.open();
+    else if (game === 'drawing') drawingRef.current?.open();
   };
 
   const respondToUnoChallenge = async (accept: boolean) => {
@@ -1599,6 +1603,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 is next to recent chat instead of buried at the top. */}
             {!peer.isSimulated && !peerDisconnected && roomId && (
               <div className="space-y-2 pt-2">
+                <PeerDrawGuess
+                  ref={drawingRef}
+                  roomId={roomId}
+                  sessionId={session.id}
+                  peerHandle={peer.handle}
+                  ws={ws}
+                  onActivity={(a) => reportPeerActivity('drawing', a)}
+                />
                 <PeerTicTacToe
                   ref={ticTacToeRef}
                   roomId={roomId}
@@ -2294,6 +2306,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
           onSelectChess={() => openGameFromCatalog('chess')}
           onSelectTrivia={() => openGameFromCatalog('trivia')}
           onSelectWyr={() => openGameFromCatalog('wyr')}
+          onSelectDrawing={() => openGameFromCatalog('drawing')}
           onClose={() => setGamesOpen(false)}
         />
       )}

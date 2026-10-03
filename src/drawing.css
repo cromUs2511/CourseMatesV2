@@ -1,0 +1,416 @@
+.draw-dialog {
+  --draw-bg: #faf8f5;
+  --draw-ink: #292524;
+  --draw-muted: #78716c;
+  --draw-line: #e7e5e4;
+  --draw-card: #fff;
+  margin: auto;
+  width: min(880px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--draw-line);
+  border-radius: 24px;
+  padding: 20px;
+  background: var(--draw-bg);
+  color: var(--draw-ink);
+  box-shadow: 0 24px 100px #0004;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+.draw-dialog::backdrop {
+  background: #171412bb;
+}
+.dark .draw-dialog {
+  --draw-bg: #191817;
+  --draw-ink: #faf8f5;
+  --draw-muted: #a8a29e;
+  --draw-line: #44403c;
+  --draw-card: #242220;
+}
+.draw-dialog button,
+.draw-dialog select,
+.draw-dialog input {
+  min-height: 44px;
+  font: inherit;
+}
+.draw-dialog button {
+  cursor: pointer;
+}
+.draw-dialog button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.draw-dialog :focus-visible {
+  outline: 3px solid var(--chat-accent, #7c3aed);
+  outline-offset: 3px;
+}
+.draw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--draw-line);
+}
+.draw-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.draw-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  color: var(--chat-accent, #7c3aed);
+  background: color-mix(in srgb, var(--chat-accent, #7c3aed) 12%, transparent);
+}
+.draw-heading h2 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.draw-heading p {
+  color: var(--draw-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.draw-header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.draw-header-actions button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  border-radius: 10px;
+}
+.draw-header-actions button:hover {
+  background: var(--draw-line);
+}
+.draw-setup {
+  max-width: 580px;
+  margin: auto;
+  text-align: center;
+  padding: 24px 0 8px;
+}
+.draw-setup-art {
+  font-size: 56px;
+  margin-bottom: 8px;
+}
+.draw-setup h3,
+.draw-choices h3,
+.draw-result h3 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+.draw-setup p,
+.draw-choices p,
+.draw-result p {
+  color: var(--draw-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  margin-top: 12px;
+}
+.draw-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+  text-align: left;
+}
+.draw-filters label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.draw-filters select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--draw-line);
+  background: var(--draw-card);
+  color: var(--draw-ink);
+  font-size: 16px;
+}
+.draw-rules {
+  margin-bottom: 20px;
+}
+.draw-primary {
+  border: 0;
+  border-radius: 12px;
+  background: var(--chat-accent, #7c3aed);
+  color: white;
+  padding: 10px 22px;
+  font-weight: 700 !important;
+}
+.draw-setup > .draw-primary {
+  width: 100%;
+}
+.draw-scorebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  font-size: 13px;
+}
+.draw-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.draw-score strong {
+  background: var(--draw-card);
+  border: 1px solid var(--draw-line);
+  border-radius: 8px;
+  padding: 3px 9px;
+}
+.draw-peer-score {
+  max-width: 35%;
+  overflow-wrap: anywhere;
+}
+.draw-clock {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: var(--draw-muted);
+  font-variant-numeric: tabular-nums;
+}
+.draw-clock-low {
+  color: #ef4444;
+  font-weight: 800;
+}
+.draw-choices {
+  text-align: center;
+  padding: 30px 0 40px;
+}
+.draw-eyebrow {
+  display: block;
+  color: var(--draw-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.draw-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 24px;
+}
+.draw-choice-grid button {
+  text-align: left;
+  padding: 20px;
+  border: 1px solid var(--draw-line);
+  background: var(--draw-card);
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+}
+.draw-choice-grid button:hover {
+  border-color: var(--chat-accent, #7c3aed);
+}
+.draw-choice-grid span {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.draw-choice-grid small {
+  display: block;
+  color: var(--draw-muted);
+  font-size: 11px;
+  margin-top: 8px;
+}
+.draw-prompt {
+  text-align: center;
+  margin: 4px 0 14px;
+}
+.draw-prompt strong {
+  font-size: 21px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.draw-word-mask {
+  letter-spacing: 0.12em;
+  white-space: pre-wrap;
+}
+.draw-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.draw-palette,
+.draw-tool-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.draw-palette button {
+  width: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+.draw-palette button span {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--swatch);
+  border: 1px solid #0002;
+}
+.draw-palette button[aria-pressed='true'] {
+  outline: 2px solid var(--chat-accent, #7c3aed);
+  outline-offset: -3px;
+}
+.draw-tool-row button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  border-radius: 10px;
+}
+.draw-tool-row button[aria-pressed='true'] {
+  background: var(--draw-line);
+}
+.draw-brush-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 0 6px;
+}
+.draw-brush-label select {
+  border: 1px solid var(--draw-line);
+  border-radius: 8px;
+  background: var(--draw-card);
+  color: var(--draw-ink);
+  padding: 4px;
+  font-size: 16px;
+}
+.draw-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  background: white;
+  border: 1px solid var(--draw-line);
+  border-radius: 16px;
+}
+.draw-canvas-active {
+  touch-action: none;
+  cursor: crosshair;
+}
+.draw-canvas-note {
+  color: var(--draw-muted);
+  font-size: 11px;
+  margin: 8px 0 12px;
+  text-align: center;
+}
+.draw-guess-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.draw-guess-form input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--draw-line);
+  background: var(--draw-card);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--draw-ink);
+  font-size: 16px;
+}
+.draw-guesses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.draw-guesses span {
+  background: var(--draw-card);
+  border: 1px solid var(--draw-line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.draw-guesses .draw-guess-correct {
+  background: #22c55e18;
+  border-color: #22c55e;
+}
+.draw-result {
+  text-align: center;
+  padding: 14px 0 8px;
+}
+.draw-result p {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.draw-result h3 {
+  margin-bottom: 8px;
+}
+.draw-error,
+.draw-inline-error {
+  color: #dc2626;
+  background: #ef444412;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .draw-dialog {
+    padding: 14px;
+    border-radius: 18px;
+  }
+  .draw-choice-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .draw-choice-grid button {
+    padding: 14px;
+  }
+  .draw-choice-grid span {
+    font-size: 18px;
+  }
+  .draw-filters {
+    grid-template-columns: 1fr;
+  }
+  .draw-heading {
+    gap: 8px;
+  }
+  .draw-heading h2 {
+    font-size: 17px;
+  }
+  .draw-icon {
+    width: 38px;
+    height: 44px;
+  }
+  .draw-scorebar {
+    gap: 6px;
+    font-size: 12px;
+  }
+  .draw-palette button {
+    width: 44px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .draw-canvas {
+    max-width: 520px;
+    margin-inline: auto;
+  }
+}

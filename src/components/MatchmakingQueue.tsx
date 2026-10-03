@@ -258,20 +258,23 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             allowNormal: allowNormalRef.current,
           }),
         );
-        // Poll the same state as the socket; this also keeps the queue lease alive.
-        void poll();
-        pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+        // Wait for the server's queued acknowledgement before polling. A GET
+        // can otherwise overtake join_queue on a separate connection (Safari).
       };
       ws.onmessage = (event) => {
         if (!current()) return;
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'matched') handleMatchSuccess(data);
-          else if (data.type === 'queued')
+          else if (data.type === 'queued') {
             setCanProceedNormally(
               data.interestMatchUnavailable === true && !allowNormalRef.current,
             );
-          else if (data.type === 'error') fail(new Error(data.error));
+            if (!pollIntervalRef.current) {
+              void poll();
+              pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+            }
+          } else if (data.type === 'error') fail(new Error(data.error));
         } catch {
           fail(new Error('Invalid matchmaking response.'));
         }

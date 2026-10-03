@@ -198,7 +198,8 @@ export type WyrAction =
   | { action: 'rematch'; gameId: string; round: number }
   | { action: 'leave' };
 
-export type PeerGameKey = 'tictactoe' | 'rps' | 'connectfour' | 'chess' | 'trivia' | 'wyr';
+export type PeerGameKey =
+  'tictactoe' | 'rps' | 'connectfour' | 'chess' | 'trivia' | 'wyr' | 'drawing';
 
 /** Compact live status reported to the chat shell for the generic game indicator. */
 export type PeerGameActivity = {

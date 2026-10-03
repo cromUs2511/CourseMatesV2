@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Gamepad2, X, Target, GitBranch, Crown, HelpCircle, Brain } from 'lucide-react';
+import { Gamepad2, X, Target, GitBranch, Crown, HelpCircle, Brain, Palette } from 'lucide-react';
 import {
   TicTacToeLogo,
   RockPaperScissorsLogo,
@@ -21,6 +21,7 @@ export type GamesCatalogProps = {
   onSelectChess: () => void;
   onSelectTrivia: () => void;
   onSelectWyr: () => void;
+  onSelectDrawing: () => void;
   onClose: () => void;
 };
 
@@ -35,6 +36,7 @@ export function GamesCatalogDialog({
   onSelectChess,
   onSelectTrivia,
   onSelectWyr,
+  onSelectDrawing,
   onClose,
 }: GamesCatalogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -81,12 +83,16 @@ export function GamesCatalogDialog({
   const chess = peerState('chess', 'Full chess with castling, promotion, en passant.');
   const trivia = peerState('trivia', '10 questions, multiple choice, timed.');
   const wyr = peerState('wyr', 'Fun choices, reveal together, discuss after.');
+  const drawing = peerState(
+    'drawing',
+    'Draw, guess, and laugh. 1,100 ideas, six alternating turns.',
+  );
 
   return (
     <dialog
       ref={dialogRef}
       aria-labelledby="games-catalog-title"
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-stone-300 bg-[#faf8f5] p-5 text-stone-900 shadow-2xl backdrop:bg-black/65 dark:border-stone-700 dark:bg-[#181716] dark:text-stone-100"
+      className="m-auto max-h-[calc(100dvh-2rem)] overflow-y-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-stone-300 bg-[#faf8f5] p-5 text-stone-900 shadow-2xl backdrop:bg-black/65 dark:border-stone-700 dark:bg-[#181716] dark:text-stone-100"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="games-catalog-title" className="font-semibold">
@@ -105,6 +111,20 @@ export function GamesCatalogDialog({
         Pick a game to play with your peer.
       </p>
       <div className="mt-4 grid gap-2">
+        <button
+          type="button"
+          id="chat-game-drawing-btn"
+          onClick={onSelectDrawing}
+          disabled={drawing.disabled}
+          className="rounded-xl border border-stone-200 bg-white/60 p-3.5 text-left transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900/50 dark:hover:bg-stone-800"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <Palette className="h-5 w-5" /> Draw & Guess
+          </span>
+          <span className="mt-1 block text-xs text-stone-500 dark:text-stone-400">
+            {drawing.hint}
+          </span>
+        </button>
         <button
           type="button"
           id="chat-game-uno-btn"
