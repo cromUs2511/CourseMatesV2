@@ -19,7 +19,14 @@ import {
   isSpiderManTrack,
   normalizeSharedTrack,
 } from '../data/musicDirectory';
-import { getYouTubeErrorMessage, loadYouTubeAPI, YouTubePlayer } from '../utils/youtubePlayer';
+import {
+  getYouTubeErrorMessage,
+  isEmbedForbiddenError,
+  isIOSOrSafari,
+  loadYouTubeAPI,
+  prepareYouTubeIframe,
+  YouTubePlayer,
+} from '../utils/youtubePlayer';
 
 const EMPTY_MUSIC_TRACK: MusicTrack = {
   id: '',
@@ -147,6 +154,12 @@ export const TopMusicBar = React.forwardRef<
   const playerRef = useRef<YouTubePlayer | null>(null);
   const playerReadyRef = useRef(false);
   const wantsPlaybackRef = useRef(false);
+  // iOS/Safari needs a real tap before unmuted playback. Remote "play" events
+  // arriving before any local gesture must cue, never auto-load with sound.
+  const hasGestureRef = useRef(false);
+  const markGesture = () => {
+    hasGestureRef.current = true;
+  };
   const lastTrackEndedRef = useRef(false);
   const playQueueRef = useRef(playQueue);
   playQueueRef.current = playQueue;
@@ -268,17 +281,33 @@ export const TopMusicBar = React.forwardRef<
         setIsPlaying(remote.isPlaying);
         lastTrackEndedRef.current = remote.ended === true;
         wantsPlaybackRef.current = remote.isPlaying;
-        setIsLoading(remote.isPlaying);
+        // A remote "play" is never a user gesture on this device. On Apple
+        // platforms an immediate load/play is blocked and used to surface as
+        // "Music could not play" — cue and wait for the join tap instead.
+        const remoteNeedsGesture =
+          remote.isPlaying && !hasGestureRef.current && isIOSOrSafari();
+        if (remoteNeedsGesture) {
+          setNeedsGesture(true);
+          setIsPlaying(false);
+          setIsLoading(false);
+        } else {
+          setIsPlaying(remote.isPlaying);
+          setIsLoading(remote.isPlaying);
+        }
         if (playerReadyRef.current && playerRef.current) {
           playerRef.current.setVolume(remote.volume);
           if (remote.isMuted) playerRef.current.mute();
           else playerRef.current.unMute();
           if (shouldLoadTrack) {
-            loadingTrackRef.current = remote.isPlaying;
             const video = { videoId: track.youtubeVideoId, startSeconds: position };
-            if (remote.isPlaying) playerRef.current.loadVideoById(video);
-            else playerRef.current.cueVideoById(video);
-          } else {
+            if (remote.isPlaying && !remoteNeedsGesture) {
+              loadingTrackRef.current = true;
+              playerRef.current.loadVideoById(video);
+            } else {
+              loadingTrackRef.current = false;
+              playerRef.current.cueVideoById(video);
+            }
+          } else if (!remoteNeedsGesture) {
             if (
               remote.position !== undefined &&
               Math.abs(playerRef.current.getCurrentTime() - position) > 0.75
@@ -339,6 +368,14 @@ export const TopMusicBar = React.forwardRef<
     let disposed = false;
     let player: YouTubePlayer | null = null;
     playerReadyRef.current = false;
+    const requestGesture = () => {
+      if (disposed) return;
+      loadingTrackRef.current = false;
+      setIsPlaying(false);
+      setIsLoading(false);
+      setPlayerError('');
+      setNeedsGesture(true);
+    };
     const fail = (message: string) => {
       if (disposed) return;
       wantsPlaybackRef.current = false;
@@ -347,7 +384,10 @@ export const TopMusicBar = React.forwardRef<
       setPlayerError(message);
     };
     const timeout = window.setTimeout(() => {
-      fail('YouTube is taking too long to load. Check your connection, then press Play to retry.');
+      // On iOS/Safari a stalled load is almost always autoplay waiting for a
+      // tap — offer the join prompt instead of a fatal error.
+      if (wantsPlaybackRef.current && isIOSOrSafari()) requestGesture();
+      else fail('YouTube is taking too long to load. Check your connection, then press Play to retry.');
     }, 20000);
 
     loadYouTubeAPI()
@@ -358,24 +398,42 @@ export const TopMusicBar = React.forwardRef<
         playerHostRef.current.replaceChildren(mount);
         player = new api.Player(mount, {
           width: 320,
-          height: 200,
+          height: 180,
           videoId: latestRef.current.currentTrack.youtubeVideoId,
-          playerVars: { playsinline: 1, controls: 0, origin: window.location.origin },
+          playerVars: {
+            playsinline: 1,
+            controls: 0,
+            rel: 0,
+            fs: 0,
+            disablekb: 1,
+            iv_load_policy: 3,
+            origin: window.location.origin,
+          },
           events: {
             onReady: ({ target }) => {
               if (disposed) return;
               window.clearTimeout(timeout);
               playerReadyRef.current = true;
+              prepareYouTubeIframe(playerHostRef.current);
               target.setVolume(latestRef.current.volume);
               if (latestRef.current.isMuted) target.mute();
               else target.unMute();
-              if (wantsPlaybackRef.current) {
+              // Remote-initiated playback on Apple devices must cue until the
+              // user taps: auto-loading with sound is blocked and surfaces as
+              // "Music could not play" instead of the join prompt.
+              const needsCueFirst =
+                wantsPlaybackRef.current && !hasGestureRef.current && isIOSOrSafari();
+              if (wantsPlaybackRef.current && !needsCueFirst) {
                 loadingTrackRef.current = true;
                 target.loadVideoById({
                   videoId: latestRef.current.currentTrack.youtubeVideoId,
                   startSeconds: expectedPosition(),
                 });
               } else {
+                if (wantsPlaybackRef.current) {
+                  // Keep the intent so "Join shared music" resumes in sync.
+                  requestGesture();
+                }
                 target.cueVideoById({
                   videoId: latestRef.current.currentTrack.youtubeVideoId,
                   startSeconds: expectedPosition(),
@@ -420,9 +478,32 @@ export const TopMusicBar = React.forwardRef<
             },
             onError: ({ data }) => {
               window.clearTimeout(timeout);
+              // Non-embed errors on Apple devices while remote playback was
+              // requested are usually autoplay gating, not a bad video: cue
+              // and ask for a tap so the peer isn't stuck on an error card.
+              if (
+                !isEmbedForbiddenError(data) &&
+                data !== 100 &&
+                data !== 2 &&
+                wantsPlaybackRef.current &&
+                !hasGestureRef.current &&
+                isIOSOrSafari()
+              ) {
+                try {
+                  playerRef.current?.cueVideoById({
+                    videoId: latestRef.current.currentTrack.youtubeVideoId,
+                    startSeconds: expectedPosition(),
+                  });
+                } catch {
+                  /* Cue is best effort; the join tap retries. */
+                }
+                requestGesture();
+                return;
+              }
               fail(getYouTubeErrorMessage(data));
             },
             onAutoplayBlocked: () => {
+              loadingTrackRef.current = false;
               setIsPlaying(false);
               setIsLoading(false);
               setNeedsGesture(true);
@@ -451,6 +532,8 @@ export const TopMusicBar = React.forwardRef<
     sync = true,
     queue = playQueueRef.current,
   ) => {
+    markGesture();
+    setNeedsGesture(false);
     const index = tracks.findIndex((item) => item.id === track.id);
     if (index < 0) {
       setTracks((previous) => [...previous, track]);
@@ -468,6 +551,12 @@ export const TopMusicBar = React.forwardRef<
     if (playerEnabled && playerError) {
       setPlayerAttempt((attempt) => attempt + 1);
     } else if (playerReadyRef.current && playerRef.current) {
+      // Re-assert audibility on every resume: iOS/Safari can leave the
+      // player muted (or at 0) after autoplay gating, so a bare playVideo()
+      // would stay silent even though the UI shows playing.
+      playerRef.current.setVolume(volume);
+      if (isMuted) playerRef.current.mute();
+      else playerRef.current.unMute();
       if (resume) playerRef.current.playVideo();
       else playerRef.current.loadVideoById(track.youtubeVideoId);
     } else {
@@ -506,6 +595,8 @@ export const TopMusicBar = React.forwardRef<
   };
 
   const togglePlay = () => {
+    markGesture();
+    setNeedsGesture(false);
     if (isPlaying || isLoading) {
       wantsPlaybackRef.current = false;
       if (playerReadyRef.current) playerRef.current?.pauseVideo();
@@ -1117,6 +1208,23 @@ export const TopMusicBar = React.forwardRef<
                   <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                     {playbackNotification}
                   </p>
+                  {hasCurrentTrack && (
+                    <button
+                      id="music-retry-btn"
+                      type="button"
+                      onClick={() => {
+                        setNotificationDismissed(true);
+                        setPlayerError('');
+                        setSyncError('');
+                        if (playerReadyRef.current)
+                          playerRef.current?.seekTo(expectedPosition(), true);
+                        startTrack(currentTrack, true, false);
+                      }}
+                      className="mt-3 rounded-lg bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Tap to retry with sound
+                    </button>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1137,7 +1245,11 @@ export const TopMusicBar = React.forwardRef<
           data-testid="music-engine"
           aria-hidden="true"
           inert
-          className="pointer-events-none absolute left-0 top-0 h-px w-px overflow-hidden opacity-0 [clip-path:inset(50%)]"
+          // Offscreen but full-size: iOS/Safari suspends 1px/clipped iframes,
+          // which surfaced as "Music could not play" for the remote peer.
+          // Opacity + inert + aria-hidden keep it audio-only (tests assert this).
+          className="pointer-events-none fixed top-0 h-[180px] w-[320px] max-w-none overflow-hidden opacity-0"
+          style={{ left: -9999 }}
         />
       )}
     </div>

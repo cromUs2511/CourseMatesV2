@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Ban, BookOpen, Crown, Loader2, LogOut, Minimize2, RotateCw, X } from 'lucide-react';
 import type {
   UnoAction,
@@ -164,12 +164,56 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
   const gameOver = state.status === 'over';
   const opponentCountdown = Math.max(0, Math.ceil((state.opponentCountdownMs ?? 0) / 1000));
   const ownCountdown = Math.max(0, Math.ceil((state.awayCountdownMs ?? 0) / 1000));
+  // On touch devices a swipe through the overlapped hand used to land as a
+  // click on whatever card ended under the finger — played "automatically".
+  // Track the gesture and swallow taps that follow a scroll/drag.
+  const handRef = useRef<HTMLDivElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
+  const suppressTapRef = useRef(false);
+  const suppressTimerRef = useRef<number | null>(null);
+  const suppressTap = (ms = 400) => {
+    suppressTapRef.current = true;
+    if (suppressTimerRef.current) window.clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = window.setTimeout(() => {
+      suppressTapRef.current = false;
+      suppressTimerRef.current = null;
+    }, ms);
+  };
+  useEffect(
+    () => () => {
+      if (suppressTimerRef.current) window.clearTimeout(suppressTimerRef.current);
+    },
+    [],
+  );
+  const onHandTouchStart = (event: React.TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+  };
+  const onHandTouchMove = (event: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    const touch = event.touches[0];
+    if (!start || !touch) return;
+    if (Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 12) suppressTap();
+  };
+  const onHandTouchEnd = () => {
+    touchStartRef.current = null;
+  };
 
   useEffect(() => {
     if (gameOver) playChime('match');
   }, [gameOver]);
 
+  // A stale wild chooser must never fire after the turn moved on.
+  useEffect(() => {
+    if (!yourTurn) setPendingWild(null);
+  }, [yourTurn, state.gameId, state.top.id]);
+  useEffect(() => {
+    setPendingWild(null);
+  }, [state.gameId]);
+
   const playCard = (card: UnoCard) => {
+    if (suppressTapRef.current) return;
     if (!yourTurn || busy || !state.playable.includes(card.id)) return;
     if (card.color === 'black') {
       setPendingWild(card.id);
@@ -393,9 +437,15 @@ export function UnoTable({ state, busy, error, onAction, onLeave, onClose }: Uno
           </div>
 
           <div
+            ref={handRef}
             className="uno-hand uno-no-scrollbar flex w-full max-w-5xl justify-center overflow-x-auto px-4 py-2"
             tabIndex={0}
             aria-label="Your UNO hand"
+            onTouchStart={onHandTouchStart}
+            onTouchMove={onHandTouchMove}
+            onTouchEnd={onHandTouchEnd}
+            onTouchCancel={onHandTouchEnd}
+            onScroll={() => suppressTap(300)}
           >
             <div className="uno-hand-row flex w-full items-center px-2">
               {state.you.hand.map((card, index) => {

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { getYouTubeErrorMessage, loadYouTubeAPI, type YouTubePlayer } from '../utils/youtubePlayer';
+import {
+  getYouTubeErrorMessage,
+  loadYouTubeAPI,
+  prepareYouTubeIframe,
+  type YouTubePlayer,
+} from '../utils/youtubePlayer';
 
 interface Props {
   youtubeId: string;
@@ -44,11 +49,17 @@ export function YouTubeSnippetPlayer({
           width: 220,
           height: 220,
           videoId: youtubeId,
-          playerVars: { controls: 1, playsinline: 1, origin: location.origin },
+          playerVars: {
+            controls: 1,
+            playsinline: 1,
+            rel: 0,
+            origin: location.origin,
+          },
           events: {
             onReady: ({ target }) => {
               if (disposed) return;
               readyRef.current = true;
+              prepareYouTubeIframe(host);
               setLoading(false);
               if (playingRef.current) target.loadVideoById(clip);
               else target.cueVideoById(clip);
@@ -115,15 +126,22 @@ export function YouTubeSnippetPlayer({
     } else player.pauseVideo();
   }, [playing, youtubeId, startTime, duration]);
 
+  // Never display:none the iframe: iOS/Safari suspends media in
+  // display:none subtrees and the snippet surfaces as unplayable. Keep the
+  // audio engine rendered offscreen at full size instead.
+  if (hidden) {
+    return (
+      <div aria-hidden="true" className="pointer-events-none fixed overflow-hidden opacity-0" style={{ left: -9999, top: 0, width: 220, height: 220 }}>
+        {loading && <p className="mb-2 text-xs">Loading YouTube preview…</p>}
+        <div ref={hostRef} className="h-[220px] w-[220px] overflow-hidden" />
+      </div>
+    );
+  }
+
   return (
     <div
-      className={
-        hidden
-          ? 'hidden'
-          : 'w-[220px] max-w-full rounded-xl border border-stone-700 bg-black p-2 text-center text-white'
-      }
-      aria-hidden={hidden || undefined}
-      aria-label={hidden ? undefined : 'Visible YouTube snippet player'}
+      className="w-[220px] max-w-full rounded-xl border border-stone-700 bg-black p-2 text-center text-white"
+      aria-label="Visible YouTube snippet player"
     >
       {loading && <p className="mb-2 text-xs">Loading YouTube preview…</p>}
       <div

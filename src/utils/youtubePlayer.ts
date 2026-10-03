@@ -106,3 +106,52 @@ export function getYouTubeErrorMessage(code: number): string {
       return 'YouTube could not play this track. Try again or choose another track.';
   }
 }
+
+/** Error codes that mean the video itself forbids embedding (never a gesture issue). */
+export function isEmbedForbiddenError(code: number): boolean {
+  return code === 101 || code === 150 || code === 153;
+}
+
+/** True on iOS/iPadOS, where autoplay with sound always needs a tap. */
+export function isAppleTouchDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const platform = (navigator as Navigator & { userAgentData?: unknown }).platform || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return true;
+  // iPadOS 13+ reports as Macintosh but has touch points.
+  if (/Macintosh/i.test(ua) && (navigator as Navigator).maxTouchPoints > 1) return true;
+  if (/Mac/i.test(platform) && (navigator as Navigator).maxTouchPoints > 1) return true;
+  return false;
+}
+
+export function isIOSOrSafari(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (isAppleTouchDevice()) return true;
+  // Desktop Safari also blocks programmatic unmuted playback.
+  const isSafari = /^((?!chrome|chromium|crios|fxios|edg).)*safari/i.test(ua);
+  return isSafari;
+}
+
+/**
+ * Safari suspends or rejects playback from display:none / 1px clipped iframes.
+ * Call after creating a YT.Player so the underlying iframe stays eligible:
+ * keeps it rendered (real size, offscreen) with autoplay permission.
+ */
+export function prepareYouTubeIframe(container: HTMLElement | null): void {
+  if (!container) return;
+  const iframe = container.querySelector('iframe');
+  if (!iframe) return;
+  try {
+    const allow = iframe.getAttribute('allow') || '';
+    if (!/autoplay/i.test(allow))
+      iframe.setAttribute(
+        'allow',
+        [allow, 'autoplay; encrypted-media; picture-in-picture'].filter(Boolean).join('; '),
+      );
+    iframe.setAttribute('playsinline', 'true');
+    iframe.setAttribute('webkit-playsinline', 'true');
+  } catch {
+    /* Best effort; playback still works without these hints. */
+  }
+}

@@ -2264,7 +2264,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       </div>
       {unoOpen && unoState?.game && (
         <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/70 p-0 sm:p-4">
-          <div className="h-full w-full overflow-hidden sm:h-[min(92dvh,760px)] sm:w-[min(100%,560px)] sm:rounded-2xl sm:border sm:border-stone-700 sm:shadow-2xl">
+          <div className="h-[100dvh] w-full overflow-hidden pb-[env(safe-area-inset-bottom)] sm:h-[min(92dvh,760px)] sm:w-[min(100%,560px)] sm:rounded-2xl sm:border sm:border-stone-700 sm:shadow-2xl sm:pb-0">
             <UnoTable
               state={unoState.game}
               busy={unoBusy}

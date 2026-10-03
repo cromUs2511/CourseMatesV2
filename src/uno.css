@@ -250,7 +250,14 @@
    cards overlap more as the hand grows, and only the last stays full width.
    Below the minimum the row scrolls instead of clipping the left edge. */
 .uno-hand-row {
-  justify-content: safe center;
+  /* `safe center` is unsupported on older Safari: the whole declaration is
+     dropped, so declare the plain fallback first. */
+  justify-content: center;
+}
+@supports (justify-content: safe center) {
+  .uno-hand-row {
+    justify-content: safe center;
+  }
 }
 .uno-hand-card {
   flex: 0 1 auto;
@@ -265,6 +272,20 @@
 @media (min-width: 768px) {
   .uno-hand-card + .uno-hand-card {
     margin-left: -28px;
+  }
+}
+/* Coarse pointers: overlapped 26px slivers mis-tap constantly (a swipe
+   "plays" the neighbour card). Widen the visible sliver and ease overlap. */
+@media (hover: none) and (pointer: coarse) {
+  .uno-hand-card {
+    min-width: 44px;
+  }
+  .uno-hand-card + .uno-hand-card {
+    margin-left: -14px;
+  }
+  .uno-hand {
+    scroll-padding-left: 16px;
+    scroll-padding-right: 16px;
   }
 }
 @keyframes unoTurnIn {
@@ -345,10 +366,16 @@
 /* Momentum hand swiping that never chains into the page behind the table.
    Pinch zoom stays available: no touch-action override on the scroller. */
 .uno-hand {
-  justify-content: safe center;
+  justify-content: center;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+@supports (justify-content: safe center) {
+  .uno-hand {
+    justify-content: safe center;
+  }
 }
 
 /* A quiet table boundary, with the two seats anchored on opposite edges. */

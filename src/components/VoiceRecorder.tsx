@@ -81,11 +81,14 @@ export function VoiceRecorder({
       }
       streamRef.current = stream;
       const canCheckType = typeof MediaRecorder.isTypeSupported === 'function';
+      // Prefer AAC-in-MP4: it plays back on Safari/iOS, Chrome, Edge and
+      // Firefox. WebM/Opus (the Chrome default) is silent on iPhones, so it
+      // is only a fallback when MP4 recording is unavailable.
       const mimeType = canCheckType
         ? [
-            'audio/webm;codecs=opus',
             'audio/mp4;codecs=mp4a.40.2',
             'audio/mp4',
+            'audio/webm;codecs=opus',
             'audio/ogg;codecs=opus',
           ].find((type) => MediaRecorder.isTypeSupported(type))
         : undefined;

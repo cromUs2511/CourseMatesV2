@@ -15,6 +15,7 @@ export const VoiceMessagePlayer = React.memo(function VoiceMessagePlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [error, setError] = useState('');
   const duration = Math.max(1, voice.duration);
   const progress = Math.min(1, currentTime / duration);
   const bars = useMemo(
@@ -30,10 +31,12 @@ export const VoiceMessagePlayer = React.memo(function VoiceMessagePlayer({
     const audio = audioRef.current;
     if (!audio) return;
     try {
+      setError('');
       if (audio.paused) await audio.play();
       else audio.pause();
     } catch {
       setPlaying(false);
+      setError("This voice message couldn't play here. Try another browser or device.");
     }
   };
   const seek = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -58,15 +61,20 @@ export const VoiceMessagePlayer = React.memo(function VoiceMessagePlayer({
 
   return (
     <div
-      className={`flex min-w-[230px] max-w-[310px] items-center gap-2.5 rounded-2xl px-3 py-2.5 ${isMe ? 'bg-black/15 text-white' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-100'}`}
+      className={`flex min-w-[230px] max-w-[310px] flex-wrap items-center gap-2.5 rounded-2xl px-3 py-2.5 ${isMe ? 'bg-black/15 text-white' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-100'}`}
     >
       <audio
         ref={audioRef}
         src={voice.url}
         preload="metadata"
+        playsInline
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onError={() => {
+          setPlaying(false);
+          setError("This voice message couldn't play here. Try another browser or device.");
+        }}
         onEnded={() => {
           setPlaying(false);
           setCurrentTime(0);
@@ -111,6 +119,11 @@ export const VoiceMessagePlayer = React.memo(function VoiceMessagePlayer({
       >
         {formatTime(playing || currentTime ? currentTime : duration)}
       </span>
+      {error && (
+        <p role="alert" className="w-full text-[11px] text-rose-300">
+          {error}
+        </p>
+      )}
     </div>
   );
 });
