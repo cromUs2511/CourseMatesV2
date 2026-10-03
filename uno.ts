@@ -422,7 +422,10 @@ export class UnoGame {
     const loser = this.players.findIndex((player) => player.id === sessionId);
     if (loser === -1) return;
     this.status = 'over';
-    this.winner = this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? null : this.crownWithout(loser);
+    this.winner =
+      this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false'
+        ? null
+        : this.crownWithout(loser);
     this.notice = `${this.players[loser]!.handle} left the table.`;
   }
 
@@ -476,8 +479,12 @@ export class UnoGame {
       const leaver = this.players.find((player) => player.id === leaverId);
       this.status = 'over';
       this.winner =
-        this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false' ? null : this.players.findIndex((player) => player.id !== leaverId);
-      this.notice = leaver ? `${leaver.handle} left or minimized the table.` : 'A player left or minimized the table.';
+        this.source === 'room' && process.env.CHAT_MULTIPLAYER_V2 !== 'false'
+          ? null
+          : this.players.findIndex((player) => player.id !== leaverId);
+      this.notice = leaver
+        ? `${leaver.handle} left or minimized the table.`
+        : 'A player left or minimized the table.';
       this.awayBy.clear();
       this.awayDeadline = 0;
       this.autoEndAt = 0;
@@ -530,7 +537,10 @@ export class UnoGame {
         : [];
     const opponentAway = this.status === 'playing' && this.awayBy.has(rival.id);
     const yourAway = this.status === 'playing' && this.awayBy.has(sessionId);
-    const awayCountdownMs = this.status === 'playing' && this.awayBy.size > 0 && this.awayDeadline > 0 ? Math.max(0, this.awayDeadline - now) : 0;
+    const awayCountdownMs =
+      this.status === 'playing' && this.awayBy.size > 0 && this.awayDeadline > 0
+        ? Math.max(0, this.awayDeadline - now)
+        : 0;
     return {
       gameId: this.id,
       source: this.source,

@@ -1,4 +1,11 @@
 .draw-dialog {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   --draw-bg: #faf8f5;
   --draw-ink: #292524;
   --draw-muted: #78716c;
@@ -169,6 +176,8 @@
   min-width: 0;
 }
 .draw-score strong {
+  white-space: nowrap;
+  flex-shrink: 0;
   background: var(--draw-card);
   border: 1px solid var(--draw-line);
   border-radius: 8px;
@@ -177,6 +186,12 @@
 .draw-peer-score {
   max-width: 35%;
   overflow-wrap: anywhere;
+}
+.draw-peer-score > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .draw-clock {
   display: flex;

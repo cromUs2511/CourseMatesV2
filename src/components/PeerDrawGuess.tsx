@@ -369,7 +369,7 @@ export const PeerDrawGuess = forwardRef<
                     {revealed ? 'Round complete' : `${timeLeft}s`}
                   </span>
                   <span className="draw-score draw-peer-score">
-                    {opponent?.handle}
+                    <span title={opponent?.handle}>{opponent?.handle}</span>
                     <strong>{opponent ? game.scores[opponent.id] : 0}</strong>
                   </span>
                 </div>

@@ -131,7 +131,11 @@ export function YouTubeSnippetPlayer({
   // audio engine rendered offscreen at full size instead.
   if (hidden) {
     return (
-      <div aria-hidden="true" className="pointer-events-none fixed overflow-hidden opacity-0" style={{ left: -9999, top: 0, width: 220, height: 220 }}>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed overflow-hidden opacity-0"
+        style={{ left: -9999, top: 0, width: 220, height: 220 }}
+      >
         {loading && <p className="mb-2 text-xs">Loading YouTube preview…</p>}
         <div ref={hostRef} className="h-[220px] w-[220px] overflow-hidden" />
       </div>

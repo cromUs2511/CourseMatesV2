@@ -177,7 +177,14 @@ export class PeerDrawGuess {
         throw new Error('Choose a valid category.');
       if (!Object.hasOwn(DRAW_DIFFICULTIES, action.difficulty))
         throw new Error('Choose a valid difficulty.');
-      if (s.invitation || s.game) throw new Error('Open the current game or leave it first.');
+      if (s.invitation || (s.game && !s.game.result))
+        throw new Error('Open the current game or leave it first.');
+      // A finished match auto-terminates so a new invitation needs no manual leave.
+      if (s.game) {
+        s.game = null;
+        this.choices = [];
+        this.answer = null;
+      }
       s.invitation = {
         id: crypto.randomUUID(),
         fromId: actor,

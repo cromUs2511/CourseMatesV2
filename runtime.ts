@@ -533,8 +533,18 @@ type PeerGameSnapshot = {
 /**
  * Only one peer game may be live per room at a time. Returns the label of a
  * different game that is currently inviting or in play, or null when free.
- * Completed games (result set) do not block new games.
+ * Completed games (terminal result) auto-terminate the slot and do not block.
  */
+function gameBlocksNewGame(key: string, snap: { game: any }): boolean {
+  const game = snap.game;
+  if (!game) return false;
+  // RPS sets a per-round result on every reveal; only match end frees the slot.
+  if (key === 'rps') return game.turn !== 'round-end';
+  // Would You Rather reveals every question; only the final round-end frees it.
+  if (key === 'wyr') return game.phase !== 'round-end';
+  return game.result == null;
+}
+
 function activePeerGame(room: Room, except?: string): string | null {
   const entries: [string, string, PeerGameSnapshot | undefined][] = [
     ['tictactoe', 'Tic Tac Toe', room.ticTacToe],
@@ -549,7 +559,7 @@ function activePeerGame(room: Room, except?: string): string | null {
     if (!instance || key === except) continue;
     const state = instance.snapshot();
     if (state.invitation) return label;
-    if (state.game && state.game.result == null) return label;
+    if (gameBlocksNewGame(key, state)) return label;
   }
   return null;
 }
@@ -559,11 +569,19 @@ function assertNoOtherActiveGame(room: Room, key: string): void {
   if (other) throw new Error(`Finish your current ${other} game first.`);
 }
 
-/** An in-chat UNO table or pending UNO challenge for this room also holds the game slot. */
+/** An in-chat UNO table or pending UNO challenge for this room also holds the game slot.
+ *  Finished tables (status 'over') auto-terminate the slot: the result stays
+ *  visible for a rematch, but it never blocks a new peer game. */
 function roomUnoBusy(room: Room): boolean {
   for (const p of room.peers) {
     const s = unoStateFor(p.id);
-    if (s.game && s.game.source === 'room' && s.game.roomId === room.id) return true;
+    if (
+      s.game &&
+      s.game.source === 'room' &&
+      s.game.roomId === room.id &&
+      s.game.status === 'playing'
+    )
+      return true;
     if (s.challenge && s.challenge.roomId === room.id) return true;
   }
   return false;
@@ -1749,8 +1767,8 @@ export function attachRuntime(
       const now = Date.now();
       const drawing = room.drawing?.snapshot(now).game;
       // Mobile browsers suspend timers while backgrounded. Retain only an
-      // unfinished drawing turn through its deadline plus a bounded grace.
-      const drawingGrace = drawing && !drawing.result && now <= drawing.deadline + 30000;
+      // drawing turn and its final results through the deadline plus a bounded grace.
+      const drawingGrace = drawing && now <= drawing.deadline + 30000;
       if (!drawingGrace && room.peers.some((p) => now - p.lastSeen > 30000))
         leave(room.peers[0].id);
     }

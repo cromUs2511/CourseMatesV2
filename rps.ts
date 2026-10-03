@@ -42,7 +42,10 @@ export class PeerRockPaperScissors {
     const state = this.state;
 
     if (action.action === 'invite') {
-      if (state.game) throw new Error('Open the current game to play or request a rematch.');
+      // Only a completed match auto-terminates; a mid-match reveal still blocks.
+      if (state.game && state.game.turn !== 'round-end')
+        throw new Error('Open the current game to play or request a rematch.');
+      if (state.game) state.game = null;
       if (state.invitation) throw new Error('Answer the pending invitation first.');
       state.invitation = {
         id: crypto.randomUUID(),

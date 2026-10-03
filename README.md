@@ -26,6 +26,29 @@ Anonymous study matching, built with React, Vite, Express and WebSockets.
 - The normal peer state does not display a redundant `CONNECTED` badge; the
   header only shows meaningful states such as `AI` or `LEFT`.
 
+## Draw & Guess
+
+In a real peer chat, open **Games → Draw & Guess**, choose a category and
+difficulty, and invite your peer. The game includes **1,100 curated prompts**
+across ten categories and three difficulty levels. Each match has six alternating
+drawing turns, three private word choices per turn, and 60 seconds to draw.
+
+Draw using a finger, mouse, or pen. Tools include ten colors, three brush sizes,
+an eraser, undo, and clear. Correct guesses award both peers 100 points, with a
+time bonus of up to 60 points for the guesser. Answers stay private until reveal;
+prompts do not repeat within a match. Minimize preserves the game; pending strokes
+finish syncing before minimization. Rematches require both players.
+
+Drawing uses bounded vector batches over authenticated HTTP and viewer-specific
+WebSocket updates, with REST recovery. Rooms containing a drawing game retain the
+current turn and results until its deadline plus a 30-second reconnect grace when
+participants become inactive; explicit chat departure still purges the room.
+
+The interface supports responsive desktop and mobile browsers. Run
+`npx playwright test --config playwright.drawing.config.ts` for the focused WebKit
+(Safari-engine) checks, after `npx playwright install webkit` and a production
+build. Browser emulation does not replace checks on physical Android/iOS devices.
+
 ## Run locally
 
 Requires Node.js 22.14 or newer.

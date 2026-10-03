@@ -425,14 +425,21 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
                   setTimeout(() => options.events.onReady({ target: this }), 0);
                 }
                 loadVideoById(video: string | { videoId: string; startSeconds: number }) {
-                  (window as any).musicLoads.push(typeof video === 'string' ? video : video.videoId);
+                  (window as any).musicLoads.push(
+                    typeof video === 'string' ? video : video.videoId,
+                  );
                   this.position = typeof video === 'string' ? 0 : video.startSeconds;
                   this.since = Date.now();
                   this.playVideo();
                 }
                 cueVideoById() {}
-                getCurrentTime() { return this.position + (this.playing ? (Date.now() - this.since) / 1000 : 0); }
-                seekTo(seconds: number) { this.position = seconds; this.since = Date.now(); }
+                getCurrentTime() {
+                  return this.position + (this.playing ? (Date.now() - this.since) / 1000 : 0);
+                }
+                seekTo(seconds: number) {
+                  this.position = seconds;
+                  this.since = Date.now();
+                }
                 playVideo() {
                   if (!(window as any).musicUnlocked) {
                     this.options.events.onAutoplayBlocked({ target: this });
@@ -560,17 +567,31 @@ for (const source of ['desktop', 'mobile', 'HTTP fallback', 'mobile autoplay'])
       ).toEqual(loads);
       // Local drift correction seeks to the shared clock without writing it back.
       let syncWrites = 0;
-      for (const page of [a, b]) page.on('request', (request) => {
-        if (request.url().endsWith('/api/chat/music')) syncWrites++;
+      for (const page of [a, b])
+        page.on('request', (request) => {
+          if (request.url().endsWith('/api/chat/music')) syncWrites++;
+        });
+      await b.evaluate(() => {
+        (window as any).musicPlayer.position += 20;
       });
-      await b.evaluate(() => { (window as any).musicPlayer.position += 20; });
-      await expect.poll(async () => {
-        const times = await Promise.all([a, b].map((page) => page.evaluate(() => (window as any).musicPlayer.getCurrentTime())));
-        return Math.abs(times[0] - times[1]);
-      }, { timeout: 7000 }).toBeLessThan(2);
+      await expect
+        .poll(
+          async () => {
+            const times = await Promise.all(
+              [a, b].map((page) =>
+                page.evaluate(() => (window as any).musicPlayer.getCurrentTime()),
+              ),
+            );
+            return Math.abs(times[0] - times[1]);
+          },
+          { timeout: 7000 },
+        )
+        .toBeLessThan(2);
       expect(syncWrites).toBe(0);
       await a.getByRole('button', { name: 'Restart shared track' }).click();
-      await expect.poll(() => b.evaluate(() => (window as any).musicPlayer.getCurrentTime())).toBeLessThan(2);
+      await expect
+        .poll(() => b.evaluate(() => (window as any).musicPlayer.getCurrentTime()))
+        .toBeLessThan(2);
       for (const width of [320, 375, 1280]) {
         await a.setViewportSize({ width, height: 800 });
         await expect(a.getByRole('button', { name: 'Pause Study Music' })).toBeInViewport();

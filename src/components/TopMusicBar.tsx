@@ -284,8 +284,7 @@ export const TopMusicBar = React.forwardRef<
         // A remote "play" is never a user gesture on this device. On Apple
         // platforms an immediate load/play is blocked and used to surface as
         // "Music could not play" — cue and wait for the join tap instead.
-        const remoteNeedsGesture =
-          remote.isPlaying && !hasGestureRef.current && isIOSOrSafari();
+        const remoteNeedsGesture = remote.isPlaying && !hasGestureRef.current && isIOSOrSafari();
         if (remoteNeedsGesture) {
           setNeedsGesture(true);
           setIsPlaying(false);
@@ -387,7 +386,10 @@ export const TopMusicBar = React.forwardRef<
       // On iOS/Safari a stalled load is almost always autoplay waiting for a
       // tap — offer the join prompt instead of a fatal error.
       if (wantsPlaybackRef.current && isIOSOrSafari()) requestGesture();
-      else fail('YouTube is taking too long to load. Check your connection, then press Play to retry.');
+      else
+        fail(
+          'YouTube is taking too long to load. Check your connection, then press Play to retry.',
+        );
     }, 20000);
 
     loadYouTubeAPI()

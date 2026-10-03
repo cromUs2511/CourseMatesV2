@@ -191,25 +191,53 @@ test('a suspended phone can resume a live drawing turn, but abandoned games stil
 test('final-round results survive a phone waking just after the drawing deadline', async (t) => {
   const { a, b, roomId } = await pair();
   try {
-    const invitation = await request('/api/chat/drawing', a, { roomId, action: 'invite', category: 'animals', difficulty: 'easy' });
-    await request('/api/chat/drawing', b, { roomId, action: 'respond', invitationId: invitation.data.invitation.id, accept: true });
+    const invitation = await request('/api/chat/drawing', a, {
+      roomId,
+      action: 'invite',
+      category: 'animals',
+      difficulty: 'easy',
+    });
+    await request('/api/chat/drawing', b, {
+      roomId,
+      action: 'respond',
+      invitationId: invitation.data.invitation.id,
+      accept: true,
+    });
     for (let round = 1; round <= 6; round++) {
-      const drawer = round % 2 ? a : b, guesser = round % 2 ? b : a;
+      const drawer = round % 2 ? a : b,
+        guesser = round % 2 ? b : a;
       const g = (await request('/api/chat/drawing?roomId=' + roomId, drawer)).data.game;
-      const selected = await request('/api/chat/drawing', drawer, { roomId, action: 'choose', gameId: g.id, round, choiceId: g.choices[0].id });
+      const selected = await request('/api/chat/drawing', drawer, {
+        roomId,
+        action: 'choose',
+        gameId: g.id,
+        round,
+        choiceId: g.choices[0].id,
+      });
       assert.equal(selected.status, 200);
       if (round < 6) {
-        await request('/api/chat/drawing', guesser, { roomId, action: 'guess', gameId: g.id, round, text: selected.data.game.word });
+        await request('/api/chat/drawing', guesser, {
+          roomId,
+          action: 'guess',
+          gameId: g.id,
+          round,
+          text: selected.data.game.word,
+        });
         await request('/api/chat/drawing', drawer, { roomId, action: 'next', gameId: g.id, round });
       }
     }
     const clock = Date.now() + 65000;
     t.mock.method(Date, 'now', () => clock);
-    await new Promise(r => setTimeout(r, 5500));
+    await new Promise((r) => setTimeout(r, 5500));
     const result = await request('/api/chat/drawing?roomId=' + roomId, a);
-    assert.equal(result.status, 200); assert.equal(result.data.game.phase, 'finished');
-    assert.ok(result.data.game.word); assert.ok(result.data.game.result);
-  } finally { t.mock.restoreAll(); await request('/api/chat/leave', a, { roomId }); }
+    assert.equal(result.status, 200);
+    assert.equal(result.data.game.phase, 'finished');
+    assert.ok(result.data.game.word);
+    assert.ok(result.data.game.result);
+  } finally {
+    t.mock.restoreAll();
+    await request('/api/chat/leave', a, { roomId });
+  }
 });
 
 test('WebSocket state is viewer-specific and REST recovers drawings after socket loss', async () => {

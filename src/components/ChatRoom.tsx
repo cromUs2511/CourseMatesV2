@@ -307,6 +307,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setPeerPresence('offline');
     setIsPeerTyping(false);
     setMessages([]);
+    // The chat is gone, so any open UNO table auto-terminates with it.
+    setUnoOpen(false);
+    setUnoError('');
     if (inputRef.current) inputRef.current.value = '';
     setHasInputText(false);
     setComposerEngaged(false);

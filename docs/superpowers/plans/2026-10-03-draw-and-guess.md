@@ -32,9 +32,9 @@
 
 **Interfaces:** `PeerDrawGuess.act(actor, peers, action, now?)`, `snapshot(now?)`, `serializeFor(viewerId, now?)`; shared `DrawGuessState`, `DrawGuessAction`, palette/filter metadata.
 
-- [ ] Write and run failing tests for prompt coverage, redaction, invitations, drawing validation, deadlines, scoring, six turns, and rematches.
-- [ ] Implement curated prompt selection and authoritative game state with bounded drawing operations.
-- [ ] Run focused tests and confirm all pass.
+- [x] Write and run failing tests for prompt coverage, redaction, invitations, drawing validation, deadlines, scoring, six turns, and rematches.
+- [x] Implement curated prompt selection and authoritative game state with bounded drawing operations.
+- [x] Run focused tests and confirm all pass.
 
 ## Task 2: Runtime transport integration
 
@@ -42,9 +42,9 @@
 
 **Interfaces:** authenticated GET/POST `/api/chat/drawing`, per-viewer `drawing_state` events; existing room game lock.
 
-- [ ] Write and run failing real HTTP/WebSocket tests for private delivery, outsiders, clear recovery, and game exclusion.
-- [ ] Register the room-owned game and endpoints with bounded action rates.
-- [ ] Run runtime tests and existing peer-game tests.
+- [x] Write and run failing real HTTP/WebSocket tests for private delivery, outsiders, clear recovery, and game exclusion.
+- [x] Register the room-owned game and endpoints with bounded action rates.
+- [x] Run runtime tests and existing peer-game tests.
 
 ## Task 3: Responsive drawing UI and game catalog
 
@@ -52,15 +52,15 @@
 
 **Interfaces:** imperative `PeerDrawGuessHandle.open`, existing `PeerGameActivity`, normalized canvas strokes and serialized client action queue.
 
-- [ ] Add browser tests for mouse/touch drawing, private choices, guesses, clear/undo, resume, and REST recovery; run to confirm missing UI.
-- [ ] Implement pointer capture, scaled HiDPI canvas, throttled vector batches, mobile dialog, filters, tools, scores, rematches, and accessible labels.
-- [ ] Wire catalog, chat activity, and resume behavior without changing existing games.
-- [ ] Run desktop and mobile browser checks, including WebKit when installed.
+- [x] Add browser tests for mouse/touch drawing, private choices, guesses, clear/undo, resume, and REST recovery; run to confirm missing UI.
+- [x] Implement pointer capture, scaled HiDPI canvas, throttled vector batches, mobile dialog, filters, tools, scores, rematches, and accessible labels.
+- [x] Wire catalog, chat activity, and resume behavior without changing existing games.
+- [x] Run desktop and mobile browser checks, including WebKit when installed.
 
 ## Task 4: Review and regression verification
 
 **Files:** `README.md`, this plan, execution record.
 
-- [ ] Review phase transitions, stale requests, memory bounds, and canvas recovery.
-- [ ] Run typecheck, lint, format check, full Node tests, coverage, build, existing browser suite, and Python tests where available.
-- [ ] Record actual test outcomes and platform limitations; leave changes in the user's working directory for review without publishing.
+- [x] Review phase transitions, stale requests, memory bounds, and canvas recovery.
+- [x] Run typecheck, lint, format check, full Node tests, coverage, build, existing browser suite, and Python tests where available. Record failures and the user-requested early stop of the broader browser sweep in the execution record.
+- [x] Record actual test outcomes and platform limitations; leave changes in the user's working directory for review without publishing.

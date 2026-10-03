@@ -259,7 +259,11 @@ test('colours are one of the four standard UNO colours', () => {
 });
 
 test('a chat table never awards a win for leaving and finished games need both rematch votes', () => {
-  const challenge = createUnoChallenge({ id: 's1', handle: 'Alpha' }, { id: 's2', handle: 'Bravo' }, 'room');
+  const challenge = createUnoChallenge(
+    { id: 's1', handle: 'Alpha' },
+    { id: 's2', handle: 'Bravo' },
+    'room',
+  );
   const game = respondToChallenge(challenge.id, 's2', true).game!;
   game.turn = 0;
   game.activeColor = 'red';

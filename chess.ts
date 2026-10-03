@@ -75,7 +75,10 @@ export class PeerChess {
     const state = this.state;
 
     if (action.action === 'invite') {
-      if (state.game) throw new Error('Open the current game to play or request a rematch.');
+      if (state.game && !state.game.result)
+        throw new Error('Open the current game to play or request a rematch.');
+      // A finished round auto-terminates so a new invitation needs no manual leave.
+      if (state.game) state.game = null;
       if (state.invitation) throw new Error('Answer the pending invitation first.');
       state.invitation = {
         id: crypto.randomUUID(),
