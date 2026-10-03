@@ -1,87 +1,6 @@
 import { MusicTrack } from '../types';
 
-export const DEFAULT_MUSIC_DIRECTORY: MusicTrack[] = [
-  {
-    id: 'track-chillhop-1',
-    title: 'Coffee Shop Radio - 24/7 Chillhop & Jazzy Beats',
-    artist: 'Chillhop Music',
-    youtubeUrl: 'https://www.youtube.com/watch?v=5yx6BWlEVcY',
-    youtubeVideoId: '5yx6BWlEVcY',
-    category: 'chill',
-    duration: '24/7 Stream',
-    thumbnail: 'https://img.youtube.com/vi/5yx6BWlEVcY/hqdefault.jpg',
-  },
-  {
-    id: 'track-lofi-1',
-    title: 'lofi hip hop radio - beats to relax/study to',
-    artist: 'Lofi Girl',
-    youtubeUrl: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
-    youtubeVideoId: 'jfKfPfyJRdk',
-    category: 'lofi',
-    duration: '24/7 Live Stream',
-    thumbnail: 'https://img.youtube.com/vi/jfKfPfyJRdk/hqdefault.jpg',
-  },
-  {
-    id: 'track-piano-1',
-    title: 'Peaceful Piano & Soft Rain Study Session',
-    artist: 'Calm Soundscapes',
-    youtubeUrl: 'https://www.youtube.com/watch?v=WPni755-Krg',
-    youtubeVideoId: 'WPni755-Krg',
-    category: 'piano',
-    duration: '3:15:00',
-    thumbnail: 'https://img.youtube.com/vi/WPni755-Krg/hqdefault.jpg',
-  },
-  {
-    id: 'track-synth-1',
-    title: 'synthwave radio - chill synth / coding beats',
-    artist: 'Lofi Girl',
-    youtubeUrl: 'https://www.youtube.com/watch?v=4xDzrJKXOOY',
-    youtubeVideoId: '4xDzrJKXOOY',
-    category: 'synthwave',
-    duration: '24/7 Live Stream',
-    thumbnail: 'https://img.youtube.com/vi/4xDzrJKXOOY/hqdefault.jpg',
-  },
-  {
-    id: 'track-ghibli-1',
-    title: 'Relaxing Studio Ghibli Piano Collection',
-    artist: 'Cafe Music BGM',
-    youtubeUrl: 'https://www.youtube.com/watch?v=04m74nflP44',
-    youtubeVideoId: '04m74nflP44',
-    category: 'piano',
-    duration: '2:40:00',
-    thumbnail: 'https://img.youtube.com/vi/04m74nflP44/hqdefault.jpg',
-  },
-  {
-    id: 'track-ambient-1',
-    title: 'Deep Coding & Focus Ambient Atmosphere',
-    artist: 'SomaFM / Focus Mode',
-    youtubeUrl: 'https://www.youtube.com/watch?v=1T_DcrYk3O0',
-    youtubeVideoId: '1T_DcrYk3O0',
-    category: 'ambient',
-    duration: '1:48:00',
-    thumbnail: 'https://img.youtube.com/vi/1T_DcrYk3O0/hqdefault.jpg',
-  },
-  {
-    id: 'track-brand-new-day-loser',
-    title: 'Loser',
-    artist: 'Tame Impala',
-    youtubeUrl: 'https://www.youtube.com/watch?v=s3a4OQR-10M',
-    youtubeVideoId: 's3a4OQR-10M',
-    category: 'chill',
-    duration: '4:28',
-    thumbnail: 'https://img.youtube.com/vi/s3a4OQR-10M/hqdefault.jpg',
-  },
-  {
-    id: 'track-brand-new-day-oh-yeah',
-    title: 'oh yeah?',
-    artist: 'Steve Lacy',
-    youtubeUrl: 'https://www.youtube.com/watch?v=yGHEis32s2Y',
-    youtubeVideoId: 'yGHEis32s2Y',
-    category: 'chill',
-    duration: '4:58',
-    thumbnail: 'https://img.youtube.com/vi/yGHEis32s2Y/hqdefault.jpg',
-  },
-];
+export const DEFAULT_MUSIC_DIRECTORY: MusicTrack[] = [];
 
 export function parseTrackDuration(value?: string): number | null {
   if (!value) return null;
@@ -124,12 +43,13 @@ const SPIDER_MAN_SONGS = [
   { titles: ['oh yeah'], artists: ['steve lacy'] },
 ] as const;
 
-const normalizeTrackText = (value: string) => value
-  .toLowerCase()
-  .replace(/[\u2018\u2019]/g, "'")
-  .replace(/[^a-z0-9']+/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
+const normalizeTrackText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[^a-z0-9']+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** True when a track belongs to a Spider-Man or Spider-Verse soundtrack. */
 export function isSpiderManTrack(track: Pick<MusicTrack, 'title' | 'artist'>): boolean {
@@ -137,9 +57,10 @@ export function isSpiderManTrack(track: Pick<MusicTrack, 'title' | 'artist'>): b
   const artist = normalizeTrackText(track.artist);
   const combined = `${title} ${artist}`;
   if (/\bspider ?man\b|\bspider ?verse\b/.test(combined)) return true;
-  return SPIDER_MAN_SONGS.some(song =>
-    song.titles.some(candidate => title.includes(candidate)) &&
-    song.artists.some(candidate => combined.includes(candidate)),
+  return SPIDER_MAN_SONGS.some(
+    (song) =>
+      song.titles.some((candidate) => title.includes(candidate)) &&
+      song.artists.some((candidate) => combined.includes(candidate)),
   );
 }
 
@@ -168,13 +89,24 @@ export function extractYouTubeVideoId(input: string): string | null {
     let videoId: string | null = null;
 
     if (host === 'youtu.be') {
-      if (segments.length === 1) videoId = segments[0];
-    } else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com',
-      'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) {
+      if (segments.length === 1) videoId = segments[0] ?? null;
+    } else if (
+      [
+        'youtube.com',
+        'www.youtube.com',
+        'm.youtube.com',
+        'music.youtube.com',
+        'youtube-nocookie.com',
+        'www.youtube-nocookie.com',
+      ].includes(host)
+    ) {
       if (url.pathname === '/watch') {
         videoId = url.searchParams.get('v');
-      } else if (segments.length === 2 && ['embed', 'live', 'shorts', 'v', 'e'].includes(segments[0])) {
-        videoId = segments[1];
+      } else if (
+        segments.length === 2 &&
+        ['embed', 'live', 'shorts', 'v', 'e'].includes(segments[0] ?? '')
+      ) {
+        videoId = segments[1] ?? null;
       }
     }
 
@@ -188,8 +120,14 @@ export function extractYouTubeVideoId(input: string): string | null {
 export function normalizeSharedTrack(value: unknown): MusicTrack | null {
   if (!value || typeof value !== 'object') return null;
   const track = value as Partial<MusicTrack>;
-  if (typeof track.id !== 'string' || !track.id || track.id.length > 100 ||
-      typeof track.youtubeVideoId !== 'string' || !/^[a-zA-Z0-9_-]{11}$/.test(track.youtubeVideoId)) return null;
+  if (
+    typeof track.id !== 'string' ||
+    !track.id ||
+    track.id.length > 100 ||
+    typeof track.youtubeVideoId !== 'string' ||
+    !/^[a-zA-Z0-9_-]{11}$/.test(track.youtubeVideoId)
+  )
+    return null;
   return {
     id: track.id,
     youtubeVideoId: track.youtubeVideoId,

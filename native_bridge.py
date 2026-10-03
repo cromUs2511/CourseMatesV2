@@ -17,12 +17,14 @@ Treat NATIVE_AVAILABLE == False in production as an alert, not a shrug.
 from __future__ import annotations
 
 import faulthandler
+import json
 import os
 import re
 import threading
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 # A C++ segfault cannot be caught, but it can be made legible: this prints a
@@ -57,25 +59,11 @@ ALLOW, FLAG, MASK, BLOCK = 0, 1, 2, 3
 # catches evasion at the cost of occasional false positives -- so reserve it
 # for phrases that are never innocent.
 # ---------------------------------------------------------------------------
-DEFAULT_PATTERNS: list[dict[str, Any]] = [
-    # Coordinated self-harm / threats: always drop, always de-obfuscate.
-    {"phrase": "kill yourself", "category": "self_harm", "severity": 3, "aggressive": True},
-    {"phrase": "kys", "category": "self_harm", "severity": 3, "aggressive": False},
-    {"phrase": "i will find you", "category": "threat", "severity": 3, "aggressive": True},
-    # Spam / scams / off-platform luring: the bot-flood signature.
-    {"phrase": "free robux", "category": "spam", "severity": 3, "aggressive": True},
-    {"phrase": "crypto giveaway", "category": "spam", "severity": 3, "aggressive": True},
-    {"phrase": "add me on telegram", "category": "off_platform", "severity": 3, "aggressive": True},
-    {"phrase": "onlyfans", "category": "off_platform", "severity": 3, "aggressive": True},
-    {"phrase": "exam answers for sale", "category": "academic_integrity", "severity": 3,
-     "aggressive": True},
-    # Harassment: masked, not dropped, so the conversation can continue.
-    {"phrase": "idiot", "category": "harassment", "severity": 2, "aggressive": False},
-    {"phrase": "stupid", "category": "harassment", "severity": 1, "aggressive": False},
-    # PII the platform does not want in an anonymous room. Counted, not blocked,
-    # so a student sharing a study-group email is nudged rather than silenced.
-    {"phrase": "my student number is", "category": "pii", "severity": 1, "aggressive": False},
-]
+# One reviewed policy list is bundled into Node and loaded by Python/native.
+# Missing or malformed rules prevent startup rather than disabling moderation.
+DEFAULT_PATTERNS: list[dict[str, Any]] = json.loads(
+    Path(__file__).with_name("moderation-patterns.json").read_text(encoding="utf-8")
+)
 
 
 # ---------------------------------------------------------------------------

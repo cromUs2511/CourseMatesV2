@@ -1,19 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Bot, ArrowRight, Shield } from 'lucide-react';
+import {
+  RefreshCw,
+  Loader2,
+  Bot,
+  ArrowRight,
+  Shield,
+  Users,
+  MessageCircleMore,
+  Pencil,
+} from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import type { ChatTheme } from './ChatThemeMenu';
+import '../matching-chat.css';
 
 const MATCH_POLL_INTERVAL_MS = 400;
 const MATCH_SOCKET_TIMEOUT_MS = 1500;
+const MATCH_POLL_TIMEOUT_MS = 4000;
+const MATCH_POLL_FAILURE_LIMIT = 4;
+const MATCH_JOIN_ATTEMPTS = 3;
+const MATCH_JOIN_TIMEOUT_MS = 5000;
+const MATCH_RETRY_DELAY_MS = 400;
+const MATCH_HEARTBEAT_MS = 5000;
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ? 'The network is responding slowly. Please try again.'
+    : error instanceof Error && error.message
+      ? error.message
+      : 'Unable to connect. Please try again.';
 const CHAT_INTENTS = [
-  { label: 'Study together', description: 'Focus and work alongside a peer' },
-  { label: 'Ask for help', description: 'Get support with a question or topic' },
-  { label: 'Casual conversation', description: 'Have a relaxed, friendly chat' },
-  { label: 'Vent anonymously', description: 'Talk freely in a private space' },
-  { label: 'Surprise me', description: 'Match with any available peer' },
+  {
+    label: 'Study / Help',
+    description: 'Focus together or get support with a question',
+    icon: Users,
+  },
+  {
+    label: 'Casual / Vent',
+    description: 'Relaxed chat, or talk freely in a private space',
+    icon: MessageCircleMore,
+  },
 ] as const;
 
 interface MatchmakingQueueProps {
@@ -40,7 +67,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const [error, setError] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(session.customHandle ? session.sessionHandle : '');
-  const [selectedIntent, setSelectedIntent] = useState<string>('Surprise me');
+  const [selectedIntent, setSelectedIntent] = useState<string | null>(null);
   const [canProceedNormally, setCanProceedNormally] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
@@ -49,31 +76,58 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const allowNormalRef = useRef(false);
   const matchingInterestsRef = useRef<string[]>([]);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const showSimulateOption = isSearching && queueTime >= 3;
 
   const clearPolling = () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     pollIntervalRef.current = null;
   };
+  const stopHeartbeat = () => {
+    if (heartbeatRef.current !== null) clearInterval(heartbeatRef.current);
+    heartbeatRef.current = null;
+  };
+  const startHeartbeat = (ws: WebSocket) => {
+    stopHeartbeat();
+    // Keep the server-side queue lease fresh even when REST polls are failing.
+    heartbeatRef.current = setInterval(() => {
+      if (wsRef.current === ws && ws.readyState === WebSocket.OPEN)
+        ws.send(JSON.stringify({ type: 'ping' }));
+    }, MATCH_HEARTBEAT_MS);
+  };
   const closeSocket = () => {
+    stopHeartbeat();
     const ws = wsRef.current;
     wsRef.current = null;
-    if (ws) { ws.onopen = null; ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); }
+    if (ws) {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      ws.close();
+    }
   };
   useEffect(() => {
-    if (!isSearching) { setQueueTime(0); return; }
-    const timer = setInterval(() => setQueueTime(t => t + 1), 1000);
+    if (!isSearching) {
+      setQueueTime(0);
+      return;
+    }
+    const timer = setInterval(() => setQueueTime((t) => t + 1), 1000);
     return () => clearInterval(timer);
   }, [isSearching]);
-  useEffect(() => () => {
-    ++attemptRef.current;
-    clearPolling();
-    // The chat owns the socket after a match.
-    if (!isMatchedRef.current) {
-      closeSocket();
-      if (searchingRef.current) void apiRequest('/api/match/cancel', session.token, {}).catch(() => {});
-    }
-  }, [session.token]);
+  useEffect(
+    () => () => {
+      ++attemptRef.current;
+      clearPolling();
+      stopHeartbeat();
+      // The chat owns the socket after a match.
+      if (!isMatchedRef.current) {
+        closeSocket();
+        if (searchingRef.current) void apiRequest('/api/match/cancel', {}).catch(() => {});
+      }
+    },
+    [session.id],
+  );
 
   const handleMatchSuccess = (data: any) => {
     if (isMatchedRef.current || !searchingRef.current) return;
@@ -82,90 +136,163 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     clearPolling();
     playChime('match');
     const matchedPeer: ActivePeerInfo = {
-      ...data.peer, sessionId: data.peer.sessionId, interests: data.peer.interests || [],
-      topic: data.topic || 'General Peer Discovery', matchedAt: Date.now(),
+      ...data.peer,
+      sessionId: data.peer.sessionId,
+      interests: data.peer.interests || [],
+      topic: data.topic || 'General Peer Discovery',
+      matchedAt: data.matchedAt || Date.now(),
+      mediaUnlockAt: data.mediaUnlockAt || Date.now() + 90_000,
     };
     const socket = wsRef.current;
-    if (socket) { socket.onmessage = null; socket.onerror = null; socket.onclose = null; }
+    if (socket) {
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+    }
     onMatched(matchedPeer, matchedPeer.topic, socket || undefined, data.roomId);
   };
   const startMatchmaking = () => {
     if (searchingRef.current) return;
-    const interestsToMatch = selectedIntent === 'Surprise me' ? [] : [selectedIntent];
+    // No selection matches with any available peer.
+    const interestsToMatch = selectedIntent === null ? [] : [selectedIntent];
     setError('');
     setCanProceedNormally(false);
     matchingInterestsRef.current = interestsToMatch;
-    allowNormalRef.current = selectedIntent === 'Surprise me';
+    allowNormalRef.current = selectedIntent === null;
     setIsSearching(true);
     searchingRef.current = true;
     isMatchedRef.current = false;
     const attempt = ++attemptRef.current;
     const current = () => attemptRef.current === attempt && searchingRef.current;
+    const socketAlive = () => wsRef.current?.readyState === WebSocket.OPEN;
     let polling = false;
     let busy = false;
+    let pollFailures = 0;
     const fail = (err: unknown) => {
       if (!current()) return;
-      setError(err instanceof Error ? err.message : 'Unable to connect. Please try again.');
+      setError(toErrorMessage(err));
       searchingRef.current = false;
       setIsSearching(false);
       clearPolling();
       closeSocket();
-      void apiRequest('/api/match/cancel', session.token, {}).catch(() => {});
+      void apiRequest('/api/match/cancel', {}).catch(() => {});
     };
     const poll = async () => {
       if (!current() || busy) return;
       busy = true;
       try {
-        const data = await apiRequest('/api/match/poll', session.token);
+        const data = await apiRequest(
+          '/api/match/poll',
+          undefined,
+          AbortSignal.timeout(MATCH_POLL_TIMEOUT_MS),
+        );
         if (!current()) return;
+        pollFailures = 0;
         if (data.status === 'matched') handleMatchSuccess(data);
-        else if (data.status === 'queued') setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
-        else if (data.status === 'idle') fail(new Error('Your queue entry expired. Please try again.'));
-      } catch (err) { fail(err); }
-      finally { busy = false; }
+        else if (data.status === 'queued')
+          setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
+        else if (data.status === 'idle')
+          fail(new Error('Your queue entry expired. Please try again.'));
+      } catch (err) {
+        // A healthy socket still delivers matches, so only sustained REST
+        // failures without a socket end the search.
+        pollFailures += 1;
+        if (current() && !socketAlive() && pollFailures >= MATCH_POLL_FAILURE_LIMIT) fail(err);
+      } finally {
+        busy = false;
+      }
     };
     const fallback = async () => {
       if (!current() || polling) return;
       polling = true;
       closeSocket();
-      try {
-        const data = await apiRequest('/api/match/join', session.token, { interests: interestsToMatch, allowNormal: allowNormalRef.current });
-        if (!current()) { void apiRequest('/api/match/cancel', session.token, {}).catch(() => {}); return; }
-        if (data.status === 'matched') handleMatchSuccess(data);
-        else {
+      let lastError: unknown;
+      for (let joinAttempt = 1; joinAttempt <= MATCH_JOIN_ATTEMPTS; joinAttempt += 1) {
+        if (!current()) return;
+        try {
+          const data = await apiRequest(
+            '/api/match/join',
+            { interests: interestsToMatch, allowNormal: allowNormalRef.current },
+            AbortSignal.timeout(MATCH_JOIN_TIMEOUT_MS),
+          );
+          if (!current()) {
+            void apiRequest('/api/match/cancel', {}).catch(() => {});
+            return;
+          }
+          if (data.status === 'matched') {
+            handleMatchSuccess(data);
+            return;
+          }
+          pollFailures = 0;
           void poll();
           pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+          return;
+        } catch (err) {
+          lastError = err;
+          if (joinAttempt < MATCH_JOIN_ATTEMPTS && current())
+            await new Promise((resolve) => setTimeout(resolve, MATCH_RETRY_DELAY_MS));
         }
-      } catch (err) { fail(err); }
+      }
+      if (current()) fail(lastError);
     };
     try {
-      const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/chat');
+      const ws = new WebSocket(
+        (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/chat',
+      );
       wsRef.current = ws;
-      const connectionTimeout = setTimeout(() => { if (current() && ws.readyState !== WebSocket.OPEN) void fallback(); }, MATCH_SOCKET_TIMEOUT_MS);
+      const connectionTimeout = setTimeout(() => {
+        if (current() && ws.readyState !== WebSocket.OPEN) void fallback();
+      }, MATCH_SOCKET_TIMEOUT_MS);
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
-        if (!current()) { closeSocket(); return; }
-        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: interestsToMatch, allowNormal: allowNormalRef.current }));
-        // Poll the same state as the socket; this also keeps the queue lease alive.
-        void poll();
-        pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+        if (!current()) {
+          closeSocket();
+          return;
+        }
+        pollFailures = 0;
+        startHeartbeat(ws);
+        ws.send(
+          JSON.stringify({
+            type: 'join_queue',
+            interests: interestsToMatch,
+            allowNormal: allowNormalRef.current,
+          }),
+        );
+        // Wait for the server's queued acknowledgement before polling. A GET
+        // can otherwise overtake join_queue on a separate connection (Safari).
       };
-      ws.onmessage = event => {
+      ws.onmessage = (event) => {
         if (!current()) return;
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'matched') handleMatchSuccess(data);
-          else if (data.type === 'queued') setCanProceedNormally(data.interestMatchUnavailable === true && !allowNormalRef.current);
-          else if (data.type === 'error') fail(new Error(data.error));
-        } catch { fail(new Error('Invalid matchmaking response.')); }
+          else if (data.type === 'queued') {
+            setCanProceedNormally(
+              data.interestMatchUnavailable === true && !allowNormalRef.current,
+            );
+            if (!pollIntervalRef.current) {
+              void poll();
+              pollIntervalRef.current = setInterval(poll, MATCH_POLL_INTERVAL_MS);
+            }
+          } else if (data.type === 'error') fail(new Error(data.error));
+        } catch {
+          fail(new Error('Invalid matchmaking response.'));
+        }
       };
-      ws.onerror = () => { clearTimeout(connectionTimeout); clearPolling(); void fallback(); };
-      ws.onclose = event => {
-        clearTimeout(connectionTimeout); clearPolling();
+      ws.onerror = () => {
+        clearTimeout(connectionTimeout);
+        clearPolling();
+        void fallback();
+      };
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        clearPolling();
         if (event.code === 1008) fail(new Error('Your session expired. Sign out and try again.'));
         else void fallback();
       };
-    } catch { void fallback(); }
+    } catch {
+      void fallback();
+    }
   };
   const proceedWithNormalMatching = async () => {
     if (!searchingRef.current || allowNormalRef.current) return;
@@ -175,13 +302,23 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     try {
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'join_queue', token: session.token, interests: matchingInterestsRef.current, allowNormal: true }));
+        ws.send(
+          JSON.stringify({
+            type: 'join_queue',
+            interests: matchingInterestsRef.current,
+            allowNormal: true,
+          }),
+        );
         return;
       }
-      const data = await apiRequest('/api/match/join', session.token, { interests: matchingInterestsRef.current, allowNormal: true });
+      const data = await apiRequest(
+        '/api/match/join',
+        { interests: matchingInterestsRef.current, allowNormal: true },
+        AbortSignal.timeout(MATCH_JOIN_TIMEOUT_MS),
+      );
       if (data.status === 'matched') handleMatchSuccess(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to continue matching. Please try again.');
+      setError(toErrorMessage(err));
       allowNormalRef.current = false;
       setCanProceedNormally(true);
     }
@@ -191,19 +328,35 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     searchingRef.current = false;
     clearPolling();
     closeSocket();
-    try { await apiRequest('/api/match/cancel', session.token, {}); }
-    catch (err) { setError((err as Error).message); }
+    try {
+      await apiRequest('/api/match/cancel', {});
+    } catch (err) {
+      setError((err as Error).message);
+    }
     setIsSearching(false);
   };
   const pairWithSimulatedPeer = async () => {
     await cancelMatchmaking();
     isMatchedRef.current = true;
     const randomPeer = SIMULATED_PEERS[Math.floor(Math.random() * SIMULATED_PEERS.length)];
+    if (!randomPeer) {
+      setError('The chatbot is temporarily unavailable. Please try again.');
+      return;
+    }
     const primaryTopic = matchingInterestsRef.current[0] || 'General Peer Discovery';
-    onMatched({
-      ...randomPeer, sessionId: 'sim_' + Date.now(), topic: primaryTopic,
-      matchedAt: Date.now(), isSimulated: true,
-    }, primaryTopic, undefined, 'sim_room_' + Date.now());
+    onMatched(
+      {
+        ...randomPeer,
+        sessionId: 'sim_' + Date.now(),
+        topic: primaryTopic,
+        matchedAt: Date.now(),
+        mediaUnlockAt: Date.now() + 90_000,
+        isSimulated: true,
+      },
+      primaryTopic,
+      undefined,
+      'sim_room_' + Date.now(),
+    );
   };
   useEffect(() => {
     if (!autoSearch) return;
@@ -215,7 +368,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
     event.preventDefault();
     if (!nameInput.trim() || isSearching) return;
     try {
-      const data = await apiRequest('/api/auth/handle', session.token, { name: nameInput });
+      const data = await apiRequest('/api/auth/handle', { name: nameInput });
       onSessionUpdate(data.session);
       setIsEditingName(false);
       setError('');
@@ -226,74 +379,100 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
   return (
     <div
-      className="ambient-grid chat-theme-scope flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
-      style={{
-        backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
-        '--chat-accent': chatTheme.accent,
-        '--chat-accent-hover': chatTheme.accentHover,
-      } as React.CSSProperties}
+      className="matching-menu ambient-grid chat-theme-scope flex-1 min-h-0 w-full h-full flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto select-none"
+      style={
+        {
+          backgroundColor: isDarkMode ? chatTheme.darkBackground : chatTheme.lightBackground,
+          '--chat-accent': chatTheme.accent,
+          '--chat-accent-hover': chatTheme.accentHover,
+        } as React.CSSProperties
+      }
     >
       <div className="w-full max-w-2xl space-y-4 my-auto">
-        {/* User Identity Profile Card (Sharp corners, clean styling, no emojis/icons) */}
+        {/* Identity and name controls stay together at every screen size. */}
         <div
-          className={`ui-surface rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-            isDarkMode
-              ? 'text-stone-100'
-              : 'text-stone-800'
+          className={`matching-identity ui-surface rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+            isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
           <div className="flex items-center space-x-3.5 min-w-0">
             <div className="min-w-0">
               {!isEditingName ? (
                 <div className="flex flex-wrap items-center gap-2">
-                 <span className="max-w-full break-words text-base font-bold tracking-tight text-stone-900 dark:text-white">
+                  <span className="min-h-10 max-w-full break-words rounded-lg py-2 text-left text-base font-bold tracking-tight text-stone-900 dark:text-white">
                     {session.sessionHandle}
                   </span>
-                  {!session.customHandle && <button
-                    onClick={onRerollHandle}
-                    disabled={isSearching}
-                    title="Shuffle default name"
-                    className="chat-theme-accent-soft rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
-                  >
-                    <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
-                  </button>}
                   <button
                     type="button"
-                    onClick={() => { setNameInput(session.customHandle ? session.sessionHandle : ''); setIsEditingName(true); }}
+                    onClick={() => {
+                      setNameInput(session.customHandle ? session.sessionHandle : '');
+                      setIsEditingName(true);
+                    }}
                     disabled={isSearching}
-                    className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                    title="Edit anonymous name"
+                    aria-label="Edit anonymous name"
+                    className="matching-name-action inline-flex items-center justify-center rounded-lg border bg-stone-50/80 p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800/80"
                   >
-                    {session.customHandle ? 'Edit name' : 'Use a custom name'}
+                    <Pencil className="h-3.5 w-3.5 text-stone-600 dark:text-stone-300" />
                   </button>
-                  {session.customHandle && <button
-                    type="button"
-                    onClick={onRerollHandle}
-                    disabled={isSearching}
-                    className="chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
-                  >
-                    Use random name
-                  </button>}
+                  {!session.customHandle && (
+                    <button
+                      type="button"
+                      onClick={onRerollHandle}
+                      disabled={isSearching}
+                      title="Shuffle default name"
+                      className="matching-name-action chat-theme-accent-soft inline-flex items-center justify-center rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
+                    >
+                      <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {session.customHandle && (
+                    <button
+                      type="button"
+                      onClick={onRerollHandle}
+                      disabled={isSearching}
+                      className="matching-name-action chat-theme-accent-soft rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                    >
+                      Use default name
+                    </button>
+                  )}
                 </div>
               ) : (
-                <form onSubmit={saveName} className="flex items-center gap-2">
+                <form
+                  onSubmit={saveName}
+                  className="matching-name-form flex flex-wrap items-center gap-2"
+                >
                   <input
                     autoFocus
+                    minLength={2}
                     maxLength={40}
                     aria-label="Custom name"
+                    required
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
                     placeholder="Enter a name"
                     className="w-44 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-white"
                   />
-                  <button type="submit" className="chat-theme-accent-button rounded-md px-2.5 py-1 text-[10px] font-semibold text-white">Save</button>
-                  <button type="button" onClick={() => setIsEditingName(false)} className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] text-stone-500 dark:border-stone-700">Cancel</button>
+                  <button
+                    type="submit"
+                    className="chat-theme-accent-button rounded-md px-2.5 py-1 text-[10px] font-semibold text-white"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingName(false)}
+                    className="rounded-md border border-stone-300 px-2.5 py-1 text-[10px] text-stone-500 dark:border-stone-700"
+                  >
+                    Cancel
+                  </button>
                 </form>
               )}
             </div>
           </div>
 
           <div className="text-left sm:text-right shrink-0 text-xs border-t sm:border-t-0 pt-3 sm:pt-0 w-full sm:w-auto border-stone-200 dark:border-stone-800">
-            <span className="text-[10px] text-stone-400 block uppercase tracking-wider font-semibold">
+            <span className="text-[10px] text-stone-500 dark:text-stone-400 block uppercase tracking-wider font-semibold">
               Private session
             </span>
             <span className="font-medium text-stone-700 dark:text-stone-300">
@@ -304,22 +483,27 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
 
         {/* Main chat intent selection card */}
         <div
-          className={`ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
-            isDarkMode
-              ? 'text-stone-100'
-              : 'text-stone-800'
+          className={`matching-preferences ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
+            isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
           <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
-           <h2 className="text-xl font-bold tracking-tight text-stone-900 dark:text-white">What kind of chat do you want?</h2>
-           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-             We’ll prioritize someone looking for the same kind of conversation.
-           </p>
+            <h2 className="text-xl font-bold leading-snug tracking-tight text-stone-900 dark:text-white">
+              What kind of chat do you want? (optional)
+            </h2>
+            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
+              Pick one to match with similar peers, or skip to meet anyone.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Chat preference">
-            {CHAT_INTENTS.map(intent => {
+          <div
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            role="radiogroup"
+            aria-label="Chat preference"
+          >
+            {CHAT_INTENTS.map((intent) => {
               const selected = selectedIntent === intent.label;
+              const Icon = intent.icon;
               return (
                 <button
                   key={intent.label}
@@ -327,21 +511,38 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   role="radio"
                   aria-checked={selected}
                   disabled={isSearching}
-                  onClick={() => setSelectedIntent(intent.label)}
-                  className={`rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                  onClick={() => setSelectedIntent(selected ? null : intent.label)}
+                  className={`matching-intent rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? 'chat-theme-accent-soft border-current'
                       : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
-                  } ${intent.label === 'Surprise me' ? 'sm:col-span-2' : ''}`}
+                  }`}
                 >
-                  <span className="block text-sm font-bold">{intent.label}</span>
-                  <span className="mt-0.5 block text-xs font-normal opacity-70">{intent.description}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="matching-intent-indicator" aria-hidden="true" />
+                    <span
+                      className="matching-intent-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      aria-hidden="true"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">{intent.label}</span>
+                      <span className="matching-intent-description mt-1 block text-xs font-normal leading-relaxed">
+                        {intent.description}
+                      </span>
+                    </span>
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
           {/* Action Button Area */}
           <div className="border-t border-stone-200 dark:border-stone-800 pt-5 text-center space-y-3">
             {!isSearching ? (
@@ -355,7 +556,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                   <span>Find my peers</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-                <div className="text-[11px] text-stone-400 flex items-center justify-center space-x-1.5">
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center justify-center space-x-1.5">
                   <Shield className="chat-theme-accent-text w-3.5 h-3.5" />
                   <span>Private rooms • Messages cleared when the chat ends</span>
                 </div>
@@ -363,7 +564,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             ) : (
               <div className="rounded-xl p-5 border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 space-y-3">
                 <div className="flex items-center justify-center space-x-2">
-                  <Loader2 className="chat-theme-accent-text w-4 h-4 animate-spin" />
+                  <Loader2 className="chat-theme-accent-text w-4 h-4 animate-spin motion-reduce:animate-none" />
                   <span className="font-semibold text-xs text-stone-800 dark:text-stone-200">
                     Finding active study peers... ({queueTime}s)
                   </span>
@@ -413,6 +614,10 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
             )}
           </div>
         </div>
+
+        <p className="text-center text-xs text-stone-500 dark:text-stone-400">
+          Match with a peer to chat, share music, or invite them to UNO and Tic Tac Toe.
+        </p>
       </div>
     </div>
   );

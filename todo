@@ -1,0 +1,539 @@
+TASK: Repair and complete the CourseMates peer-to-peer game system.
+
+PRIMARY GOAL:
+Make all seven games fully playable between two users while preserving the existing working UNO and Tic-Tac-Toe implementations.
+
+IMPORTANT:
+UNO and Tic-Tac-Toe are already working and have passed two-browser testing with WebSocket synchronization and REST fallback/recovery. Do not unnecessarily rewrite or destabilize them.
+
+CURRENT STATUS:
+
+UNO:
+Working.
+
+Tic-Tac-Toe:
+Working.
+
+Connect Four:
+Partially working.
+
+Rock Paper Scissors:
+Partially working and blocked after round one.
+
+Chess:
+Not functional.
+The first move currently crashes.
+The chess board also displays incomplete or missing chess pieces.
+
+Trivia:
+Not functional beyond question one.
+
+Would You Rather:
+Partially working but leaks private choices.
+
+--------------------------------------------------
+1. CHESS — CRITICAL PRIORITY
+--------------------------------------------------
+
+Current problems:
+
+- The game fails on the first move.
+- chess.ts incorrectly parses chess.js formatted ASCII output as if it contains eight plain board rows.
+- This produces invalid board data and causes a TypeError.
+- The chess board currently has incomplete or missing chess pieces.
+- Some pieces may not be properly represented, mapped, rendered, or loaded.
+- PeerChess.tsx clears the selected pawn before the promotion handler uses it.
+- Pawn promotion therefore cannot finish correctly.
+
+Required fix:
+
+Replace the current ASCII-based board conversion logic.
+
+Use a reliable chess.js representation such as:
+
+chess.board()
+
+Convert the chess.js board structure into the exact structure expected by the CourseMates frontend.
+
+Verify that every square correctly supports:
+
+- King
+- Queen
+- Rook
+- Bishop
+- Knight
+- Pawn
+- Empty square
+
+Verify both colors:
+
+- White pieces
+- Black pieces
+
+The frontend must render the complete standard starting position:
+
+White:
+8 pawns
+2 rooks
+2 knights
+2 bishops
+1 queen
+1 king
+
+Black:
+8 pawns
+2 rooks
+2 knights
+2 bishops
+1 queen
+1 king
+
+Total starting pieces:
+32
+
+If chess pieces are currently represented using icons, Unicode characters, images, SVGs, CSS classes, or custom assets, inspect the entire mapping and rendering path.
+
+Make sure every chess.js piece type is correctly mapped:
+
+p = pawn
+r = rook
+n = knight
+b = bishop
+q = queen
+k = king
+
+Make sure piece color is also handled correctly:
+
+w = white
+b = black
+
+Do not allow unknown piece types to silently disappear.
+
+If a piece asset or component is missing, add or repair it.
+
+Do not use broken placeholders.
+
+The board must display all 32 pieces correctly when a game begins.
+
+Fix promotion in PeerChess.tsx.
+
+Do not clear selected pawn or move information until after the promotion choice has been processed.
+
+Chess must support:
+
+- Normal pawn movement
+- Double pawn opening move
+- Knight movement
+- Bishop movement
+- Rook movement
+- Queen movement
+- King movement
+- Captures
+- Illegal move rejection
+- Turn enforcement
+- Check
+- Checkmate
+- Stalemate
+- Draw
+- Castling
+- En passant
+- Promotion
+- Rematch
+
+Required Chess tests:
+
+1. Start a new Chess game.
+2. Confirm all 32 pieces are visible.
+3. Confirm every piece is in the correct starting square.
+4. Move a white pawn.
+5. Move a black pawn.
+6. Move a knight.
+7. Perform a capture.
+8. Attempt an illegal move and verify rejection.
+9. Test castling.
+10. Test en passant.
+11. Test promotion.
+12. Test check.
+13. Test checkmate.
+14. Test rematch.
+15. Refresh one client and verify board recovery.
+
+Chess must not be considered fixed unless both the game logic and all piece rendering work correctly in two separate browsers.
+
+--------------------------------------------------
+2. TRIVIA — COMPLETE QUESTION PROGRESSION
+--------------------------------------------------
+
+Current problems:
+
+- Question one works.
+- After both players answer, the game cannot proceed.
+- There is no proper next-question action.
+- Invalid answer indexes such as 99 are accepted.
+- The server does not properly enforce timer expiry.
+- The correct answer index is exposed before reveal.
+- Player answers may be exposed too early.
+
+Required flow:
+
+Question displayed
+→ Player A answers
+→ Player B answers
+→ Lock answers
+→ Reveal answers
+→ Reveal correct answer
+→ Update scores
+→ Show result
+→ Next question
+→ Repeat
+→ Final results
+→ Rematch
+
+Required fixes:
+
+- Add proper next-question progression.
+- Add a Next Question action or automatic progression.
+- Prevent duplicate answers.
+- Validate answer index.
+- Reject out-of-range indexes.
+- Reject answers after timer expiration.
+- Enforce timers server-side.
+- Prevent stale answers.
+- Prevent manually skipping questions.
+- Keep answers private before reveal.
+- Keep correct answer private before reveal.
+- Server must control score and progression.
+
+--------------------------------------------------
+3. ROCK PAPER SCISSORS — COMPLETE BEST OF THREE
+--------------------------------------------------
+
+Current problem:
+
+The first round resolves correctly, but the match becomes stuck afterwards.
+
+Required match flow:
+
+Player A chooses
+→ Player B chooses
+→ Keep both choices private
+→ Reveal simultaneously
+→ Determine round winner
+→ Update score
+→ Show round result
+→ Next round
+→ Repeat until one player reaches 2 wins
+→ Final result
+→ Rematch
+
+Required fixes:
+
+- Implement complete best-of-three progression.
+- Add Next Round or automatic continuation.
+- Draw rounds must not award points.
+- First player to two round wins wins the match.
+- Do not send opponent choice before reveal.
+- Server must determine winner.
+- Server must track round and match score.
+
+--------------------------------------------------
+4. WOULD YOU RATHER — PRIVATE CHOICE FIX
+--------------------------------------------------
+
+Current problem:
+
+The frontend visually hides the opponent's selection, but the server still sends the private choice.
+
+This is not acceptable.
+
+Required fix:
+
+Before reveal:
+
+Player A may receive Player A's own choice.
+Player A must not receive Player B's choice.
+
+Player B may receive Player B's own choice.
+Player B must not receive Player A's choice.
+
+After both players answer:
+
+Both choices may be revealed.
+
+Also implement:
+
+- Multiple rounds
+- Next prompt
+- Proper round reset
+- Optional round counter
+- Rematch
+- State recovery after refresh
+
+--------------------------------------------------
+5. CONNECT FOUR — COMPLETE FRONTEND BEHAVIOR
+--------------------------------------------------
+
+Current status:
+
+Basic server win logic works.
+
+Required fixes:
+
+Disable column interaction when:
+
+- It is not the player's turn.
+- The game is over.
+- The column is full.
+- A move request is currently pending.
+
+Do not rely only on server rejection.
+
+Fix last-move state.
+
+The last placed piece should be recorded and highlighted.
+
+Add a subtle piece drop animation.
+
+Required tests:
+
+- Horizontal win
+- Vertical win
+- Diagonal win left-to-right
+- Diagonal win right-to-left
+- Draw
+- Full column rejection
+- Turn enforcement
+- Rematch
+- Refresh recovery
+
+--------------------------------------------------
+6. SHARED ACTIVE GAME SYSTEM
+--------------------------------------------------
+
+Current problem:
+
+Each game has independent state.
+
+This allows two users to start multiple different games in the same chat.
+
+Required behavior:
+
+Only one game can be active between the same two peers at the same time.
+
+Create or use a shared active game session.
+
+Suggested state:
+
+activeGame:
+type
+gameId
+status
+
+Possible type values:
+
+uno
+tictactoe
+connect-four
+rps
+chess
+trivia
+would-you-rather
+
+Possible status values:
+
+invited
+active
+minimized
+completed
+
+When one game is active:
+
+- Prevent another game from starting.
+- Disable other game buttons or show a message.
+- Enforce this on the server.
+- Do not rely only on frontend checks.
+
+--------------------------------------------------
+7. GENERIC ACTIVE GAME INDICATOR
+--------------------------------------------------
+
+Current problem:
+
+Minimizing a game returns to chat, but there is no consistent way to reopen the active game.
+
+The existing active-game indicator is UNO-specific.
+
+Required fix:
+
+Create one generic active-game indicator for all games.
+
+Examples:
+
+Chess • Your turn • Resume
+
+RPS • Round 2 • Resume
+
+Trivia • Question 4 • Resume
+
+The indicator should:
+
+- Stay visible while game is active.
+- Stay visible while game is minimized.
+- Show game type.
+- Show useful status.
+- Reopen game when clicked.
+- Disappear after game completion or abandonment.
+
+--------------------------------------------------
+8. REDUCE POLLING
+--------------------------------------------------
+
+Current problem:
+
+New games poll approximately every 1.5 seconds even when inactive.
+
+Required approach:
+
+Prefer existing WebSocket system for game updates.
+
+Use REST for:
+
+- Reconnect recovery
+- Fallback
+- State restoration
+
+If polling remains:
+
+- Poll only active game.
+- Poll only pending invitation when needed.
+- Stop polling when game ends.
+- Stop polling when game is dismissed.
+- Do not allow all game components to poll continuously.
+
+--------------------------------------------------
+9. SERVER MUST BE AUTHORITATIVE
+--------------------------------------------------
+
+For every game, the server must validate:
+
+- Player identity
+- Player membership
+- Turn ownership
+- Legal action
+- Current game state
+- Current round
+- Current question
+- Timer expiration
+- Game completion
+- Score
+- Win
+- Loss
+- Draw
+- Reveal timing
+
+Do not trust frontend-provided results.
+
+--------------------------------------------------
+10. PRIVATE STATE MUST NOT LEAK
+--------------------------------------------------
+
+Audit all REST responses and WebSocket payloads.
+
+Before reveal, never send private opponent information.
+
+Examples:
+
+RPS choice
+Would You Rather choice
+Trivia answer
+Trivia correct-answer index
+
+Use player-specific serialization where appropriate.
+
+Example concept:
+
+serializeGameState(game, requestingPlayerId)
+
+The server response should contain only data that the requesting player is currently allowed to know.
+
+--------------------------------------------------
+11. DO NOT BREAK EXISTING FEATURES
+--------------------------------------------------
+
+Preserve:
+
+- UNO
+- Tic-Tac-Toe
+- Peer chat
+- Invitations
+- Game modal behavior
+- WebSocket updates
+- REST recovery
+- Authentication
+- Sessions
+- Mobile responsiveness
+- Existing rematch behavior
+
+Refactor shared infrastructure only when necessary.
+
+--------------------------------------------------
+12. REQUIRED TWO-BROWSER TESTING
+--------------------------------------------------
+
+Use two independent browser sessions.
+
+For every game verify:
+
+Player A invites Player B.
+Player B accepts.
+Both enter same game.
+Turns synchronize.
+Actions synchronize.
+Invalid moves are rejected.
+Private information stays private.
+Game result matches on both clients.
+Rematch works.
+Refresh recovery works.
+Leaving the game cleans up correctly.
+Another game cannot start while one is active.
+
+Also test REST fallback by temporarily interrupting WebSocket connectivity.
+
+--------------------------------------------------
+DEFINITION OF DONE
+--------------------------------------------------
+
+A game is NOT considered complete because server state alone works.
+
+A game is complete only when the full two-browser flow works from:
+
+Invitation
+→ Acceptance
+→ Gameplay
+→ Synchronization
+→ Result
+→ Recovery
+→ Rematch
+
+Final required status:
+
+UNO — Fully working
+Tic-Tac-Toe — Fully working
+Connect Four — Fully working
+Rock Paper Scissors — Fully working
+Chess — Fully working with all 32 chess pieces rendered correctly
+Trivia — Fully working
+Would You Rather — Fully working
+
+Prioritize:
+
+1. Functional correctness
+2. Chess piece completeness
+3. Multiplayer synchronization
+4. Server authority
+5. Hidden-state privacy
+6. Recovery
+7. Reduced polling
+8. UI feedback
+
+Do not perform an unnecessary visual redesign. Preserve the existing CourseMates style and only modify the UI where required for gameplay clarity and reliability.

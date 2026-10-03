@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test('three successful starters exhaust the bar without limiting normal messages or message actions', async ({ browser }) => {
+test('three successful starters exhaust the bar without limiting normal messages or message actions', async ({
+  browser,
+}) => {
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
-  const [a, b] = await Promise.all(contexts.map(context => context.newPage()));
+  const [a, b] = await Promise.all([contexts[0].newPage(), contexts[1].newPage()]);
   try {
     for (const page of [a, b]) {
       await page.goto('/');
@@ -19,7 +21,9 @@ test('three successful starters exhaust the bar without limiting normal messages
     await suggestions.first().click();
     await expect(bar).toContainText('3 left');
     // A delivery failure preserves both the selected draft and its allowance.
-    await a.route('**/api/chat/send', route => route.fulfill({ status: 503, json: { error: 'Test delivery failure' } }));
+    await a.route('**/api/chat/send', (route) =>
+      route.fulfill({ status: 503, json: { error: 'Test delivery failure' } }),
+    );
     await a.getByRole('button', { name: 'Send message', exact: true }).click();
     await expect(a.getByRole('alert')).toHaveText('Test delivery failure');
     await expect(bar).toContainText('3 left');
@@ -53,6 +57,6 @@ test('three successful starters exhaust the bar without limiting normal messages
     await expect(bar).toContainText('3 left');
     await expect(suggestions).toHaveCount(3);
   } finally {
-    await Promise.all(contexts.map(context => context.close()));
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });

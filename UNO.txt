@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>UNO! Master Table - 1v1 & Multiplayer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;0,900;1,800&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      font-family: 'Poppins', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Casino felt board gradient & glow */
+    .felt-bg {
+      background: radial-gradient(circle at 50% 50%, #1e4a38 0%, #0d281e 65%, #05140e 100%);
+    }
+
+    /* Card styling */
+    .uno-card {
+      position: relative;
+      width: 72px;
+      height: 108px;
+      border-radius: 10px;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35), inset 0 0 0 3px #ffffff;
+      transform-style: preserve-3d;
+      flex-shrink: 0;
+    }
+
+    @media (min-width: 768px) {
+      .uno-card {
+        width: 86px;
+        height: 128px;
+        border-radius: 12px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45), inset 0 0 0 4px #ffffff;
+      }
+    }
+
+    .uno-card.playable {
+      cursor: pointer;
+    }
+    .uno-card.playable:hover {
+      transform: translateY(-16px) scale(1.08) !important;
+      box-shadow: 0 12px 24px rgba(255, 230, 0, 0.65), 0 0 15px rgba(255, 255, 255, 0.8), inset 0 0 0 3px #fff !important;
+      z-index: 40 !important;
+    }
+
+    /* UNO standard colors */
+    .c-red    { background: linear-gradient(145deg, #ff334b, #d90429); }
+    .c-blue   { background: linear-gradient(145deg, #0096ff, #0056b3); }
+    .c-green  { background: linear-gradient(145deg, #2ecc71, #1b8a47); }
+    .c-yellow { background: linear-gradient(145deg, #f1c40f, #d4ac0d); }
+    .c-black  { background: linear-gradient(145deg, #2c3e50, #111417); }
+
+    /* Card oval & inner geometry */
+    .card-oval {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-25deg);
+      width: 78%;
+      height: 82%;
+      border-radius: 50%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.25);
+    }
+    .c-black .card-oval {
+      background: radial-gradient(circle, #2b2b2b, #111);
+    }
+
+    .corner-tag {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      color: white;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    .c-yellow .corner-tag {
+      color: #333;
+      text-shadow: none;
+    }
+    .c-black .corner-tag {
+      color: #fff;
+    }
+    .corner-tl { top: 4px; left: 5px; }
+    .corner-br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+
+    /* Card Back Design */
+    .card-back {
+      background: linear-gradient(135deg, #1f242d 0%, #0b0c10 100%);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 0 3px #ffffff;
+      border-radius: 10px;
+    }
+    .card-back-oval {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-28deg);
+      width: 76%;
+      height: 60%;
+      background: #e63946;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.4);
+    }
+
+    /* Direction Indicator Animation */
+    @keyframes spinClockwise {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes spinCounterClockwise {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+    .dir-cw { animation: spinClockwise 12s linear infinite; }
+    .dir-ccw { animation: spinCounterClockwise 12s linear infinite; }
+
+    /* Custom Pulse & Glow */
+    .pulse-glow {
+      animation: pulseGlow 1.8s infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4), inset 0 0 10px rgba(239,68,68,0.2); }
+      50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.9), inset 0 0 15px rgba(239,68,68,0.5); }
+    }
+    
+    /* Scrollbar */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col felt-bg select-none">
+
+  <header class="w-full px-4 py-2 flex items-center justify-between z-30 bg-black/40 backdrop-blur-md border-b border-emerald-900/40">
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center justify-center bg-red-600 px-3 py-1 rounded-lg font-black tracking-wider text-white text-lg shadow-md transform -skew-x-6 border-2 border-yellow-400">
+        UNO!
+      </div>
+      <span id="headerModeLabel" class="text-xs md:text-sm font-semibold text-emerald-300 uppercase tracking-widest hidden sm:inline">1 vs 1 Battle</span>
+    </div>
+
+    <!-- Live Game Status Banner -->
+    <div id="gameNotice" class="text-xs md:text-sm font-bold px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-500/30 text-emerald-300 max-w-[200px] md:max-w-md truncate text-center transition-all">
+      Welcome to UNO! Start a match.
+    </div>
+
+    <!-- Actions & Config Controls -->
+    <div class="flex items-center space-x-2">
+      <button id="btnSound" class="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm">
+        <i class="fa-solid fa-volume-high" id="soundIcon"></i>
+      </button>
+      <button id="btnRuleHelp" class="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm" title="Rules">
+        <i class="fa-solid fa-question"></i>
+      </button>
+      <button id="btnNewGame" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs md:text-sm flex items-center space-x-1 shadow">
+        <i class="fa-solid fa-rotate-right mr-1"></i> Mode
+      </button>
+    </div>
+  </header>
+
+  <main class="relative flex-1 w-full h-full flex flex-col justify-between items-center p-2 md:p-4 overflow-hidden">
+    
+    <!-- Direction of Play Radial Ring Background -->
+    <div id="directionIndicator" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 md:w-96 md:h-96 rounded-full border-2 border-dashed border-emerald-500/25 pointer-events-none flex items-center justify-center dir-cw transition-all duration-700">
+      <div class="absolute -top-3 left-1/2 -translate-x-1/2 text-emerald-400 text-lg">▲</div>
+      <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 text-emerald-400 text-lg">▼</div>
+      <div class="absolute -left-3 top-1/2 -translate-y-1/2 text-emerald-400 text-lg">◀</div>
+      <div class="absolute -right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-lg">▶</div>
+    </div>
+
+    <!-- TOP OPPONENT (Player 2 or Bot North) -->
+    <div id="topOpponentSlot" class="w-full flex flex-col items-center z-10">
+      <div id="pTopBox" class="flex flex-col items-center bg-slate-900/60 backdrop-blur px-4 py-1.5 rounded-xl border border-white/10 shadow-lg transition-all duration-300">
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-500 p-indicator"></span>
+          <span class="p-name font-bold text-xs md:text-sm text-slate-200">Bot 1</span>
+          <span class="bg-red-900/60 text-red-300 font-black text-xs px-2 py-0.5 rounded-full p-count border border-red-500/30">7 cards</span>
+          <span class="uno-badge hidden px-1.5 py-0.2 bg-red-600 text-yellow-300 text-[10px] font-black rounded uppercase animate-bounce">UNO!</span>
+        </div>
+        <!-- Card fans -->
+        <div class="cards-visual flex items-center justify-center -space-x-4 md:-space-x-5 mt-1.5 h-12 md:h-14 overflow-hidden">
+          <!-- Dynamically populated card backs -->
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE ROW: Left Opponent + Play Center (Piles) + Right Opponent -->
+    <div class="w-full flex-1 flex items-center justify-between px-2 md:px-8 z-10">
+      
+      <!-- LEFT OPPONENT (Active only in 4-5 players) -->
+      <div id="leftOpponentSlot" class="w-24 md:w-32 flex flex-col items-start hidden">
+        <div id="pLeftBox" class="flex flex-col items-center bg-slate-900/60 backdrop-blur p-2 rounded-xl border border-white/10 shadow-lg w-full">
+          <div class="flex items-center space-x-1 mb-1">
+            <span class="w-2 h-2 rounded-full bg-slate-500 p-indicator"></span>
+            <span class="p-name font-bold text-[11px] md:text-xs truncate max-w-[65px]">Bot 3</span>
+          </div>
+          <span class="bg-red-900/60 text-red-300 font-bold text-[10px] px-1.5 py-0.5 rounded p-count">7</span>
+          <span class="uno-badge hidden mt-1 px-1 bg-red-600 text-yellow-300 text-[9px] font-black rounded animate-bounce">UNO!</span>
+          <div class="cards-visual flex flex-col -space-y-7 mt-2 items-center"></div>
+        </div>
+      </div>
+
+      <!-- CENTER ARENA: Draw Deck & Discard Pile -->
+      <div class="flex-1 flex flex-col items-center justify-center space-y-3">
+        <!-- Current active color indicator banner -->
+        <div class="flex items-center space-x-2 bg-slate-900/70 backdrop-blur-sm px-4 py-1 rounded-full border border-white/10">
+          <span class="text-xs uppercase tracking-wider text-slate-300">Active Color:</span>
+          <div id="activeColorPill" class="w-4 h-4 rounded-full bg-red-500 shadow-md transition-all duration-300 scale-110"></div>
+          <span id="activeColorName" class="text-xs font-black uppercase text-red-400">RED</span>
+        </div>
+
+        <div class="flex items-center justify-center space-x-6 md:space-x-10">
+          
+          <!-- DRAW PILE -->
+          <div class="flex flex-col items-center">
+            <button id="drawDeckBtn" class="relative group cursor-pointer focus:outline-none transition active:scale-95" title="Click to draw card">
+              <!-- Stack visual effect -->
+              <div class="absolute -top-1 -left-1 w-[72px] md:w-[86px] h-[108px] md:h-[128px] rounded-xl bg-slate-700 -rotate-3 card-back"></div>
+              <div class="absolute -top-0.5 -right-0.5 w-[72px] md:w-[86px] h-[108px] md:h-[128px] rounded-xl bg-slate-800 rotate-2 card-back"></div>
+              <div class="uno-card card-back relative flex flex-col items-center justify-center border-2 border-white/40 group-hover:border-yellow-400 group-hover:scale-105 transition shadow-2xl">
+                <div class="card-back-oval flex items-center justify-center shadow-inner">
+                  <span class="text-yellow-300 font-black italic text-lg md:text-xl tracking-tighter drop-shadow">UNO</span>
+                </div>
+                <div class="absolute bottom-2 text-[10px] font-bold text-slate-300 uppercase tracking-widest">Draw</div>
+              </div>
+            </button>
+            <span id="deckCountLabel" class="mt-1 text-[11px] font-bold text-emerald-300/80">Deck: 108</span>
+          </div>
+
+          <!-- DISCARD PILE -->
+          <div class="flex flex-col items-center">
+            <div id="discardPileArea" class="relative flex items-center justify-center">
+              <!-- Top card rendered dynamically -->
+            </div>
+            <span class="mt-1 text-[11px] font-bold text-slate-400">Discard Pile</span>
+          </div>
+
+        </div>
+
+        <!-- Pass Turn Button (Shown if player drew and cannot/does not want to play) -->
+        <div id="passTurnContainer" class="h-8 flex items-center justify-center">
+          <button id="passTurnBtn" class="hidden px-4 py-1 rounded-full bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider shadow-lg transition animate-pulse">
+            Pass Turn <i class="fa-solid fa-forward ml-1"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT OPPONENT (Active in 3+ players) -->
+      <div id="rightOpponentSlot" class="w-24 md:w-32 flex flex-col items-end hidden">
+        <div id="pRightBox" class="flex flex-col items-center bg-slate-900/60 backdrop-blur p-2 rounded-xl border border-white/10 shadow-lg w-full">
+          <div class="flex items-center space-x-1 mb-1">
+            <span class="w-2 h-2 rounded-full bg-slate-500 p-indicator"></span>
+            <span class="p-name font-bold text-[11px] md:text-xs truncate max-w-[65px]">Bot 2</span>
+          </div>
+          <span class="bg-red-900/60 text-red-300 font-bold text-[10px] px-1.5 py-0.5 rounded p-count">7</span>
+          <span class="uno-badge hidden mt-1 px-1 bg-red-600 text-yellow-300 text-[9px] font-black rounded animate-bounce">UNO!</span>
+          <div class="cards-visual flex flex-col -space-y-7 mt-2 items-center"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM: Player Hand and UNO Shout Button -->
+    <div class="w-full flex flex-col items-center z-20 pb-2">
+      
+      <!-- Player action bar / UNO shout button -->
+      <div class="w-full max-w-4xl flex items-center justify-between px-3 mb-1.5">
+        <div class="flex items-center space-x-2">
+          <div id="playerIndicatorBadge" class="flex items-center space-x-1.5 bg-slate-900/80 px-3 py-1 rounded-lg border border-emerald-500/40">
+            <span class="w-3 h-3 rounded-full bg-emerald-400 animate-ping" id="myTurnDot"></span>
+            <span class="text-xs font-bold text-slate-100">You (Player 1)</span>
+            <span id="playerHandCount" class="text-xs font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded ml-1">7 cards</span>
+          </div>
+        </div>
+
+        <!-- UNO Shout Button -->
+        <button id="unoBtn" class="relative px-6 py-2 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-yellow-300 font-black italic tracking-wider text-base md:text-lg shadow-xl border-2 border-yellow-400 transform active:scale-95 transition-all">
+          <span class="relative z-10 flex items-center gap-1.5">
+            <i class="fa-solid fa-bullhorn text-xs"></i> UNO!
+          </span>
+          <div id="unoPulse" class="absolute inset-0 rounded-full bg-red-500 opacity-0 transition-opacity"></div>
+        </button>
+      </div>
+
+      <!-- Scrollable Hand Container -->
+      <div class="w-full max-w-5xl overflow-x-auto no-scrollbar py-2 px-4 flex justify-center">
+        <div id="playerHand" class="flex items-center justify-start md:justify-center -space-x-5 md:-space-x-7 min-w-max px-6 transition-all duration-300">
+          <!-- Dynamically populated cards -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Wild Card Color Chooser -->
+  <div id="colorChooserModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+    <div class="bg-slate-900 border-2 border-white/20 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 text-center transform scale-95 transition-transform duration-300">
+      <h3 class="text-xl font-black text-white uppercase tracking-wider mb-2">Choose Wild Color</h3>
+      <p class="text-xs text-slate-400 mb-6">Select the color you want to force next players to match:</p>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <button data-color="red" class="color-pick-btn h-20 rounded-xl bg-gradient-to-br from-red-500 to-red-700 hover:scale-105 border-2 border-white/30 text-white font-black text-lg shadow-lg flex flex-col items-center justify-center transition">
+          <div class="w-6 h-6 rounded-full bg-white mb-1 shadow"></div>
+          RED
+        </button>
+        <button data-color="blue" class="color-pick-btn h-20 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 hover:scale-105 border-2 border-white/30 text-white font-black text-lg shadow-lg flex flex-col items-center justify-center transition">
+          <div class="w-6 h-6 rounded-full bg-white mb-1 shadow"></div>
+          BLUE
+        </button>
+        <button data-color="green" class="color-pick-btn h-20 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 hover:scale-105 border-2 border-white/30 text-white font-black text-lg shadow-lg flex flex-col items-center justify-center transition">
+          <div class="w-6 h-6 rounded-full bg-white mb-1 shadow"></div>
+          GREEN
+        </button>
+        <button data-color="yellow" class="color-pick-btn h-20 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 hover:scale-105 border-2 border-white/30 text-slate-950 font-black text-lg shadow-lg flex flex-col items-center justify-center transition">
+          <div class="w-6 h-6 rounded-full bg-slate-900 mb-1 shadow"></div>
+          YELLOW
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Mode Selector / Start Menu -->
+  <div id="modeSelectModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/30 p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+      <!-- Glow effect -->
+      <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-red-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="w-16 h-16 mx-auto mb-3 bg-red-600 rounded-2xl flex items-center justify-center border-2 border-yellow-400 shadow-xl transform -rotate-6">
+        <span class="text-white font-black italic text-2xl tracking-tighter">UNO</span>
+      </div>
+
+      <h2 class="text-2xl md:text-3xl font-black text-white tracking-wide uppercase mb-1">Select Players</h2>
+      <p class="text-xs md:text-sm text-slate-400 mb-6">Choose classic 1v1 duel or a multiplayer table session</p>
+
+      <div class="space-y-3">
+        <!-- 2 Players (1v1) -->
+        <button class="mode-select-btn w-full p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-950/70 border border-white/10 hover:border-emerald-500/60 flex items-center justify-between transition-all group" data-players="2">
+          <div class="flex items-center space-x-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-lg font-bold group-hover:scale-110 transition">
+              <i class="fa-solid fa-user-ninja"></i>
+            </div>
+            <div>
+              <div class="font-bold text-white text-base">1 vs 1 Duel</div>
+              <div class="text-xs text-slate-400">You vs smart AI Bot • Reverse acts as Skip</div>
+            </div>
+          </div>
+          <span class="text-xs font-black uppercase text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-800">2 Players</span>
+        </button>
+
+        <!-- 4 Players -->
+        <button class="mode-select-btn w-full p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-950/70 border border-white/10 hover:border-emerald-500/60 flex items-center justify-between transition-all group" data-players="4">
+          <div class="flex items-center space-x-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg font-bold group-hover:scale-110 transition">
+              <i class="fa-solid fa-users"></i>
+            </div>
+            <div>
+              <div class="font-bold text-white text-base">4 Players Table</div>
+              <div class="text-xs text-slate-400">Classic circle • Full reverse & skip dynamic</div>
+            </div>
+          </div>
+          <span class="text-xs font-black uppercase text-blue-400 bg-blue-950/80 px-2.5 py-1 rounded-lg border border-blue-800">4 Players</span>
+        </button>
+
+        <!-- 5 Players -->
+        <button class="mode-select-btn w-full p-4 rounded-2xl bg-slate-800/80 hover:bg-emerald-950/70 border border-white/10 hover:border-emerald-500/60 flex items-center justify-between transition-all group" data-players="5">
+          <div class="flex items-center space-x-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg font-bold group-hover:scale-110 transition">
+              <i class="fa-solid fa-users-rays"></i>
+            </div>
+            <div>
+              <div class="font-bold text-white text-base">5 Players Table</div>
+              <div class="text-xs text-slate-400">Chaotic 5-way battle with intense draw piles</div>
+            </div>
+          </div>
+          <span class="text-xs font-black uppercase text-amber-400 bg-amber-950/80 px-2.5 py-1 rounded-lg border border-amber-800">5 Players</span>
+        </button>
+      </div>
+
+      <div class="mt-6 text-[11px] text-slate-500">
+        Standard International UNO Rules apply • Draw 1 card on turn if no match
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Game Over Winner Screen -->
+  <div id="gameOverModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+    <div class="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-yellow-500/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center relative">
+      <div id="winTrophyIcon" class="text-5xl mb-3 text-yellow-400 animate-bounce">
+        🏆
+      </div>
+      <h2 id="winnerTitle" class="text-3xl font-black text-yellow-400 uppercase tracking-wider mb-2">VICTORY!</h2>
+      <p id="winnerDesc" class="text-sm text-slate-300 mb-6">Player 1 cleared all cards and won the match!</p>
+
+      <div class="space-y-3">
+        <button id="btnPlayAgain" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 font-black text-white text-base shadow-lg transition">
+          Play Again
+        </button>
+        <button id="btnChangeMode" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-slate-300 text-sm border border-white/10 transition">
+          Change Player Count
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: UNO Rules Reference -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto text-left relative">
+      <button id="btnCloseRules" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <h3 class="text-xl font-black text-white uppercase mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-book-open text-emerald-400"></i> Official Rules Guide
+      </h3>
+      <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+        <p><strong>Goal:</strong> Be the first player to get rid of all the cards in your hand.</p>
+        <p><strong>Matching Cards:</strong> You can play a card that matches the active discard card by <em>Color</em>, <em>Number</em>, or <em>Symbol</em>.</p>
+        <p><strong>Action Cards:</strong>
+          <ul class="list-disc pl-5 mt-1 space-y-1">
+            <li><strong>Skip:</strong> Next player loses their turn.</li>
+            <li><strong>Reverse:</strong> Switches play direction. In 1v1, this acts as a Skip!</li>
+            <li><strong>Draw Two (+2):</strong> Next player draws 2 cards and skips their turn.</li>
+            <li><strong>Wild:</strong> Can be played anytime. Choose the new color.</li>
+            <li><strong>Wild Draw Four (+4):</strong> Choose color; next player draws 4 cards and loses turn.</li>
+          </ul>
+        </p>
+        <p><strong>UNO Call:</strong> When you have only <strong>1 card left</strong>, click the UNO! button. If you forget before your turn ends, you might be penalized with 2 cards!</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Audio Synthesis using Web Audio API */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.15) {
+        if (!this.enabled) return;
+        this.init();
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {
+          console.warn("Audio play prevented", e);
+        }
+      }
+      playCard() {
+        this.playTone(420, 'triangle', 0.12, 0.2);
+        setTimeout(() => this.playTone(600, 'triangle', 0.15, 0.15), 50);
+      }
+      drawCard() {
+        this.playTone(280, 'sine', 0.1, 0.2);
+      }
+      unoShout() {
+        this.playTone(523, 'sawtooth', 0.12, 0.25);
+        setTimeout(() => this.playTone(659, 'sawtooth', 0.12, 0.25), 100);
+        setTimeout(() => this.playTone(783, 'sawtooth', 0.25, 0.3), 200);
+      }
+      penalty() {
+        this.playTone(180, 'square', 0.2, 0.2);
+        setTimeout(() => this.playTone(130, 'square', 0.3, 0.25), 150);
+      }
+      win() {
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+          setTimeout(() => this.playTone(freq, 'triangle', 0.3, 0.25), i * 140);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    const COLORS = ['red', 'blue', 'green', 'yellow'];
+    const VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', '+2'];
+
+    class UnoGame {
+      constructor() {
+        this.numPlayers = 2; // 2, 4, or 5
+        this.players = []; // Array of { id, name, isHuman, hand: [], calledUno: false }
+        this.deck = [];
+        this.discardPile = [];
+        this.currentPlayerIdx = 0;
+        this.direction = 1; // 1 = clockwise, -1 = counter-clockwise
+        this.activeColor = 'red';
+        this.isWaitingForColor = false;
+        this.pendingWildCard = null;
+        this.gameActive = false;
+        this.hasDrawnThisTurn = false;
+      }
+
+      buildDeck() {
+        const deck = [];
+        // Generate number and action cards for 4 colors
+        COLORS.forEach(color => {
+          // One 0 per color
+          deck.push({ id: Math.random(), color, value: '0' });
+          // Two of each 1-9 and action cards
+          for (let i = 0; i < 2; i++) {
+            for (let v = 1; v <= 9; v++) {
+              deck.push({ id: Math.random(), color, value: v.toString() });
+            }
+            deck.push({ id: Math.random(), color, value: 'skip' });
+            deck.push({ id: Math.random(), color, value: 'reverse' });
+            deck.push({ id: Math.random(), color, value: '+2' });
+          }
+        });
+
+        // 4 Wild and 4 Wild Draw Four
+        for (let i = 0; i < 4; i++) {
+          deck.push({ id: Math.random(), color: 'black', value: 'wild' });
+          deck.push({ id: Math.random(), color: 'black', value: 'wild+4' });
+        }
+
+        return this.shuffle(deck);
+      }
+
+      shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      startNewGame(playerCount = 2) {
+        this.numPlayers = playerCount;
+        this.deck = this.buildDeck();
+        this.discardPile = [];
+        this.direction = 1;
+        this.currentPlayerIdx = 0;
+        this.isWaitingForColor = false;
+        this.pendingWildCard = null;
+        this.hasDrawnThisTurn = false;
+        this.gameActive = true;
+
+        // Create player structures
+        this.players = [];
+        this.players.push({
+          id: 0,
+          name: 'You',
+          isHuman: true,
+          hand: [],
+          calledUno: false
+        });
+
+        for (let i = 1; i < this.numPlayers; i++) {
+          this.players.push({
+            id: i,
+            name: `Bot ${i}`,
+            isHuman: false,
+            hand: [],
+            calledUno: false
+          });
+        }
+
+        // Deal 7 cards to each
+        for (let r = 0; r < 7; r++) {
+          this.players.forEach(p => {
+            p.hand.push(this.drawCardFromDeck());
+          });
+        }
+
+        // First discard card cannot be wild+4 to keep start fair
+        let startCard = this.drawCardFromDeck();
+        while (startCard.value === 'wild+4') {
+          this.deck.unshift(startCard);
+          this.shuffle(this.deck);
+          startCard = this.drawCardFromDeck();
+        }
+
+        this.discardPile.push(startCard);
+        this.activeColor = startCard.color === 'black' ? COLORS[Math.floor(Math.random() * 4)] : startCard.color;
+
+        // If initial card is an action, apply initial effect gracefully
+        if (startCard.value === 'skip') {
+          this.currentPlayerIdx = this.getNextPlayerIndex();
+          displayNotice(`Initial card was Skip! Starting with ${this.players[this.currentPlayerIdx].name}.`);
+        } else if (startCard.value === 'reverse') {
+          this.direction *= -1;
+          displayNotice(`Initial card was Reverse! Play reversed.`);
+        } else if (startCard.value === '+2') {
+          const target = this.players[this.currentPlayerIdx];
+          target.hand.push(this.drawCardFromDeck(), this.drawCardFromDeck());
+          this.currentPlayerIdx = this.getNextPlayerIndex();
+          displayNotice(`Initial +2! ${target.name} drew 2 and was skipped.`);
+        } else {
+          displayNotice(`Game started! It's ${this.players[this.currentPlayerIdx].name}'s turn.`);
+        }
+
+        renderUI();
+
+        // If Bot starts
+        if (!this.players[this.currentPlayerIdx].isHuman) {
+          setTimeout(() => this.botTurn(), 1000);
+        }
+      }
+
+      drawCardFromDeck() {
+        if (this.deck.length === 0) {
+          // Recycle discard pile except top card
+          const top = this.discardPile.pop();
+          this.deck = this.shuffle([...this.discardPile]);
+          this.discardPile = [top];
+          displayNotice("Reshuffled discard pile into draw deck!");
+        }
+        return this.deck.pop();
+      }
+
+      getTopCard() {
+        return this.discardPile[this.discardPile.length - 1];
+      }
+
+      isValidMove(card) {
+        const top = this.getTopCard();
+        // Wilds can always be played
+        if (card.color === 'black') return true;
+        // Match active color (which could have been set by a previous wild)
+        if (card.color === this.activeColor) return true;
+        // Match face value / symbol
+        if (card.value === top.value) return true;
+        return false;
+      }
+
+      getNextPlayerIndex(step = 1) {
+        const total = this.players.length;
+        return (this.currentPlayerIdx + (this.direction * step) % total + total) % total;
+      }
+
+      playCard(playerIdx, cardIdx, chosenWildColor = null) {
+        if (!this.gameActive) return;
+        const player = this.players[playerIdx];
+        const card = player.hand[cardIdx];
+
+        if (!this.isValidMove(card)) {
+          displayNotice("That card doesn't match color or number!");
+          sound.penalty();
+          return;
+        }
+
+        // Remove card from hand
+        player.hand.splice(cardIdx, 1);
+        this.discardPile.push(card);
+        this.hasDrawnThisTurn = false;
+        sound.playCard();
+
+        // Check if player had to call UNO
+        if (player.hand.length === 1 && !player.calledUno) {
+          // Bot has automatic 85% chance to call UNO in time
+          if (!player.isHuman && Math.random() < 0.85) {
+            player.calledUno = true;
+            sound.unoShout();
+            displayNotice(`${player.name} called UNO!`);
+          } else if (player.isHuman) {
+            displayNotice(`⚠️ You have 1 card left! Remember to call UNO!`);
+          }
+        }
+
+        // Set active color
+        if (card.color === 'black') {
+          this.activeColor = chosenWildColor || 'red';
+        } else {
+          this.activeColor = card.color;
+        }
+
+        // Check for Win immediately
+        if (player.hand.length === 0) {
+          this.handleWin(player);
+          return;
+        }
+
+        // Apply Card Special Actions
+        let skipTurn = false;
+        let drawCount = 0;
+
+        if (card.value === 'skip') {
+          skipTurn = true;
+          displayNotice(`${player.name} played Skip! Next player skipped.`);
+        } else if (card.value === 'reverse') {
+          if (this.numPlayers === 2) {
+            // In 1v1 UNO, reverse functions identically to a Skip
+            skipTurn = true;
+            displayNotice(`1v1 Reverse acts as Skip! ${player.name} plays again.`);
+          } else {
+            this.direction *= -1;
+            displayNotice(`${player.name} reversed the order!`);
+          }
+        } else if (card.value === '+2') {
+          drawCount = 2;
+          skipTurn = true;
+          displayNotice(`${player.name} played +2! Next player draws 2 & skips.`);
+        } else if (card.value === 'wild+4') {
+          drawCount = 4;
+          skipTurn = true;
+          displayNotice(`${player.name} played Wild +4 on ${this.activeColor.toUpperCase()}!`);
+        } else {
+          displayNotice(`${player.name} played ${card.color.toUpperCase()} ${card.value.toUpperCase()}.`);
+        }
+
+        // Advance Turn
+        if (drawCount > 0) {
+          const victimIdx = this.getNextPlayerIndex();
+          const victim = this.players[victimIdx];
+          for (let i = 0; i < drawCount; i++) {
+            victim.hand.push(this.drawCardFromDeck());
+          }
+          // Victim also loses turn when drawing due to +2 / +4
+          this.currentPlayerIdx = this.getNextPlayerIndex(2);
+        } else if (skipTurn) {
+          this.currentPlayerIdx = this.getNextPlayerIndex(2);
+        } else {
+          this.currentPlayerIdx = this.getNextPlayerIndex(1);
+        }
+
+        // Reset calledUno flag if hand grew above 1
+        if (player.hand.length > 1) {
+          player.calledUno = false;
+        }
+
+        renderUI();
+
+        // Trigger AI if next
+        if (this.gameActive && !this.players[this.currentPlayerIdx].isHuman) {
+          setTimeout(() => this.botTurn(), 900);
+        }
+      }
+
+      humanDrawCard() {
+        if (!this.gameActive) return;
+        if (this.currentPlayerIdx !== 0) return;
+        if (this.hasDrawnThisTurn) {
+          displayNotice("You already drew a card. You can play it or pass turn.");
+          return;
+        }
+
+        const newCard = this.drawCardFromDeck();
+        this.players[0].hand.push(newCard);
+        this.hasDrawnThisTurn = true;
+        sound.drawCard();
+
+        if (this.isValidMove(newCard)) {
+          displayNotice(`You drew a playable ${newCard.color} ${newCard.value}! You may play it or Pass.`);
+        } else {
+          displayNotice("Drew a card. No valid play — click Pass Turn.");
+        }
+
+        renderUI();
+      }
+
+      humanPassTurn() {
+        if (!this.gameActive || this.currentPlayerIdx !== 0 || !this.hasDrawnThisTurn) return;
+        this.hasDrawnThisTurn = false;
+        displayNotice("You passed your turn.");
+        this.currentPlayerIdx = this.getNextPlayerIndex(1);
+        renderUI();
+
+        if (!this.players[this.currentPlayerIdx].isHuman) {
+          setTimeout(() => this.botTurn(), 800);
+        }
+      }
+
+      humanCallUno() {
+        if (!this.gameActive) return;
+        const player = this.players[0];
+        player.calledUno = true;
+        sound.unoShout();
+
+        // Visual bounce pulse
+        const pulse = document.getElementById('unoPulse');
+        pulse.classList.add('opacity-80', 'animate-ping');
+        setTimeout(() => pulse.classList.remove('opacity-80', 'animate-ping'), 600);
+
+        if (player.hand.length === 1) {
+          displayNotice("🎉 You successfully shouted UNO!");
+        } else {
+          displayNotice("You called UNO early!");
+        }
+        renderUI();
+      }
+
+      botTurn() {
+        if (!this.gameActive) return;
+        const bot = this.players[this.currentPlayerIdx];
+        if (bot.isHuman) return;
+
+        // Find valid plays
+        const validIndices = [];
+        bot.hand.forEach((card, idx) => {
+          if (this.isValidMove(card)) validIndices.push(idx);
+        });
+
+        if (validIndices.length > 0) {
+          // AI Heuristics:
+          // 1. Prefer +2 or Skip or Reverse if in advantage
+          // 2. Play matching colored numbers
+          // 3. Save Wild cards for last resorts unless no color match
+          let chosenCardIdx = validIndices[0];
+
+          // Priority sorting
+          const actionPlays = validIndices.filter(i => ['+2', 'skip', 'reverse'].includes(bot.hand[i].value));
+          const numberPlays = validIndices.filter(i => bot.hand[i].color !== 'black' && !isNaN(bot.hand[i].value));
+          const wildPlays = validIndices.filter(i => bot.hand[i].color === 'black');
+
+          if (actionPlays.length > 0) {
+            chosenCardIdx = actionPlays[Math.floor(Math.random() * actionPlays.length)];
+          } else if (numberPlays.length > 0) {
+            chosenCardIdx = numberPlays[Math.floor(Math.random() * numberPlays.length)];
+          } else if (wildPlays.length > 0) {
+            chosenCardIdx = wildPlays[0];
+          }
+
+          const chosenCard = bot.hand[chosenCardIdx];
+
+          // Pick best color for Bot if Wild
+          let chosenColor = null;
+          if (chosenCard.color === 'black') {
+            // Count colors bot possesses to pick majority
+            const colorCounts = { red: 0, blue: 0, green: 0, yellow: 0 };
+            bot.hand.forEach(c => {
+              if (c.color !== 'black') colorCounts[c.color]++;
+            });
+            chosenColor = Object.keys(colorCounts).reduce((a, b) => colorCounts[a] > colorCounts[b] ? a : b);
+          }
+
+          // Randomize human-like reaction delay
+          setTimeout(() => {
+            this.playCard(this.currentPlayerIdx, chosenCardIdx, chosenColor);
+          }, 350);
+
+        } else {
+          // Bot must draw
+          const drawn = this.drawCardFromDeck();
+          bot.hand.push(drawn);
+          sound.drawCard();
+          displayNotice(`${bot.name} had no match and drew a card.`);
+
+          // Can bot immediately play drawn card?
+          if (this.isValidMove(drawn)) {
+            setTimeout(() => {
+              const newCardIdx = bot.hand.length - 1;
+              let chosenColor = null;
+              if (drawn.color === 'black') {
+                chosenColor = COLORS[Math.floor(Math.random() * 4)];
+              }
+              this.playCard(this.currentPlayerIdx, newCardIdx, chosenColor);
+            }, 550);
+          } else {
+            // Pass turn
+            this.currentPlayerIdx = this.getNextPlayerIndex(1);
+            renderUI();
+            if (!this.players[this.currentPlayerIdx].isHuman) {
+              setTimeout(() => this.botTurn(), 850);
+            }
+          }
+        }
+      }
+
+      handleWin(winner) {
+        this.gameActive = false;
+        sound.win();
+        
+        const modal = document.getElementById('gameOverModal');
+        const title = document.getElementById('winnerTitle');
+        const desc = document.getElementById('winnerDesc');
+        const trophy = document.getElementById('winTrophyIcon');
+
+        if (winner.isHuman) {
+          title.textContent = "YOU WON!";
+          title.className = "text-3xl font-black text-yellow-400 uppercase tracking-wider mb-2";
+          desc.textContent = "Outstanding strategy! You emptied your hand first.";
+          trophy.textContent = "🏆";
+        } else {
+          title.textContent = `${winner.name} WINS!`;
+          title.className = "text-3xl font-black text-red-500 uppercase tracking-wider mb-2";
+          desc.textContent = `Better luck next time! ${winner.name} finished their hand.`;
+          trophy.textContent = "🤖";
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => modal.classList.remove('opacity-0'), 20);
+      }
+    }
+
+    const game = new UnoGame();
+
+    function renderCardHTML(card, isPlayable = false, customClasses = '') {
+      let iconOrSymbol = card.value.toUpperCase();
+      let isSpecial = false;
+
+      if (card.value === 'skip') {
+        iconOrSymbol = '<i class="fa-solid fa-ban"></i>';
+        isSpecial = true;
+      } else if (card.value === 'reverse') {
+        iconOrSymbol = '<i class="fa-solid fa-rotate"></i>';
+        isSpecial = true;
+      } else if (card.value === '+2') {
+        iconOrSymbol = '+2';
+        isSpecial = true;
+      } else if (card.value === 'wild') {
+        iconOrSymbol = '<div class="grid grid-cols-2 gap-1 w-6 h-6"><div class="bg-red-500 rounded-sm"></div><div class="bg-blue-500 rounded-sm"></div><div class="bg-yellow-400 rounded-sm"></div><div class="bg-emerald-500 rounded-sm"></div></div>';
+        isSpecial = true;
+      } else if (card.value === 'wild+4') {
+        iconOrSymbol = '<span class="text-sm font-black text-white drop-shadow">+4</span>';
+        isSpecial = true;
+      }
+
+      const colorClass = `c-${card.color}`;
+      const playableClass = isPlayable ? 'playable' : '';
+
+      return `
+        <div class="uno-card ${colorClass} ${playableClass} ${customClasses}" data-card-id="${card.id}">
+          <div class="corner-tag corner-tl">${card.value.toUpperCase()}</div>
+          <div class="card-oval">
+            <span class="text-slate-900 font-black text-2xl md:text-3xl tracking-tight select-none">
+              ${iconOrSymbol}
+            </span>
+          </div>
+          <div class="corner-tag corner-br">${card.value.toUpperCase()}</div>
+        </div>
+      `;
+    }
+
+    function renderDiscardTop() {
+      const discardArea = document.getElementById('discardPileArea');
+      const top = game.getTopCard();
+      if (!top) return;
+
+      discardArea.innerHTML = renderCardHTML(top, false, 'shadow-2xl scale-105 pointer-events-none');
+    }
+
+    function renderActiveColor() {
+      const pill = document.getElementById('activeColorPill');
+      const label = document.getElementById('activeColorName');
+      pill.className = `w-4 h-4 rounded-full shadow-md transition-all duration-300 scale-110 c-${game.activeColor}`;
+      label.textContent = game.activeColor;
+      label.className = `text-xs font-black uppercase text-${game.activeColor === 'yellow' ? 'amber-400' : game.activeColor + '-400'}`;
+    }
+
+    function renderDirection() {
+      const dirElem = document.getElementById('directionIndicator');
+      if (game.direction === 1) {
+        dirElem.classList.remove('dir-ccw');
+        dirElem.classList.add('dir-cw');
+      } else {
+        dirElem.classList.remove('dir-cw');
+        dirElem.classList.add('dir-ccw');
+      }
+    }
+
+    function renderPlayerHand() {
+      const container = document.getElementById('playerHand');
+      const human = game.players[0];
+      const isMyTurn = game.currentPlayerIdx === 0 && game.gameActive;
+
+      document.getElementById('playerHandCount').textContent = `${human.hand.length} cards`;
+
+      // Update turn indicator badge
+      const dot = document.getElementById('myTurnDot');
+      if (isMyTurn) {
+        dot.className = "w-3 h-3 rounded-full bg-emerald-400 animate-ping";
+      } else {
+        dot.className = "w-3 h-3 rounded-full bg-slate-600";
+      }
+
+      container.innerHTML = '';
+      human.hand.forEach((card, idx) => {
+        const canPlay = isMyTurn && game.isValidMove(card);
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = 'transition-transform duration-200';
+        cardWrapper.innerHTML = renderCardHTML(card, canPlay);
+
+        if (canPlay) {
+          cardWrapper.querySelector('.uno-card').addEventListener('click', () => {
+            onHumanCardClicked(idx);
+          });
+        }
+        container.appendChild(cardWrapper);
+      });
+
+      // Pass turn button visibility
+      const passBtn = document.getElementById('passTurnBtn');
+      if (isMyTurn && game.hasDrawnThisTurn) {
+        passBtn.classList.remove('hidden');
+      } else {
+        passBtn.classList.add('hidden');
+      }
+
+      // UNO shout button alert
+      const unoBtn = document.getElementById('unoBtn');
+      if (human.hand.length === 2 && isMyTurn) {
+        unoBtn.classList.add('pulse-glow');
+      } else {
+        unoBtn.classList.remove('pulse-glow');
+      }
+    }
+
+    function renderOpponents() {
+      const topSlot = document.getElementById('topOpponentSlot');
+      const leftSlot = document.getElementById('leftOpponentSlot');
+      const rightSlot = document.getElementById('rightOpponentSlot');
+
+      if (game.numPlayers === 2) {
+        // 1v1 mode: Only Top Bot is active
+        leftSlot.classList.add('hidden');
+        rightSlot.classList.add('hidden');
+        renderSingleOpponentBox('pTopBox', game.players[1]);
+      } else if (game.numPlayers === 4) {
+        leftSlot.classList.remove('hidden');
+        rightSlot.classList.remove('hidden');
+        renderSingleOpponentBox('pLeftBox', game.players[1]);
+        renderSingleOpponentBox('pTopBox', game.players[2]);
+        renderSingleOpponentBox('pRightBox', game.players[3]);
+      } else if (game.numPlayers === 5) {
+        leftSlot.classList.remove('hidden');
+        rightSlot.classList.remove('hidden');
+        renderSingleOpponentBox('pLeftBox', game.players[1]);
+        renderSingleOpponentBox('pTopBox', game.players[2]);
+        renderSingleOpponentBox('pRightBox', game.players[3]);
+        // Fourth bot shares top area
+      }
+    }
+
+    function renderSingleOpponentBox(boxId, player) {
+      if (!player) return;
+      const box = document.getElementById(boxId);
+      if (!box) return;
+
+      const isTurn = game.players[game.currentPlayerIdx]?.id === player.id;
+      const ind = box.querySelector('.p-indicator');
+      const nameElem = box.querySelector('.p-name');
+      const countElem = box.querySelector('.p-count');
+      const badgeElem = box.querySelector('.uno-badge');
+      const cardsVisual = box.querySelector('.cards-visual');
+
+      nameElem.textContent = player.name;
+      countElem.textContent = `${player.hand.length} cards`;
+
+      if (isTurn) {
+        ind.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping p-indicator";
+        box.classList.add('border-emerald-500', 'bg-emerald-950/40');
+      } else {
+        ind.className = "w-2.5 h-2.5 rounded-full bg-slate-500 p-indicator";
+        box.classList.remove('border-emerald-500', 'bg-emerald-950/40');
+      }
+
+      if (player.hand.length === 1) {
+        badgeElem.classList.remove('hidden');
+      } else {
+        badgeElem.classList.add('hidden');
+      }
+
+      // Visual cards fan representation
+      cardsVisual.innerHTML = '';
+      const displayCount = Math.min(player.hand.length, 6);
+      for (let i = 0; i < displayCount; i++) {
+        const miniCard = document.createElement('div');
+        miniCard.className = "w-6 h-9 md:w-8 md:h-12 rounded bg-slate-800 border border-white/30 card-back shadow flex-shrink-0";
+        cardsVisual.appendChild(miniCard);
+      }
+    }
+
+    function renderUI() {
+      document.getElementById('deckCountLabel').textContent = `Deck: ${game.deck.length}`;
+      renderDiscardTop();
+      renderActiveColor();
+      renderDirection();
+      renderPlayerHand();
+      renderOpponents();
+    }
+
+    function displayNotice(text) {
+      const banner = document.getElementById('gameNotice');
+      banner.textContent = text;
+      banner.classList.add('scale-105', 'text-yellow-300');
+      setTimeout(() => banner.classList.remove('scale-105', 'text-yellow-300'), 250);
+    }
+
+    function onHumanCardClicked(idx) {
+      const card = game.players[0].hand[idx];
+      if (card.color === 'black') {
+        // Open wild color chooser modal
+        game.pendingWildCard = idx;
+        const modal = document.getElementById('colorChooserModal');
+        modal.classList.remove('hidden');
+        setTimeout(() => modal.classList.remove('opacity-0'), 10);
+      } else {
+        game.playCard(0, idx);
+      }
+    }
+
+    // Attach Color Chooser listeners
+    document.querySelectorAll('.color-pick-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const color = btn.getAttribute('data-color');
+        const modal = document.getElementById('colorChooserModal');
+        modal.classList.add('opacity-0');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+
+        if (game.pendingWildCard !== null) {
+          game.playCard(0, game.pendingWildCard, color);
+          game.pendingWildCard = null;
+        }
+      });
+    });
+
+    // Draw Deck Button Click
+    document.getElementById('drawDeckBtn').addEventListener('click', () => {
+      game.humanDrawCard();
+    });
+
+    // Pass Turn Button Click
+    document.getElementById('passTurnBtn').addEventListener('click', () => {
+      game.humanPassTurn();
+    });
+
+    // UNO Shout Button Click
+    document.getElementById('unoBtn').addEventListener('click', () => {
+      game.humanCallUno();
+    });
+
+    // Mode Selector Modal Triggers
+    document.querySelectorAll('.mode-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const count = parseInt(btn.getAttribute('data-players'), 10);
+        document.getElementById('modeSelectModal').classList.add('hidden');
+        document.getElementById('headerModeLabel').textContent = count === 2 ? '1 vs 1 Battle' : `${count} Players Table`;
+        game.startNewGame(count);
+      });
+    });
+
+    document.getElementById('btnNewGame').addEventListener('click', () => {
+      document.getElementById('modeSelectModal').classList.remove('hidden');
+    });
+
+    document.getElementById('btnPlayAgain').addEventListener('click', () => {
+      document.getElementById('gameOverModal').classList.add('hidden');
+      game.startNewGame(game.numPlayers);
+    });
+
+    document.getElementById('btnChangeMode').addEventListener('click', () => {
+      document.getElementById('gameOverModal').classList.add('hidden');
+      document.getElementById('modeSelectModal').classList.remove('hidden');
+    });
+
+    // Audio toggle
+    document.getElementById('btnSound').addEventListener('click', () => {
+      sound.enabled = !sound.enabled;
+      const icon = document.getElementById('soundIcon');
+      icon.className = sound.enabled ? "fa-solid fa-volume-high" : "fa-solid fa-volume-xmark";
+    });
+
+    // Rules modal
+    document.getElementById('btnRuleHelp').addEventListener('click', () => {
+      document.getElementById('rulesModal').classList.remove('hidden');
+    });
+    document.getElementById('btnCloseRules').addEventListener('click', () => {
+      document.getElementById('rulesModal').classList.add('hidden');
+    });
+
+    window.addEventListener('load', () => {
+      // Prompt user with mode selector on load
+      document.getElementById('modeSelectModal').classList.remove('hidden');
+    });
+  </script>
+</body>
+</html>

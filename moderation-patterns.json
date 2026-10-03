@@ -1,0 +1,18 @@
+[
+  { "phrase": "kill yourself", "category": "self_harm", "severity": 3, "aggressive": true },
+  { "phrase": "kys", "category": "self_harm", "severity": 3, "aggressive": false },
+  { "phrase": "i will find you", "category": "threat", "severity": 3, "aggressive": true },
+  { "phrase": "free robux", "category": "spam", "severity": 3, "aggressive": true },
+  { "phrase": "crypto giveaway", "category": "spam", "severity": 3, "aggressive": true },
+  { "phrase": "add me on telegram", "category": "off_platform", "severity": 3, "aggressive": true },
+  { "phrase": "onlyfans", "category": "off_platform", "severity": 3, "aggressive": true },
+  {
+    "phrase": "exam answers for sale",
+    "category": "academic_integrity",
+    "severity": 3,
+    "aggressive": true
+  },
+  { "phrase": "idiot", "category": "harassment", "severity": 2, "aggressive": false },
+  { "phrase": "stupid", "category": "harassment", "severity": 1, "aggressive": false },
+  { "phrase": "my student number is", "category": "pii", "severity": 1, "aggressive": false }
+]

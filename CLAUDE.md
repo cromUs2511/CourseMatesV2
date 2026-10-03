@@ -11,17 +11,24 @@ conventional prefixes (`feat:`, `fix:`, `style:`, `chore:`, `build(native):`).
 ## Commands
 
 - `npm run dev` — Vite middleware plus the Express runtime on port 3000.
-- `npm test` — Node runtime and utility regression suite. One file:
-  `npx tsx --test tests/runtime.test.ts`.
-- `npm run lint` — TypeScript checks (`tsc --noEmit`). There is no ESLint or
-  Prettier; type-checking is the whole lint step.
+- `npm test` — Node runtime and utility regression suite (`node:test` over
+  `tests/*.test.ts`).
+- `npm run typecheck` — strict TypeScript only (`tsc --noEmit`).
+- `npm run lint` — `typecheck` plus ESLint over every `*.ts`/`*.tsx`.
+- `npm run format:check` / `npm run format` — Prettier gate and writer.
+- `npm run test:coverage` — the unit suite under c8 with the thresholds in
+  `.c8rc.json`.
+- `npm run test:python` — Python shadow-service contracts.
 - `npm run build` — Vite client and production Express bundle.
 - `npm start` — run `dist/.server/server.cjs`; never launches Vite or Python.
 - `npm run test:e2e` — production-mode Playwright suite. Build first.
 - `npm run test:e2e:dev` — the same suite against Vite dev mode.
 - `npm run clean` — remove `dist/` and `server.js`.
-- `python -m pytest -p no:cacheprovider services/python-orchestrator/tests/test_main.py -q` — Python shadow-service contracts.
 - `docker compose up --build` — Node edge plus the Python orchestrator.
+
+CI (`.github/workflows/ci.yml`) runs all of the above plus a browser matrix,
+`npm audit`, the ASan/UBSan native smoke build, and both container images. The
+operational runbook is `docs/operations.md`.
 
 ## Layout
 
@@ -30,6 +37,16 @@ conventional prefixes (`feat:`, `fix:`, `style:`, `chore:`, `build(native):`).
   `/api/auth|match|chat/*` routes, `/api/health`, and the WebSocket server.
 - `chatImages.ts`, `voiceMessages.ts` — server-side media validation.
   `pythonOrchestrator.ts` — non-throwing shadow client.
+- `safety.ts` — `SafetyStore` (reports, blocks, bans; the only durable data) and
+  `moderateText`, driven by `moderation-patterns.json`. `serverSecurity.ts` —
+  `WindowLimiter`, `constantTimeEqual`, `metrics` and the production config gate.
+- Peer games, one server module each, all mounted from `runtime.ts`:
+  `ticTacToe.ts`, `rps.ts`, `connectFour.ts`, `chess.ts` (chess.js),
+  `trivia.ts`, `wouldYouRather.ts`, and `uno.ts` / `unoTypes.ts`. Matching UI is
+  `src/components/Peer*.tsx`, `Uno*.tsx`, with shared catalog data in
+  `src/data/peerGames.ts`.
+- `UNO.txt` (standalone HTML prototype) and `todo` (a game-repair task brief)
+  are scratch files, not part of the product.
 - `src/data/` is imported by both the browser and the server, so shared limits
   (`chatImages.ts`, `chatVoice.ts`, `reactions.ts`) live in one place. Change a
   limit there, not in a copy.
@@ -58,7 +75,10 @@ Env loads from `.env.groq.local`, `.env.gemini.local`, `.env.local`, then
   `http://127.0.0.1:5051`), `_TIMEOUT_MS` (default 500, clamped to 50–5000).
 - `CM_DISABLE_NATIVE=1` forces the pure-Python fallback. `DISABLE_HMR=true`
   turns off Vite HMR and file watching.
-- `ALLOW_DEMO_LOGIN` in `playwright.config.ts` is a leftover; nothing reads it.
+- `NODE_ENV=production` (or `--production`) additionally requires `APP_URL`,
+  `SINGLE_INSTANCE=true`, `DATA_DIR`, `MODERATION_SECRET` and `ADMIN_TOKEN`;
+  the process exits at startup without them. `WEB_CONCURRENCY` must be unset or
+  `1`.
 
 ## Authentication and state
 
@@ -68,10 +88,11 @@ Sessions use the `cm_session` HttpOnly cookie and bearer token compatibility
 path. Queue, room, message, media, revision, and socket state remain in the
 single Node process until a replacement proves parity.
 
-Sign-in (`POST /api/auth/school-email`, alias `/verify-school`) only checks that
-the email is syntactically valid; ownership is never verified. Sessions last
-eight hours. Peers see a separate public `sessionId` and generated handle,
-never another participant's token or email.
+Legacy email sign-in (`POST /api/auth/school-email`, alias `/verify-school`)
+returns 410: CourseMates never verifies student identities. Sessions come from
+`POST /api/auth/anonymous` with an accepted 18+ terms flag and last eight
+hours. Peers see a separate public `sessionId` and generated handle, never
+another participant's token or email.
 
 ## Runtime behavior
 
@@ -102,13 +123,49 @@ never another participant's token or email.
   (`isSimulated` on `ActivePeerInfo`).
 - All `/api/*` responses are `no-store`, and unknown paths return a JSON 404.
 
+## Peer games
+
+Seven games: UNO, Tic-Tac-Toe, Rock Paper Scissors, Connect Four, Chess,
+Trivia, Would You Rather.
+
+- Routes are `GET|POST /api/chat/{tictactoe,rps,connectfour,chess,trivia,wyr}`
+  (invite, respond, move) and `/api/uno/*` (arena, challenge, action, away,
+  leave). Both are rate limited (429) and can return 503 when games are
+  disabled.
+- Only one non-UNO peer game, or an in-room UNO table, may be live per room.
+  New ones go through `assertRoomGameFree`; a game with a `result` no longer
+  blocks.
+- State is server-authoritative and synced over WebSocket with REST fallback,
+  like chat. Never send a player's hidden state (UNO hands, unrevealed Would You
+  Rather choices) to the peer.
+- Chess boards must come from `chess.board()`, not from parsing chess.js ASCII
+  output.
+- Tests: `tests/uno.test.ts`, `peerGames.test.ts`, `peer-games-repair.test.ts`,
+  and `tests/browser/games.spec.ts` / `uno.spec.ts`.
+
+## Safety, moderation and admin
+
+- Users report and block via `POST /api/safety/<action>`. Browser ids are
+  HMAC-hashed with `MODERATION_SECRET` into a 64-hex actor; no message text,
+  email or token is stored. Reports keep the IP for 30 days; permanent IP bans
+  do not expire.
+- `SafetyStore` persists to `DATA_DIR/moderation.json` (atomic write, symlinks
+  and bad secrets rejected). A storage error disables it until restart.
+- `/api/admin/*` (login, session, metrics, reports, moderate) uses an
+  `ADMIN_TOKEN`-backed HttpOnly cookie scoped to `/api/admin`, rendered by
+  `AdminDashboard.tsx`. Compare secrets with `constantTimeEqual`.
+- `moderateText` filters outgoing text using `moderation-patterns.json`. The
+  static pages `public/{privacy,terms,community}.html` back the 18+ terms flag.
+
 ## Frontend
 
 `App.tsx` drives Access → Matchmaking → Chat and restores the session from
 `/api/auth/session`. `MatchmakingQueue.tsx` opens the WebSocket and polls
 `/api/match/poll` as a fallback; `ChatRoom.tsx` polls messages about every 1.5 s.
-`apiRequest` in `utils/api.ts` adds the bearer token, a 20 s timeout, and throws
-the JSON `error` text. The `@` alias points at the project root, not `src/`.
+`apiRequest` in `utils/api.ts` sends `credentials: 'same-origin'` so the
+HttpOnly cookie carries the session (no bearer header), applies a 20 s timeout,
+and throws the JSON `error` text. The `@` alias points at the project root, not
+`src/`.
 Every `localStorage` access is wrapped in try/catch (storage can be
 unavailable), and animations must honor reduced-motion. Viewport height is
 tracked through `--app-height` / `--app-top` for mobile keyboards.
@@ -117,11 +174,17 @@ tracked through `--app-height` / `--app-top` for mobile keyboards.
 
 - `runtime.test.ts` mounts `attachRuntime` on an ephemeral port and drives it
   with real `fetch` and `ws` clients; `issueSession` skips the sign-in route.
-- Playwright runs one worker in installed Google Chrome (`channel: 'chrome'`)
-  against an isolated server on port 3100 with `GEMINI_API_KEY` cleared. It
-  runs the built bundle, so `npm run build` first or use `test:e2e:dev`.
-- Run `npm run lint` and `npm test` before calling a change done. `npm run dev`
-  fails with `EADDRINUSE` if port 3000 is already taken.
+- Playwright runs one worker against an isolated server on port 3100 with
+  `NODE_ENV=test`, `LOAD_LOCAL_ENV=false` and every AI/YouTube key cleared, so
+  a local `.env*` credential can never reach a test server. It runs the built
+  bundle, so `npm run build` first or use `test:e2e:dev`. Pick the browser with
+  `PW_CHANNEL` (default `chrome`).
+- `tests/browser/accessibility.spec.ts` runs axe-core plus keyboard/focus
+  checks over the access gate, matchmaking screen and chat room.
+- `tests/load.test.ts` and the flood test in `tests/security.test.ts` hold the
+  capacity, rate-limit and drain behaviour.
+- Run `npm run lint`, `npm run format:check` and `npm test` before calling a
+  change done. `npm run dev` fails with `EADDRINUSE` if port 3000 is taken.
 
 ## Layered migration
 
@@ -144,7 +207,7 @@ reversible rollout flag.
   become meaningless.
 - **Native module:** build with `pip install ./native` (C++17, CMake 3.18+,
   Python 3.10+). Test in order: `tests/smoke.cpp`, `pytest
-  native/tests/test_native.py`, `native/tests/bench.py`. Import through
+native/tests/test_native.py`, `native/tests/bench.py`. Import through
   `native_bridge.py`, never `coursemates_native` directly. Blocking methods must
   keep `py::call_guard<py::gil_scoped_release>`. Nothing in `native/src/` may
   own memory manually. Only the content filter is a real speedup; do not claim

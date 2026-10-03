@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+.venv
+.worktrees
+coverage
+test-results
+playwright-report
+pytest-cache-*
+package-lock.json
+bun.lock
+public/fonts
+scripts/export-task-list-pdf.mjs
+docs/superpowers

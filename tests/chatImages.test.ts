@@ -7,51 +7,113 @@ import { parseImages } from '../chatImages';
 import { parseVoice } from '../voiceMessages';
 import { CHAT_SEND_BODY_LIMIT } from '../src/data/chatImages';
 
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+const png =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const photo = { name: 'Notes.png', dataUrl: 'data:image/png;base64,' + png, width: 1, height: 1 };
 const gifBytes = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
-const gif = { name: 'Reaction.gif', dataUrl: 'data:image/gif;base64,' + gifBytes.toString('base64'), width: 1, height: 1 };
+const gif = {
+  name: 'Reaction.gif',
+  dataUrl: 'data:image/gif;base64,' + gifBytes.toString('base64'),
+  width: 1,
+  height: 1,
+};
 const voiceBytes = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02, 0x03]);
 const voice = { dataUrl: 'data:audio/webm;base64,' + voiceBytes.toString('base64'), duration: 12 };
+const setNow = (now: number) => {
+  const original = Date.now;
+  Date.now = () => now;
+  return () => {
+    Date.now = original;
+  };
+};
 const app = express();
 app.use(express.json({ limit: CHAT_SEND_BODY_LIMIT }));
 const server = http.createServer(app);
 const stop = attachRuntime(app, server);
 let base: string;
 before(async () => {
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
 });
-after(async () => { stop(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
+after(async () => {
+  stop();
+  server.closeAllConnections();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+});
 const identity = () => issueSession('photos@gmail.com');
 async function request(path: string, session?: ReturnType<typeof identity>, body?: unknown) {
-  return fetch(base + path, { method: body === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: 'Bearer ' + session.token } : {}) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  return fetch(base + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: base,
+      ...(session ? { Cookie: 'cm_session=' + session.token } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }
 
 test('photo validation rejects unsupported, spoofed, oversized, and malformed uploads', () => {
-  assert.equal(parseImages([photo])[0].bytes.toString('base64'), png);
-  assert.equal(parseImages([gif])[0].mimeType, 'image/gif');
-  for (const images of [null, {}, Array(5).fill(photo), [{ ...photo, dataUrl: 'data:image/svg+xml;base64,PHN2Zz4=' }],
-    [{ ...photo, dataUrl: 'data:image/jpeg;base64,' + png }], [{ ...photo, dataUrl: 'data:image/png;base64,SGVsbG8=' }],
-    [{ ...photo, dataUrl: 'data:image/png;base64,' + 'a'.repeat(1500000) }], [{ ...photo, width: 1601 }], [{ ...photo, height: -1 }]]) {
+  assert.equal(parseImages([photo])[0]?.bytes.toString('base64'), png);
+  assert.equal(parseImages([gif])[0]?.mimeType, 'image/gif');
+  for (const images of [
+    null,
+    {},
+    Array(5).fill(photo),
+    [{ ...photo, dataUrl: 'data:image/svg+xml;base64,PHN2Zz4=' }],
+    [{ ...photo, dataUrl: 'data:image/jpeg;base64,' + png }],
+    [{ ...photo, dataUrl: 'data:image/png;base64,SGVsbG8=' }],
+    [{ ...photo, dataUrl: 'data:image/png;base64,' + 'a'.repeat(1500000) }],
+    [{ ...photo, width: 1601 }],
+    [{ ...photo, height: -1 }],
+  ]) {
     assert.throws(() => parseImages(images));
   }
 });
 
 test('voice validation enforces supported audio and the three-minute limit', () => {
   assert.equal(parseVoice(voice)?.duration, 12);
-  for (const invalid of [{ ...voice, duration: 181 }, { ...voice, duration: .5 }, { ...voice, dataUrl: 'data:audio/webm;base64,SGVsbG8=' },
-    { ...voice, dataUrl: 'data:audio/mpeg;base64,' + voiceBytes.toString('base64') }]) assert.throws(() => parseVoice(invalid));
+  for (const invalid of [
+    { ...voice, duration: 181 },
+    { ...voice, duration: 0.5 },
+    { ...voice, dataUrl: 'data:audio/webm;base64,SGVsbG8=' },
+    { ...voice, dataUrl: 'data:audio/mpeg;base64,' + voiceBytes.toString('base64') },
+  ])
+    assert.throws(() => parseVoice(invalid));
+});
+
+test('photos and recorded voice stay locked for 90 seconds while text remains available', async () => {
+  const a = identity(),
+    b = identity();
+  await request('/api/match/join', a, {});
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  try {
+    assert.equal(typeof mediaUnlockAt, 'number');
+    assert.equal((await request('/api/chat/send', a, { roomId, text: 'hello' })).status, 200);
+    for (const media of [{ images: [photo] }, { voice }]) {
+      const response = await request('/api/chat/send', a, { roomId, text: '', ...media });
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, /available in/);
+    }
+  } finally {
+    await request('/api/match/cancel', a, {});
+  }
 });
 
 test('voice messages are private, playable by both peers, and purged with the message', async () => {
-  const a = identity(), b = identity(), outsider = identity();
+  const a = identity(),
+    b = identity(),
+    outsider = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
-    const response = await request('/api/chat/send', a, { roomId, text: '', voice, clientMessageId: 'voice-message' });
+    const response = await request('/api/chat/send', a, {
+      roomId,
+      text: '',
+      voice,
+      clientMessageId: 'voice-message',
+    });
     assert.equal(response.status, 200);
     const { message } = await response.json();
     assert.equal(message.voice.duration, 12);
@@ -66,21 +128,35 @@ test('voice messages are private, playable by both peers, and purged with the me
     }
     await request('/api/chat/delete', a, { roomId, messageId: message.id });
     assert.equal((await request(message.voice.url, b)).status, 404);
-  } finally { await request('/api/match/cancel', a, {}); }
+  } finally {
+    restoreNow();
+    await request('/api/match/cancel', a, {});
+  }
 });
 
 test('photo-only messages are private, retry-safe, available to both peers and purged on delete or leave', async () => {
-  const a = identity(), b = identity(), outsider = identity();
+  const a = identity(),
+    b = identity(),
+    outsider = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
-    const payload = { roomId, text: '', images: [photo, { ...photo, name: 'Second.png' }], clientMessageId: 'photos-retry' };
+    const payload = {
+      roomId,
+      text: '',
+      images: [photo, { ...photo, name: 'Second.png' }],
+      clientMessageId: 'photos-retry',
+    };
     assert.equal((await request('/api/chat/send', outsider, payload)).status, 404);
     const response = await request('/api/chat/send', a, payload);
     assert.equal(response.status, 200);
     const { message } = await response.json();
     assert.equal(message.images.length, 2);
-    assert.equal((await (await request('/api/chat/send', a, payload)).json()).message.id, message.id);
+    assert.equal(
+      (await (await request('/api/chat/send', a, payload)).json()).message.id,
+      message.id,
+    );
     const received = await (await request('/api/chat/messages?roomId=' + roomId, b)).json();
     assert.equal(received.messages.length, 1);
     assert.deepEqual(received.messages[0].images, message.images);
@@ -94,23 +170,47 @@ test('photo-only messages are private, retry-safe, available to both peers and p
       assert.equal(image.headers.get('cache-control'), 'no-store');
       assert.equal(Buffer.from(await image.arrayBuffer()).toString('base64'), png);
     }
-    assert.equal((await request('/api/chat/delete', b, { roomId, messageId: message.id })).status, 400);
+    assert.equal(
+      (await request('/api/chat/delete', b, { roomId, messageId: message.id })).status,
+      400,
+    );
     await request('/api/chat/delete', a, { roomId, messageId: message.id });
     assert.equal((await request(url, b)).status, 404);
-    const next = await (await request('/api/chat/send', a, { ...payload, text: 'My notes', clientMessageId: 'next-photo' })).json();
+    const next = await (
+      await request('/api/chat/send', a, {
+        ...payload,
+        text: 'My notes',
+        clientMessageId: 'next-photo',
+      })
+    ).json();
     await request('/api/chat/leave', a, { roomId });
     assert.equal((await request(next.message.images[0].url, b)).status, 404);
-  } finally { await request('/api/match/cancel', a, {}); }
+  } finally {
+    restoreNow();
+    await request('/api/match/cancel', a, {});
+  }
 });
 
 test('evicting an old message also removes its photo', async () => {
-  const a = identity(), b = identity();
+  const a = identity(),
+    b = identity();
   await request('/api/match/join', a, {});
-  const { roomId } = await (await request('/api/match/join', b, {})).json();
+  const { roomId, mediaUnlockAt } = await (await request('/api/match/join', b, {})).json();
+  const restoreNow = setNow(mediaUnlockAt);
   try {
-    const { message } = await (await request('/api/chat/send', a, { roomId, text: '', images: [photo] })).json();
-    for (let index = 0; index < 500; index++) await (await request('/api/chat/send', a, { roomId, text: 'Message ' + index })).json();
+    await request('/api/chat/messages?roomId=' + roomId, b);
+    const { message } = await (
+      await request('/api/chat/send', a, { roomId, text: '', images: [photo] })
+    ).json();
+    for (let index = 0; index < 500; index++)
+      await (await request('/api/chat/send', a, { roomId, text: 'Message ' + index })).json();
     assert.equal((await request(message.images[0].url, b)).status, 404);
-    assert.equal((await (await request('/api/chat/messages?roomId=' + roomId, b)).json()).messages.length, 500);
-  } finally { await request('/api/match/cancel', a, {}); }
+    assert.equal(
+      (await (await request('/api/chat/messages?roomId=' + roomId, b)).json()).messages.length,
+      500,
+    );
+  } finally {
+    restoreNow();
+    await request('/api/match/cancel', a, {});
+  }
 });

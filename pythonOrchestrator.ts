@@ -38,8 +38,10 @@ export function createPythonOrchestratorClient(
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
     try {
       await fetchImpl(baseUrl + path, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractVersion: 1, ...body }), signal: controller.signal,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractVersion: 1, ...body }),
+        signal: controller.signal,
       });
     } catch {
       // Shadow work must never alter the legacy request outcome.
@@ -58,7 +60,9 @@ export function createPythonOrchestratorClient(
   };
 }
 
-export function pythonOrchestratorConfig(env: NodeJS.ProcessEnv = process.env): PythonOrchestratorConfig {
+export function pythonOrchestratorConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): PythonOrchestratorConfig {
   return {
     mode: env.PYTHON_ORCHESTRATOR_MODE === 'shadow' ? 'shadow' : 'off',
     baseUrl: env.PYTHON_ORCHESTRATOR_URL || 'http://127.0.0.1:5051',

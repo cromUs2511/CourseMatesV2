@@ -1,13 +1,2 @@
-# Core Python Dependencies for CourseMates
-#
-# Dependencies for the optional Python orchestration service:
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-pydantic>=2.5.0
-
-# The native core (C++ via pybind11): rate limiting, abuse scanning and
-# matchmaking. Needs a C++17 compiler and CMake >= 3.18 -- see native/README.md.
-# Native acceleration remains optional; the orchestration service has a
-# deterministic Python fallback for shadow comparison.
-#
-#   pip install ./native
+# Production-only service dependencies; native build is a separate step.
+-r services/python-orchestrator/requirements.txt

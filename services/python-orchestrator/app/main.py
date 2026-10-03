@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .matching import select_legacy_match
 from .native_core import native_status
+from .moderation import moderate_text
 
 app = FastAPI(title="CourseMates Python Orchestrator", version="1.0.0")
 
@@ -40,6 +41,11 @@ class MatchSelectionRequest(BaseModel):
     contractVersion: Literal[1]
     candidate: MatchParticipant
     queued: list[MatchParticipant] = Field(max_length=10_000)
+
+
+class ModerationRequest(BaseModel):
+    contractVersion: Literal[1]
+    text: str = Field(max_length=4_000)
 
 
 @app.get("/internal/v1/health")
@@ -73,3 +79,9 @@ def match_select(request: MatchSelectionRequest) -> dict[str, object]:
             [participant.model_dump() for participant in request.queued],
         ),
     }
+
+
+@app.post("/internal/v1/moderation")
+def moderation(request: ModerationRequest) -> dict[str, object]:
+    """Shadow comparison only; Node remains the browser enforcement boundary."""
+    return {"contractVersion": 1, **moderate_text(request.text)}
