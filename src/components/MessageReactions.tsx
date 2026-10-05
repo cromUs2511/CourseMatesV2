@@ -81,6 +81,9 @@ export function MessageReactions({
       setPending(false);
     }
   };
+  const hasVisibleReactions = MESSAGE_REACTIONS.some(({ emoji }) =>
+    Object.values(reactions).includes(emoji),
+  );
   return (
     <>
       <div
@@ -88,7 +91,7 @@ export function MessageReactions({
       >
         <div
           ref={anchor}
-          className={`reaction-message-anchor relative min-w-0 w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
+          className={`reaction-message-anchor relative min-w-0 w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''} ${hasVisibleReactions ? 'mb-3' : ''}`}
           onTouchStart={(event) => {
             clearPress();
             if (event.touches.length !== 1) return;
@@ -116,9 +119,9 @@ export function MessageReactions({
           }}
         >
           {children}
-          {MESSAGE_REACTIONS.some(({ emoji }) => Object.values(reactions).includes(emoji)) && (
+          {hasVisibleReactions && (
             <div
-              className={`pointer-events-none relative z-10 -mt-1.5 flex flex-wrap gap-1 px-2 ${align === 'end' ? 'justify-end' : 'justify-start'}`}
+              className={`pointer-events-none absolute -bottom-3 z-10 flex max-w-[calc(100%-8px)] flex-wrap gap-1 ${align === 'end' ? 'right-2 justify-end' : 'left-2 justify-start'}`}
             >
               {MESSAGE_REACTIONS.map(({ emoji, label }) => {
                 const count = Object.values(reactions).filter((value) => value === emoji).length;
