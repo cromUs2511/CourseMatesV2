@@ -144,6 +144,7 @@ test('a selected chat intent is prioritized before normal matching', async ({ br
     route.fulfill({ json: { status: 'queued', position: 1, interestMatchUnavailable: true } }),
   );
   await signIn(page, 'chat-intent');
+  await page.getByRole('switch', { name: 'Match by interest' }).click();
   await page.getByRole('radio', { name: /Study \/ Help/ }).click();
   await page.locator('#start-chat-btn').click();
   await expect
@@ -177,6 +178,9 @@ test('choosing a chat intent is optional and a selected card can be deselected',
   await expect(cards).toHaveCount(2);
   await expect(page.getByRole('radio', { checked: true })).toHaveCount(0);
   const casual = page.getByRole('radio', { name: /Casual \/ Vent/ });
+  await expect(casual).toBeDisabled();
+  await page.getByRole('switch', { name: 'Match by interest' }).click();
+  await expect(casual).toBeEnabled();
   await casual.click();
   await expect(casual).toHaveAttribute('aria-checked', 'true');
   await casual.click();

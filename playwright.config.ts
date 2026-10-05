@@ -19,13 +19,22 @@ const webServerEnv = {
 };
 
 const channel = process.env.PW_CHANNEL || 'chrome';
+const browserOptions =
+  process.env.PW_BROWSER === 'webkit'
+    ? { browserName: 'webkit' as const }
+    : { browserName: 'chromium' as const, channel };
 
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: false,
   workers: 1,
   timeout: 30000,
-  use: { baseURL: 'http://127.0.0.1:3100', channel, headless: true, trace: 'retain-on-failure' },
+  use: {
+    baseURL: 'http://127.0.0.1:3100',
+    ...browserOptions,
+    headless: true,
+    trace: 'retain-on-failure',
+  },
   webServer: {
     command:
       process.env.TEST_DEV === 'true' ? 'npm run dev' : 'node dist/.server/server.cjs --production',

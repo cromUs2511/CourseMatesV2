@@ -47,6 +47,7 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
           .getByRole('dialog', { name: 'Chat color themes' })
           .getByRole('button', { name: theme, exact: true })
           .click();
+        await page.getByRole('switch', { name: 'Match by interest' }).click();
         await page.getByRole('radio', { name: /Study \/ Help/ }).click();
         await expect(page.getByRole('radio', { name: /Study \/ Help/ })).toHaveAttribute(
           'aria-checked',
@@ -74,7 +75,7 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
           'A very long study nickname for wrapping',
         );
 
-        for (const width of [320, 390, 1280]) {
+        for (const width of [320, 390, 640, 1280]) {
           await page.setViewportSize({ width, height: 844 });
           await expectContained(
             page,
@@ -97,6 +98,7 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
         await expect(page.locator('#start-chat-btn')).toBeVisible();
 
         await enter(peer);
+        await peer.getByRole('switch', { name: 'Match by interest' }).click();
         await peer.getByRole('radio', { name: /Study \/ Help/ }).click();
         await page.locator('#start-chat-btn').click();
         await peer.locator('#start-chat-btn').click();
@@ -115,7 +117,7 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
         ).toBeVisible();
         await page.getByRole('textbox', { name: 'Chat message' }).blur();
 
-        for (const width of [320, 390, 1280]) {
+        for (const width of [320, 390, 640, 1280]) {
           await page.setViewportSize({ width, height: 844 });
           await expectContained(page, '#chat-header, [data-message-bubble], #chat-input-console');
           // Identity and actions must occupy separate columns, including long names.
@@ -158,6 +160,21 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
           await page.screenshot({ path: info.outputPath(`music-${width}.png`) });
           await music.getByRole('button', { name: 'Close music selection' }).click();
         }
+
+        await page.setViewportSize({ width: 640, height: 800 });
+        await page.evaluate(() => {
+          document.documentElement.style.fontSize = '200%';
+        });
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+        await expectContained(page, '#chat-header, [data-message-bubble], #chat-input-console');
+        expect(
+          (await page.locator('#send-message-btn').boundingBox())!.height,
+        ).toBeGreaterThanOrEqual(40);
+        expect(
+          (await page.getByRole('textbox', { name: 'Chat message' }).boundingBox())!.width,
+        ).toBeGreaterThanOrEqual(60);
       } finally {
         await Promise.all([context.close(), peerContext.close()]);
       }

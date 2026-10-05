@@ -8,6 +8,7 @@ import {
   Users,
   MessageCircleMore,
   Pencil,
+  Check,
 } from 'lucide-react';
 import { StudentSession, ActivePeerInfo, Campus, AcademicDiscipline } from '../types';
 import { SIMULATED_PEERS } from '../data/mockData';
@@ -68,6 +69,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(session.customHandle ? session.sessionHandle : '');
   const [selectedIntent, setSelectedIntent] = useState<string | null>(null);
+  const [interestsEnabled, setInterestsEnabled] = useState(false);
   const [canProceedNormally, setCanProceedNormally] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
@@ -153,12 +155,12 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   };
   const startMatchmaking = () => {
     if (searchingRef.current) return;
-    // No selection matches with any available peer.
-    const interestsToMatch = selectedIntent === null ? [] : [selectedIntent];
+    // Interests are strictly opt-in: no selection (or toggle off) matches anyone.
+    const interestsToMatch = interestsEnabled && selectedIntent !== null ? [selectedIntent] : [];
     setError('');
     setCanProceedNormally(false);
     matchingInterestsRef.current = interestsToMatch;
-    allowNormalRef.current = selectedIntent === null;
+    allowNormalRef.current = !interestsEnabled || selectedIntent === null;
     setIsSearching(true);
     searchingRef.current = true;
     isMatchedRef.current = false;
@@ -481,70 +483,14 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
           </div>
         </div>
 
-        {/* Main chat intent selection card */}
+        {/* Main match card: match action first, interests optional below */}
         <div
           className={`matching-preferences ui-surface rounded-2xl p-5 sm:p-7 space-y-5 sm:space-y-6 ${
             isDarkMode ? 'text-stone-100' : 'text-stone-800'
           }`}
         >
-          <div className="border-b border-stone-200 dark:border-stone-800 pb-3">
-            <h2 className="text-xl font-bold leading-snug tracking-tight text-stone-900 dark:text-white">
-              What kind of chat do you want? (optional)
-            </h2>
-            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-              Pick one to match with similar peers, or skip to meet anyone.
-            </p>
-          </div>
-
-          <div
-            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-            role="radiogroup"
-            aria-label="Chat preference"
-          >
-            {CHAT_INTENTS.map((intent) => {
-              const selected = selectedIntent === intent.label;
-              const Icon = intent.icon;
-              return (
-                <button
-                  key={intent.label}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={isSearching}
-                  onClick={() => setSelectedIntent(selected ? null : intent.label)}
-                  className={`matching-intent rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                    selected
-                      ? 'chat-theme-accent-soft border-current'
-                      : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="matching-intent-indicator" aria-hidden="true" />
-                    <span
-                      className="matching-intent-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                      aria-hidden="true"
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold">{intent.label}</span>
-                      <span className="matching-intent-description mt-1 block text-xs font-normal leading-relaxed">
-                        {intent.description}
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {error && (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          )}
-          {/* Action Button Area */}
-          <div className="border-t border-stone-200 dark:border-stone-800 pt-5 text-center space-y-3">
+          {/* Match action on top */}
+          <div className="text-center space-y-3">
             {!isSearching ? (
               <div className="space-y-3">
                 <button
@@ -612,6 +558,103 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+
+          {/* Optional interests below, gated by a checkmark toggle */}
+          <div className="border-t border-stone-200 dark:border-stone-800 pt-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="pb-0">
+                <h2 className="text-xl font-bold leading-snug tracking-tight text-stone-900 dark:text-white">
+                  What kind of chat do you want? (optional)
+                </h2>
+                <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
+                  {interestsEnabled
+                    ? 'Pick one to match with similar peers, or uncheck to meet anyone.'
+                    : 'Check the box to match by interest, or just hit Find my peers.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={interestsEnabled}
+              aria-label="Match by interest"
+              id="interest-filter-toggle"
+              disabled={isSearching}
+              onClick={() => {
+                if (interestsEnabled) setSelectedIntent(null);
+                setInterestsEnabled((v) => !v);
+              }}
+              className={`inline-flex items-center gap-2.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                interestsEnabled
+                  ? 'chat-theme-accent-soft border-current'
+                  : 'border-stone-200 bg-white/60 text-stone-600 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-300 dark:hover:bg-stone-800'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+                  interestsEnabled
+                    ? 'chat-theme-accent-button border-transparent text-white'
+                    : 'border-stone-300 bg-white text-transparent dark:border-stone-600 dark:bg-stone-800'
+                }`}
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              </span>
+              <span>Match by interest</span>
+            </button>
+
+            <div
+              className={`grid grid-cols-1 gap-3 sm:grid-cols-2 transition-opacity ${
+                interestsEnabled ? 'opacity-100' : 'opacity-50'
+              }`}
+              role="radiogroup"
+              aria-label="Chat preference"
+              aria-disabled={!interestsEnabled}
+            >
+              {CHAT_INTENTS.map((intent) => {
+                const selected = interestsEnabled && selectedIntent === intent.label;
+                const Icon = intent.icon;
+                return (
+                  <button
+                    key={intent.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={!interestsEnabled || isSearching}
+                    onClick={() => setSelectedIntent(selected ? null : intent.label)}
+                    className={`matching-intent rounded-xl border p-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                      selected
+                        ? 'chat-theme-accent-soft border-current'
+                        : 'border-stone-200 bg-white/60 text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-200 dark:hover:bg-stone-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="matching-intent-indicator" aria-hidden="true" />
+                      <span
+                        className="matching-intent-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        aria-hidden="true"
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold">{intent.label}</span>
+                        <span className="matching-intent-description mt-1 block text-xs font-normal leading-relaxed">
+                          {intent.description}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

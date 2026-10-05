@@ -47,6 +47,26 @@ test('aurora follows music and glow preferences and respects reduced motion', as
     .fill('A little music makes this study session better.');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
 
+  // Restrained refinement: curtains stay behind chat, stay non-interactive,
+  // shimmer gently inside the slow layer drift, and share one custom color.
+  await expect(aurora).toHaveCSS('pointer-events', 'none');
+  const distantFilter = await page
+    .locator('.aurora-curtain-distant')
+    .evaluate((el) => getComputedStyle(el).filter);
+  expect(distantFilter).not.toContain('hue-rotate');
+  const rayShimmerCount = await page
+    .locator('.aurora-curtain img')
+    .evaluateAll((els) =>
+      els.flatMap((el) =>
+        el.getAnimations().filter((animation) => animation.playState === 'running'),
+      ),
+    )
+    .then((animations) => animations.length);
+  expect(rayShimmerCount).toBeGreaterThan(0);
+  const auroraZ = await aurora.evaluate((el) => getComputedStyle(el).zIndex);
+  const chatZ = await page.locator('.chat-content').evaluate((el) => getComputedStyle(el).zIndex);
+  expect(Number(chatZ)).toBeGreaterThan(Number(auroraZ));
+
   for (const width of [375, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     for (const mode of ['dark', 'light']) {
@@ -74,9 +94,25 @@ test('aurora follows music and glow preferences and respects reduced motion', as
   }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   expect(await aurora.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+  // Reduced motion also freezes the inner ray shimmer, not just the layers.
+  expect(
+    await page
+      .locator('.aurora-curtain img')
+      .evaluateAll((els) => els.flatMap((el) => el.getAnimations())),
+  ).toHaveLength(0);
   await page.getByRole('button', { name: 'Open music controls' }).click();
   await page.getByLabel('Ambient glow color').fill('#a78bfa');
   await expect(aurora).toHaveCSS('--aurora-color', '#a78bfa');
+  // The custom color tints the shared atmosphere, not just the SVG curtains.
+  const atmosphereBefore = await page
+    .locator('.aurora-atmosphere')
+    .evaluate((el) => getComputedStyle(el).backgroundImage);
+  await page.getByLabel('Ambient glow color').fill('#22d3ee');
+  await expect(aurora).toHaveCSS('--aurora-color', '#22d3ee');
+  const atmosphereAfter = await page
+    .locator('.aurora-atmosphere')
+    .evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(atmosphereAfter).not.toBe(atmosphereBefore);
   await page.getByLabel('Ambient glow', { exact: true }).uncheck();
   await expect(aurora).toHaveCount(0);
   await page.getByLabel('Ambient glow', { exact: true }).check();
