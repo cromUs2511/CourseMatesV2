@@ -26,6 +26,9 @@ const PROMOTION_SYMBOL: Record<ChessPiece['type'], PieceSymbol> = {
   king: 'k',
 };
 
+// Only these four pieces are legal promotion targets.
+const PROMOTABLE: ReadonlySet<string> = new Set(['queen', 'rook', 'bishop', 'knight']);
+
 /**
  * Convert a chess.js position to the CourseMates board shape.
  * chess.board() returns rank 8 first, matching board[0] === rank 8.
@@ -59,6 +62,8 @@ function toAlgebraic(square: [number, number]): string {
 
 export class PeerChess {
   private state: ChessState = { revision: 0, invitation: null, game: null, leftBy: null };
+  // Who played White last. Survives game teardown so the next game flips roles.
+  private lastWhiteId: string | null = null;
 
   snapshot(now = Date.now()): ChessState {
     if (this.state.invitation && this.state.invitation.expiresAt <= now) {
@@ -94,14 +99,24 @@ export class PeerChess {
       if (action.accept && invitation.fromId === actor)
         throw new Error('Only your peer can accept this invitation.');
       if (action.accept) {
-        const ordered = [...peers].sort((a) => (a.id === invitation.fromId ? -1 : 1));
+        // First game in a room: random. Every later game: the other player gets White.
+        const previousWhite = peers.find((peer) => peer.id === this.lastWhiteId);
+        const white = previousWhite
+          ? peers.find((peer) => peer.id !== previousWhite.id)!
+          : peers[crypto.randomInt(2)]!;
+        this.lastWhiteId = white.id;
+        // Keep the inviter listed first so the UI header order is unchanged.
+        const ordered = [
+          peers.find((peer) => peer.id === invitation.fromId)!,
+          peers.find((peer) => peer.id !== invitation.fromId)!,
+        ];
         const chess = new Chess();
         state.game = {
           id: crypto.randomUUID(),
           round: 1,
-          players: ordered.map((peer, index) => ({
+          players: ordered.map((peer) => ({
             ...peer,
-            color: index === 0 ? 'white' : 'black',
+            color: (peer.id === white.id ? 'white' : 'black') as ChessPieceColor,
           })),
           board: chessToBoard(chess),
           fen: chess.fen(),
@@ -140,6 +155,12 @@ export class PeerChess {
         game.rematch.push(actor);
         if (game.rematch.length === 2) {
           game.round++;
+          // Alternate sides every round.
+          game.players = game.players.map((p) => ({
+            ...p,
+            color: (p.color === 'white' ? 'black' : 'white') as ChessPieceColor,
+          }));
+          this.lastWhiteId = game.players.find((p) => p.color === 'white')!.id;
           const newChess = new Chess();
           game.board = chessToBoard(newChess);
           game.fen = newChess.fen();
@@ -155,10 +176,13 @@ export class PeerChess {
         if (game.drawOfferedBy) throw new Error('A draw has been offered. Respond first.');
 
         const player = game.players.find((p) => p.id === actor)!;
-        if (player.color !== game.turn) throw new Error('It is not your turn.');
+        // The engine position is the source of truth for whose turn it is:
+        // White opens, then Black always replies.
+        const turnColor: ChessPieceColor = chess.turn() === 'w' ? 'white' : 'black';
+        if (player.color !== turnColor) throw new Error('It is not your turn.');
         if (!isSquare(action.from) || !isSquare(action.to))
           throw new Error('Choose two squares on the board.');
-        if (action.promotion !== undefined && !(action.promotion in PROMOTION_SYMBOL))
+        if (action.promotion !== undefined && !PROMOTABLE.has(action.promotion))
           throw new Error('Choose a valid promotion piece.');
 
         try {
