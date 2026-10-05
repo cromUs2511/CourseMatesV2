@@ -58,6 +58,22 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await page.route('**/api/chat/messages?*', (route) =>
       route.fulfill({ json: { active: true, messages: history, isPeerTyping: false } }),
     );
+    await page.route('**/api/music/search?q=*', (route) =>
+      route.fulfill({
+        json: {
+          tracks: [
+            {
+              id: 'mobile-backread-track',
+              title: 'Mobile Backread Track',
+              artist: 'Mobile Test',
+              youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+              youtubeVideoId: 'dQw4w9WgXcQ',
+              category: 'custom',
+            },
+          ],
+        },
+      }),
+    );
     for (const target of [page, peer]) {
       await target.goto('/');
       await target.getByRole('checkbox', { name: /at least 18 years old/i }).check();
@@ -91,7 +107,11 @@ test('long mobile history stays visible while backreading with aurora and incomi
     await expect(page.locator('#chat-header')).toBeVisible();
     await page.getByRole('button', { name: 'Account and display settings' }).click();
     await page.getByRole('button', { name: 'Open music controls' }).click();
-    await page.getByRole('button', { name: 'Play Study Music' }).click();
+    await page
+      .getByRole('searchbox', { name: 'Search music or paste a YouTube link' })
+      .fill('mobile backread');
+    await page.getByRole('button', { name: 'Go', exact: true }).click();
+    await page.getByRole('button', { name: 'Play Mobile Backread Track by Mobile Test' }).click();
     await page.keyboard.press('Escape');
     await expect(page.locator('.ambient-aurora')).toBeVisible();
     await expect(page.getByTestId('music-engine')).toHaveCount(1);

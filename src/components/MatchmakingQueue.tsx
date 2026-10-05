@@ -413,7 +413,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                     disabled={isSearching}
                     title="Edit anonymous name"
                     aria-label="Edit anonymous name"
-                    className="matching-name-action inline-flex items-center justify-center rounded-lg border bg-stone-50/80 p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800/80"
+                    className="matching-name-action inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border bg-stone-50/80 p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-800/80"
                   >
                     <Pencil className="h-3.5 w-3.5 text-stone-600 dark:text-stone-300" />
                   </button>
@@ -423,7 +423,7 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
                       onClick={onRerollHandle}
                       disabled={isSearching}
                       title="Shuffle default name"
-                      className="matching-name-action chat-theme-accent-soft inline-flex items-center justify-center rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
+                      className="matching-name-action chat-theme-accent-soft inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg p-1.5 border bg-stone-50/80 dark:bg-stone-800/80 transition-colors cursor-pointer shrink-0"
                     >
                       <RefreshCw className="chat-theme-accent-text w-3.5 h-3.5" />
                     </button>

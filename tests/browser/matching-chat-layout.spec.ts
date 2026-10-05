@@ -65,13 +65,13 @@ for (const theme of ['Crimson red', 'Ocean blue']) {
         expect(
           Math.abs(shuffleBox.y + shuffleBox.height / 2 - iconBox.y - iconBox.height / 2),
         ).toBeLessThan(1);
-        await page.getByTitle('Change name').click();
+        await page.getByRole('button', { name: 'Edit anonymous name' }).click();
         await expectContained(page, '.matching-name-form, .matching-name-form input');
         await page
           .getByRole('textbox', { name: 'Custom name' })
           .fill('A very long study nickname for wrapping');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
-        await expect(page.getByTitle('Change name')).toHaveText(
+        await expect(page.locator('.matching-identity')).toContainText(
           'A very long study nickname for wrapping',
         );
 
