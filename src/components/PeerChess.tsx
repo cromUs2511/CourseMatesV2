@@ -1,4 +1,12 @@
-import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties} from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { Minimize2, RotateCw, Flag, X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
@@ -12,7 +20,7 @@ import type {
   PeerGameActivity,
 } from '../data/peerGames';
 import { GameInvitation } from './GameInvitation';
-import { LeaveGameButton, LeftGameNotice } from './GameLeave';
+import { LeaveGameButton } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 
 export type PeerChessHandle = { open: () => void };
@@ -379,11 +387,8 @@ export const PeerChess = forwardRef<
         return [];
     }
   };
-  const getDisplayBoard = () => {
-    if (!game)
-      return Array(8)
-        .fill(null)
-        .map(() => Array(8).fill(null));
+  const getDisplayBoard = (): ChessBoard => {
+    if (!game) return Array.from({ length: 8 }, (): ChessBoard[number] => Array(8).fill(null));
     const board = game.board;
     if (boardFlipped) {
       return board.map((row) => [...row].reverse()).reverse();
@@ -421,9 +426,7 @@ export const PeerChess = forwardRef<
           }
         />
       )}
-      {!game && !state.invitation && (
-        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Chess" />
-      )}
+      {/* Game-leave events now live in the message timeline as system messages. */}
       {error && !open && (
         <p role="alert" className="mx-auto max-w-3xl py-2 text-sm text-red-500">
           {error}

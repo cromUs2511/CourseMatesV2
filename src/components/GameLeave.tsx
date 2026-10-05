@@ -41,24 +41,3 @@ export function LeaveGameButton({
     </button>
   );
 }
-
-/** Inline notice shown to the remaining peer after the other player leaves a match. */
-export function LeftGameNotice({
-  leftBy,
-  sessionId,
-  gameLabel,
-}: {
-  leftBy: { id: string; handle: string } | null;
-  sessionId: string;
-  gameLabel: string;
-}) {
-  if (!leftBy || leftBy.id === sessionId) return null;
-  return (
-    <p
-      role="status"
-      className="mx-auto max-w-3xl px-1 py-2 text-center text-xs text-stone-500 dark:text-stone-400"
-    >
-      {leftBy.handle} left the {gameLabel} game.
-    </p>
-  );
-}

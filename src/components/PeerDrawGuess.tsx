@@ -14,7 +14,7 @@ import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import { DrawingCanvas } from './DrawingCanvas';
 import { GameInvitation } from './GameInvitation';
-import { LeaveGameButton, LeftGameNotice } from './GameLeave';
+import { LeaveGameButton } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 import '../drawing.css';
 
@@ -245,9 +245,7 @@ export const PeerDrawGuess = forwardRef<
           }
         />
       )}
-      {!game && !state.invitation && (
-        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Draw & Guess" />
-      )}
+      {/* Game-leave events now live in the message timeline as system messages. */}
       {error && !open && !setup && (
         <p role="alert" className="draw-inline-error">
           {error}

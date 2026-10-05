@@ -4,7 +4,7 @@ import { apiRequest } from '../utils/api';
 import { playChime } from '../utils/sound';
 import type { WyrState, WyrAction, WyrQuestion, PeerGameActivity } from '../data/peerGames';
 import { GameInvitation } from './GameInvitation';
-import { LeaveGameButton, LeftGameNotice } from './GameLeave';
+import { LeaveGameButton } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 
 export type PeerWouldYouRatherHandle = { open: () => void };
@@ -184,9 +184,7 @@ export const PeerWouldYouRather = forwardRef<
           }
         />
       )}
-      {!game && !state.invitation && (
-        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Would You Rather" />
-      )}
+      {/* Game-leave events now live in the message timeline as system messages. */}
       {error && !open && (
         <p role="alert" className="mx-auto max-w-3xl py-2 text-sm text-red-500">
           {error}

@@ -30,6 +30,14 @@ function startGame(
 
 // ---------------------------------------------------------------- Chess ---
 
+// White is drawn at random for the first game in a room, so read the seat
+// assignment instead of assuming a fixed player moves first.
+function chessSeats(game: PeerChess) {
+  const players = game.snapshot().game!.players;
+  const white = players.find((player) => player.color === 'white')!.id;
+  return { white, black: players.find((player) => player.id !== white)!.id };
+}
+
 test('chess starts with all 32 pieces in the standard position', () => {
   const game = new PeerChess();
   startGame(
@@ -62,6 +70,7 @@ test('chess opening pawn moves work and illegal moves are rejected', () => {
     (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
   );
   const id = game.snapshot().game!.id;
+  const { white, black } = chessSeats(game);
   const move = (actor: string, from: [number, number], to: [number, number], promotion?: 'queen') =>
     game.act(actor, peers, {
       action: 'move',
@@ -72,7 +81,7 @@ test('chess opening pawn moves work and illegal moves are rejected', () => {
       to,
       promotion,
     } as never);
-  move('a', [6, 4], [4, 4]); // e2-e4
+  move(white, [6, 4], [4, 4]); // e2-e4
   const state = game.snapshot().game!;
   assert.equal(state.turn, 'black');
   assert.deepEqual(state.board[4]![4], { type: 'pawn', color: 'white' });
@@ -80,12 +89,12 @@ test('chess opening pawn moves work and illegal moves are rejected', () => {
   // Full FEN fidelity: placement, turn and castling rights survive the round-trip.
   assert.ok(state.fen.startsWith('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq'));
   // Wrong turn.
-  assert.throws(() => move('a', [4, 4], [3, 4]), /not your turn/);
+  assert.throws(() => move(white, [4, 4], [3, 4]), /not your turn/);
   // Pawn cannot move backwards / onto own piece square illegally.
-  move('b', [1, 4], [3, 4]); // e7-e5
-  assert.throws(() => move('a', [4, 4], [3, 4]), /Invalid move/); // e4-e5 blocked
+  move(black, [1, 4], [3, 4]); // e7-e5
+  assert.throws(() => move(white, [4, 4], [3, 4]), /Invalid move/); // e4-e5 blocked
   // Out-of-board squares are rejected, not crashed on.
-  assert.throws(() => move('a', [6, 0], [9, 9] as never), /board/);
+  assert.throws(() => move(white, [6, 0], [9, 9] as never), /board/);
 });
 
 test("chess detects checkmate via scholar's mate", () => {
@@ -96,6 +105,7 @@ test("chess detects checkmate via scholar's mate", () => {
     (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
   );
   const id = game.snapshot().game!.id;
+  const { white, black } = chessSeats(game);
   const move = (actor: string, from: [number, number], to: [number, number]) =>
     game.act(actor, peers, {
       action: 'move',
@@ -105,15 +115,15 @@ test("chess detects checkmate via scholar's mate", () => {
       from,
       to,
     } as never);
-  move('a', [6, 4], [4, 4]); // e4
-  move('b', [1, 4], [3, 4]); // e5
-  move('a', [7, 3], [3, 7]); // Qh5
-  move('b', [0, 1], [2, 2]); // Nc6
-  move('a', [7, 5], [4, 2]); // Bc4
-  move('b', [0, 6], [2, 5]); // Nf6
-  move('a', [3, 7], [1, 5]); // Qxf7#
+  move(white, [6, 4], [4, 4]); // e4
+  move(black, [1, 4], [3, 4]); // e5
+  move(white, [7, 3], [3, 7]); // Qh5
+  move(black, [0, 1], [2, 2]); // Nc6
+  move(white, [7, 5], [4, 2]); // Bc4
+  move(black, [0, 6], [2, 5]); // Nf6
+  move(white, [3, 7], [1, 5]); // Qxf7#
   const state = game.snapshot().game!;
-  assert.deepEqual(state.result, { winnerId: 'a', reason: 'checkmate' });
+  assert.deepEqual(state.result, { winnerId: white, reason: 'checkmate' });
 });
 
 test('chess castling works because FEN state is preserved', () => {
@@ -124,6 +134,7 @@ test('chess castling works because FEN state is preserved', () => {
     (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
   );
   const id = game.snapshot().game!.id;
+  const { white, black } = chessSeats(game);
   const move = (actor: string, from: [number, number], to: [number, number]) =>
     game.act(actor, peers, {
       action: 'move',
@@ -133,13 +144,13 @@ test('chess castling works because FEN state is preserved', () => {
       from,
       to,
     } as never);
-  move('a', [6, 4], [4, 4]); // e4
-  move('b', [1, 4], [3, 4]); // e5
-  move('a', [7, 6], [5, 5]); // Nf3
-  move('b', [0, 1], [2, 2]); // Nc6
-  move('a', [7, 5], [4, 2]); // Bc4
-  move('b', [0, 5], [3, 2]); // Bc5
-  move('a', [7, 4], [7, 6]); // O-O
+  move(white, [6, 4], [4, 4]); // e4
+  move(black, [1, 4], [3, 4]); // e5
+  move(white, [7, 6], [5, 5]); // Nf3
+  move(black, [0, 1], [2, 2]); // Nc6
+  move(white, [7, 5], [4, 2]); // Bc4
+  move(black, [0, 5], [3, 2]); // Bc5
+  move(white, [7, 4], [7, 6]); // O-O
   const state = game.snapshot().game!;
   assert.deepEqual(state.board[7]![6], { type: 'king', color: 'white' });
   assert.deepEqual(state.board[7]![5], { type: 'rook', color: 'white' });
@@ -153,6 +164,7 @@ test('chess en passant capture works', () => {
     (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
   );
   const id = game.snapshot().game!.id;
+  const { white, black } = chessSeats(game);
   const move = (actor: string, from: [number, number], to: [number, number]) =>
     game.act(actor, peers, {
       action: 'move',
@@ -162,11 +174,11 @@ test('chess en passant capture works', () => {
       from,
       to,
     } as never);
-  move('a', [6, 4], [4, 4]); // e4
-  move('b', [0, 1], [2, 2]); // Nc6 (waiting)
-  move('a', [4, 4], [3, 4]); // e5
-  move('b', [1, 3], [3, 3]); // d5
-  move('a', [3, 4], [2, 3]); // exd6 e.p.
+  move(white, [6, 4], [4, 4]); // e4
+  move(black, [0, 1], [2, 2]); // Nc6 (waiting)
+  move(white, [4, 4], [3, 4]); // e5
+  move(black, [1, 3], [3, 3]); // d5
+  move(white, [3, 4], [2, 3]); // exd6 e.p.
   const state = game.snapshot().game!;
   assert.deepEqual(state.board[2]![3], { type: 'pawn', color: 'white' });
   assert.equal(state.board[3]![3], null);
@@ -180,6 +192,7 @@ test('chess pawn promotion works with a mapped promotion piece', () => {
     (invitationId) => ({ action: 'respond', invitationId, accept: true }) as never,
   );
   const id = game.snapshot().game!.id;
+  const { white, black } = chessSeats(game);
   const move = (actor: string, from: [number, number], to: [number, number], promotion?: 'queen') =>
     game.act(actor, peers, {
       action: 'move',
@@ -190,15 +203,15 @@ test('chess pawn promotion works with a mapped promotion piece', () => {
       to,
       promotion,
     } as never);
-  move('a', [6, 1], [4, 1]); // b4
-  move('b', [0, 6], [2, 5]); // Nf6
-  move('a', [4, 1], [3, 1]); // b5
-  move('b', [1, 2], [3, 2]); // c5
-  move('a', [3, 1], [2, 2]); // bxc6 e.p.
-  move('b', [1, 4], [2, 4]); // e6
-  move('a', [2, 2], [1, 2]); // c7
-  move('b', [1, 7], [2, 7]); // h6
-  move('a', [1, 2], [0, 3], 'queen'); // cxd8=Q
+  move(white, [6, 1], [4, 1]); // b4
+  move(black, [0, 6], [2, 5]); // Nf6
+  move(white, [4, 1], [3, 1]); // b5
+  move(black, [1, 2], [3, 2]); // c5
+  move(white, [3, 1], [2, 2]); // bxc6 e.p.
+  move(black, [1, 4], [2, 4]); // e6
+  move(white, [2, 2], [1, 2]); // c7
+  move(black, [1, 7], [2, 7]); // h6
+  move(white, [1, 2], [0, 3], 'queen'); // cxd8=Q
   const state = game.snapshot().game!;
   assert.deepEqual(state.board[0]![3], { type: 'queen', color: 'white' });
 });

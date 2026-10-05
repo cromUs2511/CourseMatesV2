@@ -138,7 +138,7 @@ must never log message or media contents.
 | WebSocket messages                          | 240/min per session; closes with `Rate limit exceeded`                         | `runtime.ts`           |
 | Sessions / rooms / queued / sockets / media | 2000 / 500 / 1000 / 2000 / 128 MB                                              | `defaultLimits`        |
 | Session lifetime                            | 8 hours                                                                        | `issueSession`         |
-| Peer inactivity                             | 30 s drop, swept every 5 s                                                     | cleanup interval       |
+| Peer inactivity                             | 30 s drop when every room member is silent, swept every 5 s                    | cleanup interval       |
 | AI provider concurrency                     | 8 in flight, 5 failures open a 30 s circuit                                    | `providerGuard`        |
 | HTTP timeouts                               | request 30 s, headers 15 s, keep-alive 5 s, 100 headers                        | `server.ts`            |
 

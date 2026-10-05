@@ -103,8 +103,10 @@ another participant's token or email.
   who set `allowNormal` (or has only the generic interest) pairs with the first
   queued peer who also allows it; otherwise they queue. `verified` is always
   `false`.
-- **Liveness:** a queue entry or room member silent for 30 s is dropped by a 5 s
-  cleanup timer, and an abandoned room frees its messages and media. Polling or
+- **Liveness:** a queue entry silent for 30 s is dropped by a 5 s cleanup
+  timer, and a room where every member has been silent for 30 s is abandoned
+  and frees its messages and media, so one backgrounded peer never ends the
+  chat for the peer who stayed. Polling or
   a WebSocket `ping` refreshes it. A dropped socket does not end a room. One
   socket per session; a new one closes the old.
 - **Messages:** at most 4,000 characters, latest 500 kept per room, and

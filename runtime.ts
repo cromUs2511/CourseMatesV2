@@ -692,6 +692,33 @@ function send(session: Identity, room: Room, data: any) {
     notify(peer.ws, { type: 'new_message', roomId: room.id, revision: room.revision, message });
   return message;
 }
+function postGameLeaveNotice(
+  room: Room,
+  session: Identity,
+  gameLabel: string,
+  gameId: string,
+): void {
+  // One timeline entry per abandoned game, keyed by that game so retries,
+  // polls, and reconnects can never duplicate it. It keeps its chronological
+  // position because it is appended exactly when the leave is processed,
+  // alongside every other chat message.
+  const id = 'gameleave:' + gameId;
+  if (room.messages.some((message) => message.id === id)) return;
+  const message: Message = {
+    id,
+    senderId: session.id,
+    senderHandle: session.sessionHandle,
+    senderAvatar: session.sessionAvatar,
+    text: `${session.sessionHandle} left the ${gameLabel} game.`,
+    timestamp: Date.now(),
+    type: 'system',
+  };
+  room.messages.push(message);
+  room.revision += 1;
+  if (room.messages.length > 500) clearMessageMedia(room, room.messages.shift()!.id);
+  for (const peer of room.peers)
+    notify(peer.ws, { type: 'new_message', roomId: room.id, revision: room.revision, message });
+}
 function clearMessageMedia(room: Room, messageId: string) {
   const previous = room.mediaBytes;
   for (const image of room.images.get(messageId) || []) room.mediaBytes -= image.bytes.length;
@@ -1128,11 +1155,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'tictactoe');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.ticTacToe.snapshot().game?.id ?? null) : null;
       room.ticTacToe.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Tic Tac Toe', leavingGameId);
       const state = room.ticTacToe.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'tictactoe_state', roomId: room.id, state });
@@ -1168,11 +1198,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'rps');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.rockPaperScissors.snapshot().game?.id ?? null) : null;
       room.rockPaperScissors.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Rock Paper Scissors', leavingGameId);
       for (const peer of room.peers)
         notify(peer.ws, {
           type: 'rps_state',
@@ -1210,11 +1243,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'connectfour');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.connectFour.snapshot().game?.id ?? null) : null;
       room.connectFour.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Connect Four', leavingGameId);
       const state = room.connectFour.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'connectfour_state', roomId: room.id, state });
@@ -1249,11 +1285,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'chess');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.chess.snapshot().game?.id ?? null) : null;
       room.chess.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Chess', leavingGameId);
       const state = room.chess.snapshot();
       for (const peer of room.peers)
         notify(peer.ws, { type: 'chess_state', roomId: room.id, state });
@@ -1297,11 +1336,14 @@ export function attachRuntime(
         (req.body.action === 'respond' && req.body.accept === true)
       )
         assertRoomGameFree(room, 'drawing');
+      const leavingGameId =
+        req.body.action === 'leave' ? (room.drawing.snapshot().game?.id ?? null) : null;
       room.drawing.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Draw & Guess', leavingGameId);
       for (const peer of room.peers)
         notify(peer.ws, {
           type: 'drawing_state',
@@ -1340,11 +1382,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'trivia');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.trivia.snapshot().game?.id ?? null) : null;
       room.trivia.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Trivia', leavingGameId);
       for (const peer of room.peers)
         notify(peer.ws, {
           type: 'trivia_state',
@@ -1383,11 +1428,14 @@ export function attachRuntime(
         (req.body?.action === 'respond' && req.body?.accept === true)
       )
         assertRoomGameFree(room, 'wyr');
+      const leavingGameId =
+        req.body?.action === 'leave' ? (room.wouldYouRather.snapshot().game?.id ?? null) : null;
       room.wouldYouRather.act(
         session.id,
         room.peers.map(({ id, handle }) => ({ id, handle })),
         req.body,
       );
+      if (leavingGameId) postGameLeaveNotice(room, session, 'Would You Rather', leavingGameId);
       for (const peer of room.peers)
         notify(peer.ws, {
           type: 'wyr_state',
@@ -1769,7 +1817,10 @@ export function attachRuntime(
       // Mobile browsers suspend timers while backgrounded. Retain only an
       // drawing turn and its final results through the deadline plus a bounded grace.
       const drawingGrace = drawing && now <= drawing.deadline + 30000;
-      if (!drawingGrace && room.peers.some((p) => now - p.lastSeen > 30000))
+      // A quietly backgrounded peer must not end the chat for the peer who is
+      // still there: only a room where everyone has gone silent is abandoned.
+      // Explicit leave and session expiry still end a chat immediately.
+      if (!drawingGrace && room.peers.every((p) => now - p.lastSeen > 30000))
         leave(room.peers[0].id);
     }
     for (const game of unoCleanup()) pushUnoGame(game);

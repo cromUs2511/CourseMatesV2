@@ -3,7 +3,7 @@ import { Minimize2 } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import type { TicTacToeAction, TicTacToeState, PeerGameActivity } from '../data/peerGames';
 import { GameInvitation } from './GameInvitation';
-import { LeaveGameButton, LeftGameNotice } from './GameLeave';
+import { LeaveGameButton } from './GameLeave';
 import { usePeerGameActivity } from './usePeerGameActivity';
 
 export type PeerTicTacToeHandle = { open: () => void };
@@ -140,9 +140,7 @@ export const PeerTicTacToe = forwardRef<
           }
         />
       )}
-      {!game && !state.invitation && (
-        <LeftGameNotice leftBy={state.leftBy} sessionId={sessionId} gameLabel="Tic Tac Toe" />
-      )}
+      {/* Game-leave events now live in the message timeline as system messages. */}
       {error && !open && (
         <p role="alert" className="mx-auto max-w-3xl py-2 text-sm text-red-500">
           {error}

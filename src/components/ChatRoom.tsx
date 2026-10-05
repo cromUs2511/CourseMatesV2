@@ -57,6 +57,10 @@ import type { UnoAction, UnoStateResponse } from '../../unoTypes';
 import type { PeerGameActivity, PeerGameKey } from '../data/peerGames';
 import type { MusicSnippet } from '../data/musicSnippet';
 import type { ChatImage, ImageUpload } from '../data/chatImages';
+import { MAX_CHAT_IMAGES } from '../data/chatImages';
+import { prepareChatImage } from '../utils/prepareChatImage';
+import { pastedImageFiles } from '../utils/clipboardImages';
+import { clearActiveChat } from '../utils/chatReconnect';
 import type { VoiceUpload } from '../data/chatVoice';
 import { chatMediaRemainingSeconds, formatChatMediaCountdown } from '../data/chatMedia';
 import { MESSAGE_REACTIONS } from '../data/reactions';
@@ -134,6 +138,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [viewingImage, setViewingImage] = useState<ChatImage | null>(null);
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
+  const [connectionLost, setConnectionLost] = useState(false);
   const [peerPresence, setPeerPresence] = useState<PeerPresence>('active');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
@@ -257,6 +262,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const receivedMessageIds = useRef(new Set<string>());
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapshotRevisionRef = useRef<number | null>(null);
+  const pollNowRef = useRef<() => void>(() => {});
+  const pasteBusyRef = useRef(false);
 
   const fetchAiSuggestions = useCallback(() => {
     setIsSuggestionsLoading(true);
@@ -304,9 +311,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const markDisconnected = useCallback(() => {
     endedRef.current = true;
     setPeerDisconnected(true);
+    setConnectionLost(false);
     setPeerPresence('offline');
     setIsPeerTyping(false);
     setMessages([]);
+    clearActiveChat();
     // The chat is gone, so any open UNO table auto-terminates with it.
     setUnoOpen(false);
     setUnoError('');
@@ -510,6 +519,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         );
         if (disposed || endedRef.current) return;
         failures = 0;
+        setConnectionLost(false);
         if (!data.active || data.peerDisconnected) {
           markDisconnected();
           return;
@@ -529,11 +539,13 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         setIsPeerTyping(data.isPeerTyping);
         setError((current) => (current.startsWith('Connection interrupted') ? '' : current));
       } catch {
-        if (!disposed && ++failures >= 2)
-          setError('Connection interrupted. Retrying automatically…');
+        if (!disposed && ++failures >= 2) setConnectionLost(true);
       } finally {
         polling = false;
       }
+    };
+    pollNowRef.current = () => {
+      void poll();
     };
     const onMessage = (event: MessageEvent) => {
       try {
@@ -610,6 +622,37 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
     };
   }, [peer, roomId, session.id, ws, receiveMessages, markDisconnected, applyUno]);
+
+  // Browser connectivity and backgrounding. While hidden, a best-effort
+  // keepalive refreshes the server lease without touching local state, so a
+  // short backgrounding never ends the chat. Returning to the tab polls
+  // immediately instead of waiting for the next interval tick.
+  useEffect(() => {
+    if (peer.isSimulated || !roomId) return;
+    const keepalive = () => {
+      fetch('/api/chat/messages?roomId=' + encodeURIComponent(roomId), {
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.hidden) keepalive();
+      else pollNowRef.current();
+    };
+    const onOffline = () => setConnectionLost(true);
+    const onOnline = () => pollNowRef.current();
+    window.addEventListener('pagehide', keepalive);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    if (!navigator.onLine) setConnectionLost(true);
+    return () => {
+      window.removeEventListener('pagehide', keepalive);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [peer.isSimulated, roomId]);
 
   // UNO: polled as well as pushed so a challenge or move survives a dead socket.
   useEffect(() => {
@@ -786,6 +829,44 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       sendTyping(false);
       typingTimeoutRef.current = null;
     }, 1200);
+  };
+  // Pasting an image attaches it through the same validation and send path as
+  // the photo picker. Text on the clipboard is left alone, so ordinary text
+  // pasting works exactly as before. The existing picker stays available
+  // wherever image pasting is unsupported.
+  const handleComposerPaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const files = pastedImageFiles(event.clipboardData);
+    if (!files.length) return;
+    if (
+      peerDisconnected ||
+      mediaRemainingSeconds > 0 ||
+      isSending ||
+      isRecordingVoice ||
+      editingMessageId ||
+      pendingVoice ||
+      preparingImages ||
+      pasteBusyRef.current
+    )
+      return;
+    if (pendingImages.length + files.length > MAX_CHAT_IMAGES) {
+      setError('Attach up to 4 images per message.');
+      return;
+    }
+    pasteBusyRef.current = true;
+    setPreparingImages(true);
+    setError('');
+    void (async () => {
+      try {
+        const prepared: ImageUpload[] = [];
+        for (const file of files) prepared.push(await prepareChatImage(file));
+        setPendingImages((current) => [...current, ...prepared].slice(0, MAX_CHAT_IMAGES));
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        pasteBusyRef.current = false;
+        setPreparingImages(false);
+      }
+    })();
   };
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend ?? inputRef.current?.value ?? '').trim();
@@ -1336,6 +1417,14 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             }
           />
         </div>
+        {connectionLost && !peerDisconnected && (
+          <p
+            role="status"
+            className="w-full shrink-0 px-3 py-1.5 text-center text-xs font-semibold text-stone-500 dark:text-stone-400 sm:px-6"
+          >
+            Reconnecting… Your messages will sync when you&apos;re back online.
+          </p>
+        )}
         {/* Scrollable Messages Area */}
         <div
           id="chat-messages-container"
@@ -2200,6 +2289,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 aria-label={editingMessageId ? 'Edit chat message' : 'Chat message'}
                 aria-describedby="composer-help"
                 onChange={handleInputChange}
+                onPaste={handleComposerPaste}
                 onFocus={() => setComposerEngaged(true)}
                 onBlur={(event) => {
                   if (!composerRef.current?.contains(event.relatedTarget as Node | null))
