@@ -23,6 +23,9 @@ conventional prefixes (`feat:`, `fix:`, `style:`, `chore:`, `build(native):`).
 - `npm start` — run `dist/.server/server.cjs`; never launches Vite or Python.
 - `npm run test:e2e` — production-mode Playwright suite. Build first.
 - `npm run test:e2e:dev` — the same suite against Vite dev mode.
+- `npx playwright test --config playwright.drawing.config.ts` — only
+  `drawing.spec.ts`, in WebKit (the Safari engine). `PW_BROWSER=webkit` runs the
+  whole suite in WebKit. Neither is wired into `package.json` or CI.
 - `npm run clean` — remove `dist/` and `server.js`.
 - `docker compose up --build` — Node edge plus the Python orchestrator.
 
@@ -42,17 +45,24 @@ operational runbook is `docs/operations.md`.
   `WindowLimiter`, `constantTimeEqual`, `metrics` and the production config gate.
 - Peer games, one server module each, all mounted from `runtime.ts`:
   `ticTacToe.ts`, `rps.ts`, `connectFour.ts`, `chess.ts` (chess.js),
-  `trivia.ts`, `wouldYouRather.ts`, and `uno.ts` / `unoTypes.ts`. Matching UI is
-  `src/components/Peer*.tsx`, `Uno*.tsx`, with shared catalog data in
-  `src/data/peerGames.ts`.
+  `trivia.ts`, `wouldYouRather.ts`, `drawGuess.ts` (prompt bank in
+  `drawGuessPrompts.ts`, server-only), and `uno.ts` / `unoTypes.ts`. Matching UI
+  is `src/components/Peer*.tsx`, `Uno*.tsx`, `DrawingCanvas.tsx`, with shared
+  catalog data in `src/data/peerGames.ts`.
 - `UNO.txt` (standalone HTML prototype) and `todo` (a game-repair task brief)
   are scratch files, not part of the product.
 - `src/data/` is imported by both the browser and the server, so shared limits
-  (`chatImages.ts`, `chatVoice.ts`, `reactions.ts`) live in one place. Change a
-  limit there, not in a copy.
+  and validators (`chatImages.ts`, `chatVoice.ts`, `chatMedia.ts`,
+  `reactions.ts`, `musicSnippet.ts`, `drawGuess.ts` types and palette) live in
+  one place. Change a limit there, not in a copy.
 - `tests/` (`node:test`), `tests/browser/` (Playwright),
   `services/python-orchestrator/`, `native/`, `native_bridge.py`, and
-  `docs/architecture/` (read before touching Python).
+  `docs/architecture/` (read before touching Python). `docs/operations.md` is the
+  runbook; `docs/superpowers/{specs,plans}/` hold dated design and verification
+  notes (Draw & Guess, the Python shadow service, production readiness).
+- `scripts/export-task-list-pdf.mjs` is a one-off that prints
+  `docs/CourseMates-Initial-Task-List.html` (not in the repo) with a hard-coded
+  Windows Chrome path. It is not part of any workflow.
 - `metadata.json` is a Google AI Studio manifest, unused at runtime.
 
 ## Configuration
@@ -71,6 +81,15 @@ Env loads from `.env.groq.local`, `.env.gemini.local`, `.env.local`, then
   Gemini is not configured.
 - Without `YOUTUBE_API_KEY`, `/api/music/search` returns 503 and the server logs
   a `[config]` warning at startup.
+- `CHAT_MULTIPLAYER_V2` is on unless exactly `false`. Off, every peer-game route
+  returns 503 and music falls back to play/pause only; the legacy UNO arena
+  endpoints are restored instead.
+- `TRUST_PROXY_HOPS` (0–5, default 0) is the number of proxies in front; Render
+  is 1. `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD` sit beside
+  `ADMIN_TOKEN` for the dashboard. `SUPPORT_EMAIL` is surfaced by
+  `/api/public-config`.
+- `CHAT_MEDIA_LOCK_MS=0` is honored only when `NODE_ENV=test`; Playwright sets it
+  so photo tests don't wait out the 90 s media lock.
 - `PYTHON_ORCHESTRATOR_MODE` (`off` | `shadow`), `_URL` (default
   `http://127.0.0.1:5051`), `_TIMEOUT_MS` (default 500, clamped to 50–5000).
 - `CM_DISABLE_NATIVE=1` forces the pure-Python fallback. `DISABLE_HMR=true`
@@ -108,7 +127,12 @@ another participant's token or email.
   and frees its messages and media, so one backgrounded peer never ends the
   chat for the peer who stayed. Polling or
   a WebSocket `ping` refreshes it. A dropped socket does not end a room. One
-  socket per session; a new one closes the old.
+  socket per session; a new one closes the old. A live Draw & Guess turn (and
+  its final results) survives until its server deadline plus 30 s even if both
+  phones sleep; an explicit leave still purges the room immediately.
+- **Reconnect:** the client saves the live chat in `localStorage`
+  (`cm_active_chat`, `utils/chatReconnect.ts`) so a reloaded or backgrounded tab
+  rejoins the same room. An expired session cannot rejoin its old room.
 - **Messages:** at most 4,000 characters, latest 500 kept per room, and
   evicting one frees its media. Delete turns a message into `Message unsent.`;
   only the sender can delete or edit, and only text can be edited. A repeated
@@ -118,7 +142,19 @@ another participant's token or email.
   is 64 KB), never the socket. Images: up to 4 per message, JPEG/PNG/WebP/GIF,
   1600 px max, a 24 MB budget per room. One voice message per send, up to 3
   minutes. Exact limits are in `src/data/chatImages.ts` and `chatVoice.ts`;
-  the server checks magic bytes and rejects non-canonical base64.
+  the server checks magic bytes and rejects non-canonical base64. Photos and
+  voice are locked for the first 90 s of a room (`room.mediaUnlockAt`,
+  `CHAT_MEDIA_LOCK_MS`); text and music snippets are not.
+- **Music:** a **music snippet** is a message carrying a 15–30 s YouTube window
+  (`musicSnippet`, validated by `normalizeMusicSnippet`; only a YouTube id, never
+  a peer-supplied image URL). It is moderated, cannot be edited, and must be sent
+  without photos or voice. Separately, a room has shared playback state
+  (`POST /api/chat/music`, `/api/chat/music/next` with a `revision` check) shown
+  by `TopMusicBar.tsx`. `server.ts` owns `/api/music/search` (YouTube) and
+  `/api/music/directory`. Tracks matching Spider-Man/Spider-Verse soundtrack
+  titles in `musicDirectory.ts` switch the room to a web background.
+- **Reactions:** `POST /api/chat/react` with the fixed emoji set in
+  `src/data/reactions.ts`.
 - **AI:** `server.ts` owns `/api/ai/*`. Gemini first, Groq only if Gemini is
   absent, static icebreakers if neither. Grounding is enabled only for
   explicitly current or online questions. The chatbot is a labelled simulation
@@ -127,10 +163,10 @@ another participant's token or email.
 
 ## Peer games
 
-Seven games: UNO, Tic-Tac-Toe, Rock Paper Scissors, Connect Four, Chess,
-Trivia, Would You Rather.
+Eight games: UNO, Tic-Tac-Toe, Rock Paper Scissors, Connect Four, Chess,
+Trivia, Would You Rather, Draw & Guess.
 
-- Routes are `GET|POST /api/chat/{tictactoe,rps,connectfour,chess,trivia,wyr}`
+- Routes are `GET|POST /api/chat/{tictactoe,rps,connectfour,chess,trivia,wyr,drawing}`
   (invite, respond, move) and `/api/uno/*` (arena, challenge, action, away,
   leave). Both are rate limited (429) and can return 503 when games are
   disabled.
@@ -142,8 +178,23 @@ Trivia, Would You Rather.
   Rather choices) to the peer.
 - Chess boards must come from `chess.board()`, not from parsing chess.js ASCII
   output.
+- Every game posts a leave notice to the chat timeline exactly once
+  (`postGameLeaveNotice`), and a finished game frees the room slot.
+- **Draw & Guess** (`drawGuess.ts`, spec in
+  `docs/superpowers/specs/2026-10-03-draw-and-guess-design.md`): six alternating
+  turns, three private prompt choices (auto-picked after 20 s), 60 s to draw,
+  guesses scored on the server (100 each, plus up to 60 time bonus), and a mutual
+  rematch. Serialize state per viewer with `serializeFor(id)`; the answer and
+  unchosen choices must not reach the wrong peer, so never broadcast one common
+  state. Strokes are vectors in an 800 × 500 space with the batch, stroke and
+  canvas caps in the spec; clear bumps a canvas version so late batches can't
+  undo it. The bank has 1,100 prompts (10 categories × 40 easy/40 medium/30 hard);
+  keep the counts when adding. `DrawingCanvas.tsx` uses Pointer Events, and
+  `PeerDrawGuess.tsx` sends strokes serially so latency can't reorder them.
 - Tests: `tests/uno.test.ts`, `peerGames.test.ts`, `peer-games-repair.test.ts`,
-  and `tests/browser/games.spec.ts` / `uno.spec.ts`.
+  `drawGuess.test.ts`, `drawGuessRuntime.test.ts`, `gameLeaveNotice.test.ts`,
+  `game-auto-terminate.test.ts`, and `tests/browser/games.spec.ts` /
+  `uno.spec.ts` / `drawing.spec.ts`.
 
 ## Safety, moderation and admin
 
@@ -172,6 +223,16 @@ Every `localStorage` access is wrapped in try/catch (storage can be
 unavailable), and animations must honor reduced-motion. Viewport height is
 tracked through `--app-height` / `--app-top` for mobile keyboards.
 
+- **Appearance:** light/dark (`coursemates_darkmode`, toggled with a View
+  Transition reveal in `utils/themeTransition.ts`) and one of fifteen chat color
+  themes (`coursemates_chat_theme`, `ChatThemeMenu.tsx`). The theme picker must
+  keep every label inside a 320 px viewport. Sound has its own toggle
+  (`utils/sound.ts`), and `AmbientAurora.tsx` follows music and glow settings.
+- **Conversation starters:** the chat offers at most three, which expire after
+  75 s; they never limit normal messages.
+- Each game's CSS lives beside it (`uno.css`, `tictactoe.css`, `connectfour.css`,
+  `drawing.css`, `matching-chat.css`).
+
 ## Testing
 
 - `runtime.test.ts` mounts `attachRuntime` on an ephemeral port and drives it
@@ -187,6 +248,16 @@ tracked through `--app-height` / `--app-top` for mobile keyboards.
   capacity, rate-limit and drain behaviour.
 - Run `npm run lint`, `npm run format:check` and `npm test` before calling a
   change done. `npm run dev` fails with `EADDRINUSE` if port 3000 is taken.
+- Run Node suites serially on Windows; parallel Node and WebKit runs produced
+  local HTTP delays and resets.
+- Emulated touch/mobile contexts are not real-device testing. Do not claim
+  Android, iOS or physical-keyboard coverage from Playwright alone.
+- Known gaps recorded in `docs/superpowers/plans/2026-10-03-draw-and-guess-verification.md`
+  (2026-10-03): the full production Chrome suite was not green (legacy failures
+  in music preferences, REST Tic-Tac-Toe recovery, header sizing, mobile layouts,
+  backreading and music queues; only three were reproduced on the pre-feature
+  revision), and `format:check` flagged 18 files including `CLAUDE.md` itself.
+  Re-run before assuming either has been fixed.
 
 ## Layered migration
 

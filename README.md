@@ -25,6 +25,16 @@ Anonymous study matching, built with React, Vite, Express and WebSockets.
   chat card with disc playback controls, reactions, reply, copy, and delete actions.
 - The normal peer state does not display a redundant `CONNECTED` badge; the
   header only shows meaningful states such as `AI` or `LEFT`.
+- Reliable reconnection: a reloaded or backgrounded tab rejoins its live chat
+  (revalidated against the server) and shows a **Reconnecting** indicator while
+  the connection is down. If the chat has ended, you get a clear ended-chat
+  message instead of a broken room.
+- Paste images straight from the clipboard into the composer; they go through the
+  same validation and send path as picked photos.
+- When a peer leaves a game, a single chronological notice appears in the chat
+  timeline (no pinned panel).
+
+See [docs/FEATURES.md](docs/FEATURES.md) for a full tour of every feature.
 
 ## Draw & Guess
 
@@ -132,7 +142,7 @@ Environment values are loaded from `.env.groq.local`, `.env.gemini.local`, `.env
 
 Sessions are held in memory for up to eight hours, restored through an HttpOnly cookie, and removed on sign-out. Peers receive a separate public identifier, not another participant's token or email. Changing handles is allowed outside a queue or chat.
 
-Messages are held in a bounded RAM buffer (500 messages per room), with a 4,000-character message limit. Chats accept up to four JPEG, PNG, or WebP photos per message, with optional captions. Source files may be up to 10 MB each; the browser resizes them to at most 1600 pixels and 1 MB per photo and removes source metadata before sending. Photos use authenticated, non-cached image endpoints and a 24 MB per-room memory budget. Deleting a message, evicting it from the buffer, leaving, or signing out also removes its photos. Abandoned rooms expire after roughly 30–35 seconds without polling/heartbeat. Refresh can resume an existing room by starting the matching flow again while that room is still active. Restarting the server clears all sessions and rooms.
+Messages are held in a bounded RAM buffer (500 messages per room), with a 4,000-character message limit. Chats accept up to four JPEG, PNG, WebP, or GIF photos per message, with optional captions, plus one voice message (up to three minutes) per send. Photos and voice are locked for the first 90 seconds of a room; text and music snippets are not. Source files may be up to 10 MB each; the browser resizes them to at most 1600 pixels and 1 MB per photo and removes source metadata before sending. Photos use authenticated, non-cached image endpoints and a 24 MB per-room memory budget. Deleting a message, evicting it from the buffer, leaving, or signing out also removes its photos. A room stays alive while any participant is active, so one backgrounded peer never ends the chat for the peer who stayed; it is abandoned about 30 seconds after every participant goes quiet. A reload or backgrounded tab rejoins the same room automatically while it is still active (the client keeps a local reconnect snapshot, and an expired session cannot rejoin an old room). Explicit leave and session expiry still end the chat immediately. Restarting the server clears all sessions and rooms.
 
 Photo selection uses the browser's native file picker. Taking a photo requests camera access (no microphone) only after the user selects **Take photo**; permission prompts follow the browser's saved permission state. Camera access requires HTTPS or localhost, and camera tracks stop on capture, dismissal, or disconnection. Login and main-menu grids breathe gently, and theme changes reveal the new appearance from the switch using View Transitions where supported. Both effects honor reduced-motion preferences.
 
