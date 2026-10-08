@@ -165,7 +165,17 @@ NOT EXISTS` on startup, so fresh volumes self-initialize and existing files
   daily cap applies. Conversation excerpts keep text only (up to 50 messages,
   photos/voice stored as placeholders, never bytes).
 - Report statuses: `open`, `resolved`, `dismissed`, `escalated`. Categories:
-  `harassment`, `spam`, `sexual`, `threats`, `other`.
+  `harassment`, `spam`, `sexual`, `threats`, `other`. A report may flag one
+  peer message (`messageId`) or the whole chat; single-message excerpts center
+  on the flagged message.
+- Automatic triage (`autoModeration.ts`, deterministic, no external calls):
+  every report is scored 0–100 from the existing content filter plus
+  behavioral signals (spam bursts, repetition, category prior, target
+  history). The score, label (`low`/`medium`/`high`/`critical`), and per-signal
+  weights persist in the `auto_flags` table and surface in the dashboard.
+  Scores at or above `AUTO_MOD_ESCALATE_SCORE` (default 80, `0` disables)
+  auto-escalate the report with an `auto-triage` audit entry. Triage never
+  bans or restricts anyone; every enforcement decision stays human.
 - Anonymous actor IDs are HMAC-derived from `MODERATION_SECRET`. Rotating the
   secret invalidates every existing ban, so treat it like a signing key.
 

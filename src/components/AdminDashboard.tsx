@@ -14,6 +14,7 @@ import {
 import { apiRequest } from '../utils/api';
 
 type ReportStatus = 'open' | 'resolved' | 'dismissed' | 'escalated';
+type TriageLabel = 'low' | 'medium' | 'high' | 'critical';
 type AdminReport = {
   id: string;
   reporter: string;
@@ -27,12 +28,22 @@ type AdminReport = {
   reason?: string;
   reporterHandle?: string;
   targetHandle?: string;
+  messageId?: string;
   updatedAt?: number;
   adminNote?: string;
   actorBanned: boolean;
   ipBanned: boolean;
   messageCount?: number;
   hasContext?: boolean;
+  autoScore?: number | null;
+  autoLabel?: TriageLabel | null;
+};
+type TriageFlag = {
+  reportId: string;
+  score: number;
+  label: TriageLabel;
+  signals: Array<{ code: string; detail: string; weight: number }>;
+  createdAt: number;
 };
 type AdminBan = {
   actor?: string;
@@ -67,6 +78,7 @@ type ReportDetail = {
     reportId: string | null;
     detail: string | null;
   }>;
+  triage: TriageFlag | null;
 };
 
 const CATEGORY_LABELS: Record<AdminReport['category'], string> = {
@@ -98,6 +110,13 @@ function statusStyles(status: ReportStatus): string {
   return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300';
 }
 
+function riskStyles(label: TriageLabel): string {
+  if (label === 'critical') return 'bg-red-800/10 text-red-700 dark:text-red-300';
+  if (label === 'high') return 'bg-orange-500/10 text-orange-600 dark:text-orange-300';
+  if (label === 'medium') return 'bg-amber-500/10 text-amber-600 dark:text-amber-300';
+  return 'bg-stone-500/10 text-stone-500 dark:text-stone-400';
+}
+
 export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -108,6 +127,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   const [filter, setFilter] = useState<ReportStatus | 'all'>('open');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'newest' | 'risk' | 'oldest'>('newest');
   const [duration, setDuration] = useState<(typeof BAN_DURATIONS)[number]['value']>(86_400_000);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -373,8 +393,12 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
           .toLowerCase();
         return haystack.includes(needle);
       })
-      .sort((a, b) => b.createdAt - a.createdAt);
-  }, [reports, filter, categoryFilter, query]);
+      .sort((a, b) => {
+        if (sort === 'risk') return (b.autoScore ?? -1) - (a.autoScore ?? -1);
+        if (sort === 'oldest') return a.createdAt - b.createdAt;
+        return b.createdAt - a.createdAt;
+      });
+  }, [reports, filter, categoryFilter, query, sort]);
 
   if (checking) {
     return (
@@ -615,6 +639,20 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 ))}
               </select>
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="sr-only">Sort reports</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as 'newest' | 'risk' | 'oldest')}
+                aria-label="Sort reports"
+                style={scheme}
+                className={`rounded-lg border px-3 py-2 text-sm outline-none focus:border-red-700 ${inputCls}`}
+              >
+                <option value="newest">Newest first</option>
+                <option value="risk">Highest risk first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </label>
             <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
               <span id="restriction-duration-label">Restriction</span>
               <div ref={durationMenuRef} className="relative">
@@ -713,6 +751,19 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                         <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-3 py-1 text-xs font-bold text-sky-600 dark:text-sky-300">
                           <MessageSquareText className="h-3 w-3" aria-hidden="true" />
                           {report.messageCount} messages
+                        </span>
+                      )}
+                      {report.autoLabel && report.autoScore != null && (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${riskStyles(report.autoLabel)}`}
+                          title={`Automatic triage score: ${report.autoScore}/100`}
+                        >
+                          Risk {report.autoScore} · {report.autoLabel}
+                        </span>
+                      )}
+                      {report.messageId && (
+                        <span className="rounded-full bg-stone-500/10 px-3 py-1 text-xs font-bold text-stone-500 dark:text-stone-400">
+                          Single message flagged
                         </span>
                       )}
                     </div>
@@ -937,6 +988,51 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                     )}
                   </section>
 
+                  <section aria-label="Automatic triage">
+                    <h3 className="flex items-center gap-2 text-sm font-bold">
+                      <Shield className="h-4 w-4" aria-hidden="true" />
+                      Automatic triage
+                    </h3>
+                    {!detail.triage ? (
+                      <p className={`mt-2 text-sm ${muted}`}>
+                        No automatic score was recorded for this report.
+                      </p>
+                    ) : (
+                      <div
+                        className={`mt-2 rounded-xl border p-3 ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
+                      >
+                        <p className="flex flex-wrap items-center gap-2 text-sm">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${riskStyles(detail.triage.label)}`}
+                          >
+                            Risk {detail.triage.score} · {detail.triage.label}
+                          </span>
+                          <span className={`text-xs ${muted}`}>
+                            Scored {new Date(detail.triage.createdAt).toLocaleString()}
+                          </span>
+                        </p>
+                        <ul className="mt-2 space-y-1.5 text-xs">
+                          {detail.triage.signals.map((signal) => (
+                            <li
+                              key={signal.code}
+                              className="flex items-start justify-between gap-3"
+                            >
+                              <span>{signal.detail}</span>
+                              <span className={`shrink-0 font-mono ${muted}`}>
+                                +{signal.weight}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className={`mt-2 text-[11px] ${muted}`}>
+                          Deterministic and transparent: filter hits, bursts, repetition, and
+                          history only. It can escalate for human review but never restricts anyone
+                          by itself.
+                        </p>
+                      </div>
+                    )}
+                  </section>
+
                   <section aria-label="Reported conversation">
                     <h3 className="flex items-center gap-2 text-sm font-bold">
                       <MessageSquareText className="h-4 w-4" aria-hidden="true" />
@@ -963,12 +1059,20 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                                 : message.senderRole === 'reporter'
                                   ? 'ml-auto bg-emerald-600/10'
                                   : 'mr-auto bg-stone-500/10'
+                            } ${
+                              detail.report.messageId &&
+                              message.messageId === detail.report.messageId
+                                ? 'ring-2 ring-red-700/60'
+                                : ''
                             }`}
                           >
                             <p className={`text-[11px] font-bold uppercase tracking-wide ${muted}`}>
                               {message.senderRole === 'system'
                                 ? 'System'
                                 : `${message.senderHandle} · ${message.senderRole === 'reporter' ? 'reporter' : 'reported person'}`}
+                              {detail.report.messageId &&
+                                message.messageId === detail.report.messageId &&
+                                ' · reported message'}
                             </p>
                             <p className="mt-0.5 whitespace-pre-wrap break-words">{message.text}</p>
                             <p className={`mt-1 text-[11px] ${muted}`}>

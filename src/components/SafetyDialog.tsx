@@ -13,10 +13,15 @@ type ReportReason = (typeof REPORT_REASONS)[number][0];
 
 export function SafetyDialog({
   roomId,
+  messageId,
+  messagePreview,
   onClose,
   onBlocked,
 }: {
   roomId: string;
+  /** When set, the report flags this one peer message instead of the whole chat. */
+  messageId?: string;
+  messagePreview?: string;
   onClose: () => void;
   onBlocked: () => void;
 }) {
@@ -61,6 +66,7 @@ export function SafetyDialog({
           roomId,
           category,
           ...(reason ? { reason: reason.slice(0, 500) } : {}),
+          ...(messageId ? { messageId } : {}),
         });
         setSubmitted(true);
       }
@@ -84,7 +90,7 @@ export function SafetyDialog({
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="safety-dialog-title" className="font-semibold">
-          Report or block peer
+          {messageId ? 'Report message' : 'Report or block peer'}
         </h2>
         <button
           type="button"
@@ -101,6 +107,12 @@ export function SafetyDialog({
         recent text conversation for safety review. Photos and voice recordings are never attached;
         excerpts are retained for up to 30 days.
       </p>
+      {messageId && messagePreview && (
+        <blockquote className="mt-3 rounded-lg border-l-2 border-red-800/40 bg-stone-500/10 px-3 py-2 text-sm">
+          <span className="sr-only">Reported message:</span>
+          <span className="line-clamp-3 whitespace-pre-wrap break-words">“{messagePreview}”</span>
+        </blockquote>
+      )}
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">
           {error}

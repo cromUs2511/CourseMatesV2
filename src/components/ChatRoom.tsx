@@ -12,6 +12,7 @@ import {
   Reply,
   Trash2,
   Copy,
+  Flag,
   MoreVertical,
   ChevronDown,
   X,
@@ -147,6 +148,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [touchComposer, setTouchComposer] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [safetyMessageId, setSafetyMessageId] = useState<string | null>(null);
   const musicBarRef = useRef<TopMusicBarHandle>(null);
   const [mediaRemainingSeconds, setMediaRemainingSeconds] = useState(() =>
     chatMediaRemainingSeconds(peer.mediaUnlockAt),
@@ -327,6 +329,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setViewingImage(null);
     setMusicPickerOpen(false);
     setSafetyOpen(false);
+    setSafetyMessageId(null);
     setActiveSnippetId(null);
     setSnippetPlaying(false);
     setReplyingTo(null);
@@ -1343,7 +1346,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 {!peer.isSimulated && !peerDisconnected && roomId && (
                   <button
                     type="button"
-                    onClick={() => setSafetyOpen(true)}
+                    onClick={() => {
+                      setSafetyMessageId(null);
+                      setSafetyOpen(true);
+                    }}
                     aria-label="Report or block peer"
                     title="Report or block peer"
                     className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
@@ -2022,6 +2028,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                   >
                     <Copy className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Copy</span>
                   </button>
+                  {!messages.find((item) => item.id === deleteMenuMessageId)?.isMe && (
+                    <button
+                      type="button"
+                      aria-label="Report this message"
+                      onClick={() => {
+                        const id = deleteMenuMessageId;
+                        closeMessageActions();
+                        if (id) {
+                          setSafetyMessageId(id);
+                          setSafetyOpen(true);
+                        }
+                      }}
+                      className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-amber-300 transition-colors hover:bg-white/10 hover:text-amber-200 focus-visible:outline-2 focus-visible:outline-red-400"
+                    >
+                      <Flag className="h-3.5 w-3.5 shrink-0" />{' '}
+                      <span className="truncate">Report</span>
+                    </button>
+                  )}
                   {messages.find((item) => item.id === deleteMenuMessageId)?.isMe &&
                     !messages.find((item) => item.id === deleteMenuMessageId)?.musicSnippet && (
                       <button
@@ -2406,7 +2430,16 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       {safetyOpen && roomId && (
         <SafetyDialog
           roomId={roomId}
-          onClose={() => setSafetyOpen(false)}
+          messageId={safetyMessageId ?? undefined}
+          messagePreview={
+            safetyMessageId
+              ? messages.find((item) => item.id === safetyMessageId)?.text.slice(0, 280)
+              : undefined
+          }
+          onClose={() => {
+            setSafetyOpen(false);
+            setSafetyMessageId(null);
+          }}
           onBlocked={markDisconnected}
         />
       )}

@@ -17,8 +17,15 @@ import type { ChatVoice } from './src/data/chatVoice';
 import { normalizeMusicSnippet, type MusicSnippet } from './src/data/musicSnippet';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { WindowLimiter, constantTimeEqual, metrics } from './serverSecurity';
-import { moderateText, normalizeIpAddress, REPORT_STATUSES, type SafetyStore } from './safety';
+import {
+  moderateText,
+  normalizeIpAddress,
+  REPORT_CATEGORIES,
+  REPORT_STATUSES,
+  type SafetyStore,
+} from './safety';
 import { ModerationDb, type AdminActionType } from './moderationDb';
+import { autoEscalateThreshold, triageConversation } from './autoModeration';
 import {
   createUnoChallenge,
   joinArena,
@@ -1621,6 +1628,24 @@ export function attachRuntime(
                 : null;
           if (reason === null)
             return res.status(400).json({ error: 'Report details are invalid.' });
+          const messageId =
+            req.body.messageId === undefined || req.body.messageId === ''
+              ? undefined
+              : typeof req.body.messageId === 'string'
+                ? req.body.messageId.slice(0, 200)
+                : null;
+          if (messageId === null)
+            return res.status(400).json({ error: 'Reported message is invalid.' });
+          // A single message can be flagged: it must be a live peer text message,
+          // and the excerpt centers on it so reviewers see what it answered.
+          let focusIndex = -1;
+          if (messageId !== undefined) {
+            focusIndex = room.messages.findIndex((message) => message.id === messageId);
+            const focused = focusIndex < 0 ? undefined : room.messages[focusIndex];
+            if (!focused) return res.status(400).json({ error: 'Reported message was not found.' });
+            if (focused.senderId === session.id || focused.type !== 'text')
+              return res.status(400).json({ error: 'You can only report your peer’s messages.' });
+          }
           const reporterPeer = room.peers.find((p) => p.id === session.id);
           const targetPeer = room.peers.find((p) => p.id !== session.id);
           const report = safety.report(
@@ -1636,10 +1661,15 @@ export function attachRuntime(
               ...(reason !== undefined ? { reason } : {}),
               ...(reporterPeer ? { reporterHandle: reporterPeer.handle.slice(0, 100) } : {}),
               ...(targetPeer ? { targetHandle: targetPeer.handle.slice(0, 100) } : {}),
+              ...(messageId !== undefined ? { messageId } : {}),
             },
           );
           try {
-            const excerpt = room.messages.slice(-50).map((message) => {
+            const window =
+              focusIndex < 0
+                ? room.messages.slice(-50)
+                : room.messages.slice(Math.max(0, focusIndex - 15), focusIndex + 16);
+            const excerpt = window.map((message) => {
               const senderRole =
                 message.type === 'system'
                   ? ('system' as const)
@@ -1670,8 +1700,44 @@ export function attachRuntime(
               },
               excerpt,
             );
+            // Automatic triage: score the excerpt and persist the flag. A
+            // critical score auto-escalates for human review; it never bans.
+            if (safety && (REPORT_CATEGORIES as readonly string[]).includes(report.category)) {
+              const allReports = safety.listReports();
+              const triage = triageConversation(excerpt, report.category, {
+                reportsAgainstTarget: allReports.filter(
+                  (item) => item.id !== report.id && item.target === peer.actor,
+                ).length,
+                targetBans: safety.isActorBanned(peer.actor) ? 1 : 0,
+                reportsFiledByReporter: allReports.filter(
+                  (item) => item.id !== report.id && item.reporter === session.actor,
+                ).length,
+              });
+              moderationDb.saveAutoFlag({
+                reportId: report.id,
+                score: triage.score,
+                label: triage.label,
+                signals: triage.signals,
+                createdAt: Date.now(),
+              });
+              const threshold = autoEscalateThreshold();
+              if (threshold > 0 && triage.score >= threshold) {
+                const note =
+                  `Auto-escalated by moderation triage (risk ${triage.score}/100, ` +
+                  `${triage.label}). Top signal: ${
+                    triage.signals.slice().sort((a, b) => b.weight - a.weight)[0]?.detail ?? 'n/a'
+                  }`;
+                safety.escalateReport(report.id, note.slice(0, 1000));
+                moderationDb.logAdminAction({
+                  admin: 'auto-triage',
+                  action: 'escalate',
+                  reportId: report.id,
+                  detail: note.slice(0, 4000),
+                });
+              }
+            }
           } catch {
-            /* Conversation context is best-effort; the report itself already persisted. */
+            /* Conversation context and triage are best-effort; the report itself persisted. */
           }
           return res.json({ success: true, reportId: report.id });
         }
@@ -1721,6 +1787,12 @@ export function attachRuntime(
       } catch {
         counts = {};
       }
+      let flags: Record<string, { score: number; label: string }> = {};
+      try {
+        flags = moderationDb.listAutoFlags(reports.map((report) => report.id));
+      } catch {
+        flags = {};
+      }
       res.json({
         bans,
         reports: reports.map((report) => ({
@@ -1729,6 +1801,8 @@ export function attachRuntime(
           ipBanned: safety?.isIpBanned(report.ipAddress) ?? false,
           messageCount: counts[report.id]?.messageCount ?? 0,
           hasContext: (counts[report.id]?.messageCount ?? 0) > 0,
+          autoScore: flags[report.id]?.score ?? null,
+          autoLabel: flags[report.id]?.label ?? null,
         })),
       });
     } catch {
@@ -1754,6 +1828,12 @@ export function attachRuntime(
       } catch {
         actions = [];
       }
+      let triage: ReturnType<ModerationDb['getAutoFlag']> = undefined;
+      try {
+        triage = moderationDb.getAutoFlag(id);
+      } catch {
+        triage = undefined;
+      }
       res.json({
         report: {
           ...report,
@@ -1762,6 +1842,7 @@ export function attachRuntime(
         },
         context: context ?? { meta: null, messages: [] },
         actions,
+        triage: triage ?? null,
       });
     } catch {
       res.status(503).json({ error: 'Moderation storage is unavailable.' });

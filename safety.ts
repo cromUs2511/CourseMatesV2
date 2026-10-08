@@ -31,6 +31,7 @@ export type SafetyReport = {
   reason?: string;
   reporterHandle?: string;
   targetHandle?: string;
+  messageId?: string;
   updatedAt?: number;
   adminNote?: string;
 };
@@ -40,6 +41,8 @@ export type ReportDetails = {
   reason?: string;
   reporterHandle?: string;
   targetHandle?: string;
+  /** Room message the report is about, when the reporter flagged one message. */
+  messageId?: string;
 };
 
 export type SafetyBan = {
@@ -218,12 +221,15 @@ export class SafetyStore {
       details?.targetHandle === undefined
         ? undefined
         : this.cleanShortText(details.targetHandle, 100);
+    const messageId =
+      details?.messageId === undefined ? undefined : this.cleanShortText(details.messageId, 200);
     if (
       (details?.roomId !== undefined && roomId === undefined) ||
       (details?.topic !== undefined && topic === undefined) ||
       (details?.reason !== undefined && reason === undefined) ||
       (details?.reporterHandle !== undefined && reporterHandle === undefined) ||
-      (details?.targetHandle !== undefined && targetHandle === undefined)
+      (details?.targetHandle !== undefined && targetHandle === undefined) ||
+      (details?.messageId !== undefined && messageId === undefined)
     )
       throw new SafetyStoreError('Invalid report details.');
     this.prune();
@@ -250,6 +256,7 @@ export class SafetyStore {
       ...(reason !== undefined ? { reason } : {}),
       ...(reporterHandle !== undefined ? { reporterHandle } : {}),
       ...(targetHandle !== undefined ? { targetHandle } : {}),
+      ...(messageId !== undefined ? { messageId } : {}),
     };
     this.mutate((state) => {
       state.reports.push(report);
@@ -524,6 +531,7 @@ export class SafetyStore {
               'reason',
               'reporterHandle',
               'targetHandle',
+              'messageId',
               'updatedAt',
               'adminNote',
             ].includes(key),
@@ -545,6 +553,7 @@ export class SafetyStore {
         !optionalText(item.reason ?? undefined, 500) ||
         !optionalText(item.reporterHandle ?? undefined, 100) ||
         !optionalText(item.targetHandle ?? undefined, 100) ||
+        !optionalText(item.messageId ?? undefined, 200) ||
         !optionalText(item.adminNote ?? undefined, 1000) ||
         (updatedAt !== undefined &&
           (!finiteTime(updatedAt) ||

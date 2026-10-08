@@ -26,6 +26,13 @@ export type AdminActionRecord = {
   reportId: string | null;
   detail: string | null;
 };
+export type AutoFlag = {
+  reportId: string;
+  score: number;
+  label: 'low' | 'medium' | 'high' | 'critical';
+  signals: Array<{ code: string; detail: string; weight: number }>;
+  createdAt: number;
+};
 
 const ADMIN_ACTIONS: readonly AdminActionType[] = [
   'resolve',
@@ -124,6 +131,13 @@ export class ModerationDb {
       );
       CREATE INDEX IF NOT EXISTS idx_admin_actions_report
         ON admin_actions(report_id, id);
+      CREATE TABLE IF NOT EXISTS auto_flags (
+        report_id TEXT PRIMARY KEY,
+        score INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        signals TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
     `);
     const row = this.db.prepare('SELECT version FROM schema_migrations WHERE version = 1').get() as
       { version?: number } | undefined;
@@ -292,10 +306,111 @@ export class ModerationDb {
     }));
   }
 
+  saveAutoFlag(flag: AutoFlag): void {
+    if (typeof flag.reportId !== 'string' || !flag.reportId) return;
+    const score = Number.isFinite(flag.score)
+      ? Math.max(0, Math.min(100, Math.round(flag.score)))
+      : 0;
+    const label =
+      flag.label === 'critical' || flag.label === 'high' || flag.label === 'medium'
+        ? flag.label
+        : 'low';
+    const signals = Array.isArray(flag.signals)
+      ? flag.signals
+          .filter(
+            (signal): signal is { code: string; detail: string; weight: number } =>
+              !!signal &&
+              typeof signal === 'object' &&
+              typeof signal.code === 'string' &&
+              typeof signal.detail === 'string' &&
+              Number.isFinite(signal.weight),
+          )
+          .slice(0, 20)
+          .map((signal) => ({
+            code: signal.code.slice(0, 60),
+            detail: signal.detail.slice(0, 500),
+            weight: signal.weight,
+          }))
+      : [];
+    this.db
+      .prepare(
+        `INSERT INTO auto_flags(report_id, score, label, signals, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(report_id) DO UPDATE SET
+           score = excluded.score, label = excluded.label,
+           signals = excluded.signals, created_at = excluded.created_at`,
+      )
+      .run(flag.reportId, score, label, JSON.stringify(signals), flag.createdAt ?? Date.now());
+  }
+
+  getAutoFlag(reportId: string): AutoFlag | undefined {
+    if (typeof reportId !== 'string' || !reportId) return undefined;
+    const row = this.db
+      .prepare(
+        'SELECT score, label, signals, created_at AS createdAt FROM auto_flags WHERE report_id = ?',
+      )
+      .get(reportId) as Record<string, unknown> | undefined;
+    if (!row || !isRecord(row) || typeof row.score !== 'number') return undefined;
+    let signals: AutoFlag['signals'] = [];
+    try {
+      const parsed: unknown = JSON.parse(String(row.signals ?? '[]'));
+      if (Array.isArray(parsed))
+        signals = parsed
+          .filter(isRecord)
+          .filter(
+            (signal) =>
+              typeof signal.code === 'string' &&
+              typeof signal.detail === 'string' &&
+              typeof signal.weight === 'number',
+          )
+          .map((signal) => ({
+            code: signal.code as string,
+            detail: signal.detail as string,
+            weight: signal.weight as number,
+          }));
+    } catch {
+      signals = [];
+    }
+    return {
+      reportId,
+      score: row.score,
+      label:
+        row.label === 'critical' || row.label === 'high' || row.label === 'medium'
+          ? row.label
+          : 'low',
+      signals,
+      createdAt: typeof row.createdAt === 'number' ? row.createdAt : Date.now(),
+    };
+  }
+
+  listAutoFlags(reportIds: string[]): Record<string, Pick<AutoFlag, 'score' | 'label'>> {
+    const flags: Record<string, Pick<AutoFlag, 'score' | 'label'>> = {};
+    const ids = [...new Set(reportIds.filter((id) => typeof id === 'string' && id))].slice(0, 500);
+    if (!ids.length) return flags;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT report_id AS reportId, score, label FROM auto_flags WHERE report_id IN (${placeholders})`,
+      )
+      .all(...ids) as Record<string, unknown>[];
+    for (const row of rows) {
+      if (isRecord(row) && typeof row.reportId === 'string' && typeof row.score === 'number')
+        flags[row.reportId] = {
+          score: row.score,
+          label:
+            row.label === 'critical' || row.label === 'high' || row.label === 'medium'
+              ? row.label
+              : 'low',
+        };
+    }
+    return flags;
+  }
+
   prune(before: number): void {
     if (!Number.isFinite(before)) return;
     this.db.prepare('DELETE FROM report_messages WHERE created_at < ?').run(before);
     this.db.prepare('DELETE FROM report_contexts WHERE created_at < ?').run(before);
+    this.db.prepare('DELETE FROM auto_flags WHERE created_at < ?').run(before);
     this.db
       .prepare(
         "DELETE FROM admin_actions WHERE created_at < ? AND action NOT IN ('ban', 'unban', 'unbanIp')",
