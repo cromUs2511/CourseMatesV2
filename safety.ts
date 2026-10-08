@@ -16,6 +16,8 @@ import patterns from './moderation-patterns.json';
 
 export const REPORT_CATEGORIES = ['harassment', 'spam', 'sexual', 'threats', 'other'] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+export const REPORT_STATUSES = ['open', 'resolved', 'dismissed', 'escalated'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export type SafetyReport = {
   id: string;
   reporter: string;
@@ -23,7 +25,21 @@ export type SafetyReport = {
   category: ReportCategory;
   ipAddress: string | null;
   createdAt: number;
-  status: 'open' | 'resolved';
+  status: ReportStatus;
+  roomId?: string;
+  topic?: string;
+  reason?: string;
+  reporterHandle?: string;
+  targetHandle?: string;
+  updatedAt?: number;
+  adminNote?: string;
+};
+export type ReportDetails = {
+  roomId?: string;
+  topic?: string;
+  reason?: string;
+  reporterHandle?: string;
+  targetHandle?: string;
 };
 
 export type SafetyBan = {
@@ -57,6 +73,14 @@ const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value: Record<string, unknown>, keys: string[]) =>
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+function hasUnsafeControlChars(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31))
+      return true;
+  }
+  return false;
+}
 
 export class SafetyStoreError extends Error {
   constructor(message: string) {
@@ -175,10 +199,33 @@ export class SafetyStore {
     target: string,
     category: ReportCategory,
     ipAddress?: string | null,
+    details?: ReportDetails,
   ): SafetyReport {
     this.assertPair(reporter, target);
     if (!(REPORT_CATEGORIES as readonly string[]).includes(category))
       throw new SafetyStoreError('Invalid report category.');
+    const roomId =
+      details?.roomId === undefined ? undefined : this.cleanShortText(details.roomId, 100);
+    const topic =
+      details?.topic === undefined ? undefined : this.cleanShortText(details.topic, 200);
+    const reason =
+      details?.reason === undefined ? undefined : this.cleanShortText(details.reason, 500);
+    const reporterHandle =
+      details?.reporterHandle === undefined
+        ? undefined
+        : this.cleanShortText(details.reporterHandle, 100);
+    const targetHandle =
+      details?.targetHandle === undefined
+        ? undefined
+        : this.cleanShortText(details.targetHandle, 100);
+    if (
+      (details?.roomId !== undefined && roomId === undefined) ||
+      (details?.topic !== undefined && topic === undefined) ||
+      (details?.reason !== undefined && reason === undefined) ||
+      (details?.reporterHandle !== undefined && reporterHandle === undefined) ||
+      (details?.targetHandle !== undefined && targetHandle === undefined)
+    )
+      throw new SafetyStoreError('Invalid report details.');
     this.prune();
     const createdAt = this.now();
     if (
@@ -198,11 +245,23 @@ export class SafetyStore {
       ipAddress: normalizedIp,
       createdAt,
       status: 'open',
+      ...(roomId !== undefined ? { roomId } : {}),
+      ...(topic !== undefined ? { topic } : {}),
+      ...(reason !== undefined ? { reason } : {}),
+      ...(reporterHandle !== undefined ? { reporterHandle } : {}),
+      ...(targetHandle !== undefined ? { targetHandle } : {}),
     };
     this.mutate((state) => {
       state.reports.push(report);
     });
     return { ...report };
+  }
+
+  private cleanShortText(value: unknown, max: number): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim().slice(0, max);
+    if (!trimmed || hasUnsafeControlChars(trimmed)) return undefined;
+    return trimmed;
   }
 
   listReports(): SafetyReport[] {
@@ -262,13 +321,39 @@ export class SafetyStore {
     });
   }
 
-  resolveReport(id: string): void {
+  resolveReport(id: string, note?: string): void {
+    this.setReportStatus(id, 'resolved', note);
+  }
+
+  dismissReport(id: string, note?: string): void {
+    this.setReportStatus(id, 'dismissed', note);
+  }
+
+  escalateReport(id: string, note?: string): void {
+    this.setReportStatus(id, 'escalated', note);
+  }
+
+  setReportStatus(id: string, status: ReportStatus, note?: string): void {
+    if (!(REPORT_STATUSES as readonly string[]).includes(status))
+      throw new SafetyStoreError('Invalid report status.');
+    const adminNote = note === undefined ? undefined : this.cleanShortText(note, 1000);
+    if (note !== undefined && adminNote === undefined && note.trim() !== '')
+      throw new SafetyStoreError('Invalid admin note.');
     this.prune();
     this.mutate((state) => {
       const report = state.reports.find((item) => item.id === id);
       if (!report) throw new SafetyStoreError('Report not found.');
-      report.status = 'resolved';
+      report.status = status;
+      report.updatedAt = this.now();
+      if (adminNote !== undefined) report.adminNote = adminNote;
+      else if (note !== undefined && 'adminNote' in report) delete report.adminNote;
     });
+  }
+
+  getReport(id: string): SafetyReport | undefined {
+    this.prune();
+    const report = this.state.reports.find((item) => item.id === id);
+    return report ? { ...report, ipAddress: report.ipAddress ?? null } : undefined;
   }
 
   counts(): { bans: number; blocks: number; reports: number; openReports: number } {
@@ -413,26 +498,58 @@ export class SafetyStore {
         throw new Error('Invalid block.');
     }
     for (const report of value.reports) {
+      const optionalText = (field: unknown, max: number) =>
+        field === undefined ||
+        (typeof field === 'string' &&
+          field.trim().length > 0 &&
+          field.length <= max &&
+          !hasUnsafeControlChars(field));
+      if (!record(report)) throw new Error('Invalid report.');
+      const item = report as Record<string, unknown>;
+      const createdAt = item.createdAt;
+      const updatedAt = item.updatedAt;
       if (
-        !record(report) ||
-        Object.keys(report).some(
+        Object.keys(item).some(
           (key) =>
-            !['id', 'reporter', 'target', 'category', 'ipAddress', 'createdAt', 'status'].includes(
-              key,
-            ),
+            ![
+              'id',
+              'reporter',
+              'target',
+              'category',
+              'ipAddress',
+              'createdAt',
+              'status',
+              'roomId',
+              'topic',
+              'reason',
+              'reporterHandle',
+              'targetHandle',
+              'updatedAt',
+              'adminNote',
+            ].includes(key),
         ) ||
-        typeof report.id !== 'string' ||
-        !/^[a-f0-9-]{36}$/.test(report.id) ||
-        !validActor(report.reporter) ||
-        !validActor(report.target) ||
-        report.reporter === report.target ||
-        typeof report.category !== 'string' ||
-        !(REPORT_CATEGORIES as readonly string[]).includes(report.category) ||
-        (report.ipAddress !== undefined &&
-          report.ipAddress !== null &&
-          !normalizeIpAddress(report.ipAddress)) ||
-        !validCreated(report.createdAt) ||
-        !['open', 'resolved'].includes(String(report.status))
+        typeof item.id !== 'string' ||
+        !/^[a-f0-9-]{36}$/.test(item.id) ||
+        !validActor(item.reporter) ||
+        !validActor(item.target) ||
+        item.reporter === item.target ||
+        typeof item.category !== 'string' ||
+        !(REPORT_CATEGORIES as readonly string[]).includes(item.category) ||
+        (item.ipAddress !== undefined &&
+          item.ipAddress !== null &&
+          !normalizeIpAddress(item.ipAddress)) ||
+        !validCreated(createdAt) ||
+        !['open', 'resolved', 'dismissed', 'escalated'].includes(String(item.status)) ||
+        !optionalText(item.roomId ?? undefined, 100) ||
+        !optionalText(item.topic ?? undefined, 200) ||
+        !optionalText(item.reason ?? undefined, 500) ||
+        !optionalText(item.reporterHandle ?? undefined, 100) ||
+        !optionalText(item.targetHandle ?? undefined, 100) ||
+        !optionalText(item.adminNote ?? undefined, 1000) ||
+        (updatedAt !== undefined &&
+          (!finiteTime(updatedAt) ||
+            !finiteTime(createdAt) ||
+            (updatedAt as number) < (createdAt as number)))
       )
         throw new Error('Invalid report.');
     }

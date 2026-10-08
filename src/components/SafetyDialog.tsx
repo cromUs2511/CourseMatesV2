@@ -24,6 +24,7 @@ export function SafetyDialog({
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [category, setCategory] = useState<ReportReason>('harassment');
+  const [details, setDetails] = useState('');
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -55,7 +56,12 @@ export function SafetyDialog({
         await apiRequest('/api/safety/block', { roomId });
         onBlocked();
       } else {
-        await apiRequest('/api/safety/report', { roomId, category });
+        const reason = details.trim();
+        await apiRequest('/api/safety/report', {
+          roomId,
+          category,
+          ...(reason ? { reason: reason.slice(0, 500) } : {}),
+        });
         setSubmitted(true);
       }
     } catch (error) {
@@ -91,8 +97,9 @@ export function SafetyDialog({
         </button>
       </div>
       <p className="text-sm">
-        Reports send the reason, anonymous session identifiers, and the peer’s connection IP to
-        moderators for safety review. Message text, photos, and recordings are not attached.
+        Reports send the reason, anonymous session identifiers, the peer’s connection IP, and the
+        recent text conversation for safety review. Photos and voice recordings are never attached;
+        excerpts are retained for up to 30 days.
       </p>
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">
@@ -127,6 +134,19 @@ export function SafetyDialog({
               </option>
             ))}
           </select>
+          <label className="block text-sm font-medium" htmlFor="report-details">
+            What happened? (optional)
+          </label>
+          <textarea
+            id="report-details"
+            value={details}
+            disabled={busy}
+            onChange={(event) => setDetails(event.target.value)}
+            maxLength={500}
+            rows={3}
+            placeholder="Add context for the moderator…"
+            className="w-full rounded-lg border border-stone-400 bg-white p-3 text-stone-900 dark:bg-stone-900 dark:text-stone-100"
+          />
           <button
             type="submit"
             disabled={busy}

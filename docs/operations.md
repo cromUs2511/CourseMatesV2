@@ -116,7 +116,7 @@ coverage number.
 
 `GET /api/admin/metrics` requires an authenticated admin session or the optional legacy `ADMIN_TOKEN` Bearer credential and returns only counters: `requests`, `errors`, `rateLimited`, `rejectedOrigins`, `providerFailures`, `startedAt`, plus `sessions`, `queued`, `rooms`, `sockets`, `mediaBytes`, `draining` and `memory` (RSS).
 
-It never contains chat text, media, tokens, emails, IPs or report bodies. `GET /api/admin/reports` returns report metadata, active actor/IP restrictions, category, anonymous actor identifiers, reported IP, status and timestamps. Reports retain the reported IP for up to 30 days. `POST /api/admin/moderate` resolves reports, applies 1-, 2- or 3-day restrictions or permanent actor/IP bans, and lifts bans. The dashboard lists active restrictions separately so permanent bans can still be lifted after the originating report expires.
+It never contains chat text, media, tokens, emails, IPs or report bodies. `GET /api/admin/reports` returns report metadata (category, optional reporter note, anonymous actor identifiers and handles, topic, reported IP, status, timestamps, conversation message count), plus active actor/IP restrictions. `GET /api/admin/reports/:id` returns one report with its recent text conversation excerpt (up to 50 messages, no photo/voice bytes) and its admin decision history. `GET /api/admin/actions` returns the audit trail, optionally filtered by report. Reports, excerpts, and decisions retain for up to 30 days. `POST /api/admin/moderate` resolves, dismisses, or escalates reports (optional decision note), applies 1-, 2- or 3-day restrictions or permanent actor/IP bans, and lifts bans. The dashboard lists active restrictions separately so permanent bans can still be lifted after the originating report expires.
 
 ### Logs
 
@@ -147,22 +147,32 @@ Rate-limited responses carry `Retry-After: 60`. Saturation fails closed: the
 
 ## 6. Moderation storage
 
-- Path: `$DATA_DIR/moderation.json`. Without `DATA_DIR` the store is
-  memory-only and does not survive a restart.
-- Format: versioned JSON written atomically (temp file + rename). A failed
-  write keeps the last committed file.
+- Paths: `$DATA_DIR/moderation.json` (report metadata, blocks, bans) and
+  `$DATA_DIR/moderation.db` (SQLite: reported conversation excerpts plus the
+  admin decision trail). `MODERATION_DB_PATH` overrides the database file.
+  Without `DATA_DIR` both stores are memory-only and do not survive a restart.
+- Format: versioned JSON written atomically (temp file + rename) plus SQLite
+  with a `schema_migrations` table (`moderationDb.ts` runs `CREATE TABLE IF
+NOT EXISTS` on startup, so fresh volumes self-initialize and existing files
+  migrate in place; legacy `moderation.json` files load without the newer
+  `roomId`/`topic`/`reason`/handle/status fields). A failed write keeps the
+  last committed file.
 - Corruption, a symlink, an oversized file, unknown keys, a bad category, a
   self-target, an out-of-range duration or an incompatible version all **fail
   closed**: the store refuses the record rather than trusting it.
-- Retention: 30 days (`SAFETY_RETENTION_MS`), swept on write. Capacity is
-  10,000 records by default and a per-reporter daily cap applies.
-- Categories: `harassment`, `spam`, `sexual`, `threats`, `other`.
+- Retention: 30 days (`SAFETY_RETENTION_MS`), swept on write and on the 5 s
+  maintenance timer. Capacity is 10,000 records by default and a per-reporter
+  daily cap applies. Conversation excerpts keep text only (up to 50 messages,
+  photos/voice stored as placeholders, never bytes).
+- Report statuses: `open`, `resolved`, `dismissed`, `escalated`. Categories:
+  `harassment`, `spam`, `sexual`, `threats`, `other`.
 - Anonymous actor IDs are HMAC-derived from `MODERATION_SECRET`. Rotating the
   secret invalidates every existing ban, so treat it like a signing key.
 
-**Backup:** copy `$DATA_DIR/moderation.json` while the process is stopped, or
-snapshot the volume. **Restore:** put the file back and restart; a parse
-failure is logged and the store starts empty rather than crashing.
+**Backup:** copy `$DATA_DIR/moderation.json` and `$DATA_DIR/moderation.db`
+while the process is stopped, or snapshot the volume. **Restore:** put both
+files back and restart; a parse failure is logged and the store starts empty
+rather than crashing.
 
 ## 7. Shutdown and recovery
 

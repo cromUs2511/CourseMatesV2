@@ -1,0 +1,305 @@
+import { DatabaseSync } from 'node:sqlite';
+import { dirname } from 'node:path';
+import { mkdirSync } from 'node:fs';
+
+export type ReportSenderRole = 'reporter' | 'target' | 'system';
+export type ReportChatMessage = {
+  messageId: string;
+  senderRole: ReportSenderRole;
+  senderHandle: string;
+  text: string;
+  createdAt: number;
+};
+export type ReportContextMeta = {
+  roomId: string | null;
+  topic: string | null;
+  reporterHandle: string | null;
+  targetHandle: string | null;
+  createdAt: number;
+};
+export type AdminActionType = 'resolve' | 'dismiss' | 'escalate' | 'ban' | 'unban' | 'unbanIp';
+export type AdminActionRecord = {
+  id: number;
+  createdAt: number;
+  admin: string;
+  action: AdminActionType;
+  reportId: string | null;
+  detail: string | null;
+};
+
+const ADMIN_ACTIONS: readonly AdminActionType[] = [
+  'resolve',
+  'dismiss',
+  'escalate',
+  'ban',
+  'unban',
+  'unbanIp',
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Resolve the SQLite file for moderation review data.
+ * Explicit MODERATION_DB_PATH wins, otherwise DATA_DIR/moderation.db.
+ * Returns undefined when no durable location is configured (memory-only).
+ */
+export function resolveModerationDbPath(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const explicit = env.MODERATION_DB_PATH?.trim();
+  if (explicit) return explicit;
+  const dataDir = env.DATA_DIR?.trim();
+  if (dataDir) return `${dataDir.replace(/[/\\]+$/, '')}/moderation.db`;
+  return undefined;
+}
+
+/** Persistent SQLite store for report chat context and admin audit history.
+ * Bans/blocks/report metadata remain in SafetyStore; this file holds only the
+ * reported conversation excerpt (text, no media bytes) plus the admin trail.
+ * Everything is pruned after 30 days except permanent-ban audit entries.
+ */
+export class ModerationDb {
+  private readonly db: DatabaseSync;
+  private readonly filePath: string | undefined;
+
+  constructor(path?: string) {
+    this.filePath = path;
+    if (path) mkdirSync(dirname(path), { recursive: true });
+    this.db = new DatabaseSync(path ?? ':memory:');
+    this.db.exec('PRAGMA foreign_keys = ON');
+    if (path) {
+      try {
+        this.db.exec('PRAGMA journal_mode = WAL');
+      } catch {
+        /* Filesystems that reject WAL keep the default rollback journal. */
+      }
+    }
+    this.migrate();
+  }
+
+  get path(): string | undefined {
+    return this.filePath;
+  }
+
+  close(): void {
+    try {
+      this.db.close();
+    } catch {
+      /* Best effort on shutdown. */
+    }
+  }
+
+  private migrate(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS report_contexts (
+        report_id TEXT PRIMARY KEY,
+        room_id TEXT,
+        topic TEXT,
+        reporter_handle TEXT,
+        target_handle TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS report_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_id TEXT NOT NULL REFERENCES report_contexts(report_id) ON DELETE CASCADE,
+        seq INTEGER NOT NULL,
+        message_id TEXT NOT NULL,
+        sender_role TEXT NOT NULL,
+        sender_handle TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_report_messages_report
+        ON report_messages(report_id, seq);
+      CREATE TABLE IF NOT EXISTS admin_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at INTEGER NOT NULL,
+        admin TEXT NOT NULL,
+        action TEXT NOT NULL,
+        report_id TEXT,
+        detail TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_actions_report
+        ON admin_actions(report_id, id);
+    `);
+    const row = this.db.prepare('SELECT version FROM schema_migrations WHERE version = 1').get() as
+      { version?: number } | undefined;
+    if (!row || !isRecord(row) || row.version !== 1) {
+      this.db
+        .prepare('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?)')
+        .run(Date.now());
+    }
+  }
+
+  saveReportContext(
+    reportId: string,
+    meta: ReportContextMeta,
+    messages: ReportChatMessage[],
+  ): void {
+    if (typeof reportId !== 'string' || reportId.length > 100 || !reportId) return;
+    const roomId = typeof meta.roomId === 'string' ? meta.roomId.slice(0, 100) : null;
+    const topic = typeof meta.topic === 'string' ? meta.topic.slice(0, 200) : null;
+    const reporterHandle =
+      typeof meta.reporterHandle === 'string' ? meta.reporterHandle.slice(0, 100) : null;
+    const targetHandle =
+      typeof meta.targetHandle === 'string' ? meta.targetHandle.slice(0, 100) : null;
+    const createdAt = Number.isFinite(meta.createdAt) ? meta.createdAt : Date.now();
+    const capped = Array.isArray(messages) ? messages.slice(-50) : [];
+    const save = this.db.prepare(
+      `INSERT INTO report_contexts(report_id, room_id, topic, reporter_handle, target_handle, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(report_id) DO UPDATE SET
+         room_id = excluded.room_id,
+         topic = excluded.topic,
+         reporter_handle = excluded.reporter_handle,
+         target_handle = excluded.target_handle`,
+    );
+    const clear = this.db.prepare('DELETE FROM report_messages WHERE report_id = ?');
+    const insert = this.db.prepare(
+      `INSERT INTO report_messages(report_id, seq, message_id, sender_role, sender_handle, text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    save.run(reportId, roomId, topic, reporterHandle, targetHandle, createdAt);
+    clear.run(reportId);
+    capped.forEach((message, index) => {
+      if (!isRecord(message)) return;
+      const role: ReportSenderRole =
+        message.senderRole === 'target'
+          ? 'target'
+          : message.senderRole === 'system'
+            ? 'system'
+            : 'reporter';
+      insert.run(
+        reportId,
+        index,
+        String(message.messageId ?? '').slice(0, 200),
+        role,
+        String(message.senderHandle ?? '').slice(0, 100),
+        String(message.text ?? '').slice(0, 4000),
+        Number.isFinite(message.createdAt) ? message.createdAt : createdAt,
+      );
+    });
+  }
+
+  getReportContext(
+    reportId: string,
+  ): { meta: ReportContextMeta; messages: ReportChatMessage[] } | undefined {
+    if (typeof reportId !== 'string' || !reportId) return undefined;
+    const meta = this.db
+      .prepare(
+        'SELECT room_id AS roomId, topic, reporter_handle AS reporterHandle, target_handle AS targetHandle, created_at AS createdAt FROM report_contexts WHERE report_id = ?',
+      )
+      .get(reportId) as Record<string, unknown> | undefined;
+    if (!meta || !isRecord(meta)) return undefined;
+    const rows = this.db
+      .prepare(
+        `SELECT message_id AS messageId, sender_role AS senderRole, sender_handle AS senderHandle, text, created_at AS createdAt
+         FROM report_messages WHERE report_id = ? ORDER BY seq ASC LIMIT 50`,
+      )
+      .all(reportId) as Record<string, unknown>[];
+    return {
+      meta: {
+        roomId: typeof meta.roomId === 'string' ? meta.roomId : null,
+        topic: typeof meta.topic === 'string' ? meta.topic : null,
+        reporterHandle: typeof meta.reporterHandle === 'string' ? meta.reporterHandle : null,
+        targetHandle: typeof meta.targetHandle === 'string' ? meta.targetHandle : null,
+        createdAt: typeof meta.createdAt === 'number' ? meta.createdAt : Date.now(),
+      },
+      messages: rows.map((row) => ({
+        messageId: String(row.messageId ?? ''),
+        senderRole:
+          row.senderRole === 'target'
+            ? ('target' as const)
+            : row.senderRole === 'system'
+              ? ('system' as const)
+              : ('reporter' as const),
+        senderHandle: String(row.senderHandle ?? ''),
+        text: String(row.text ?? ''),
+        createdAt: typeof row.createdAt === 'number' ? row.createdAt : Date.now(),
+      })),
+    };
+  }
+
+  contextMetaFor(reportIds: string[]): Record<string, { messageCount: number }> {
+    const counts: Record<string, { messageCount: number }> = {};
+    const ids = [...new Set(reportIds.filter((id) => typeof id === 'string' && id))].slice(0, 500);
+    if (!ids.length) return counts;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT report_id AS reportId, COUNT(*) AS messageCount FROM report_messages
+         WHERE report_id IN (${placeholders}) GROUP BY report_id`,
+      )
+      .all(...ids) as Record<string, unknown>[];
+    for (const row of rows) {
+      if (isRecord(row) && typeof row.reportId === 'string')
+        counts[row.reportId] = {
+          messageCount: typeof row.messageCount === 'number' ? row.messageCount : 0,
+        };
+    }
+    return counts;
+  }
+
+  logAdminAction(entry: {
+    admin: string;
+    action: AdminActionType;
+    reportId?: string | null;
+    detail?: string | null;
+    createdAt?: number;
+  }): void {
+    if (!(ADMIN_ACTIONS as readonly string[]).includes(entry.action)) return;
+    const admin =
+      typeof entry.admin === 'string' && entry.admin.trim()
+        ? entry.admin.trim().slice(0, 100)
+        : 'admin';
+    const reportId =
+      typeof entry.reportId === 'string' && entry.reportId ? entry.reportId.slice(0, 100) : null;
+    const detail =
+      typeof entry.detail === 'string' && entry.detail ? entry.detail.slice(0, 4000) : null;
+    this.db
+      .prepare(
+        'INSERT INTO admin_actions(created_at, admin, action, report_id, detail) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(entry.createdAt ?? Date.now(), admin, entry.action, reportId, detail);
+  }
+
+  listAdminActions(reportId?: string, limit = 100): AdminActionRecord[] {
+    const capped = Number.isSafeInteger(limit) ? Math.max(1, Math.min(500, limit)) : 100;
+    const rows =
+      typeof reportId === 'string' && reportId
+        ? (this.db
+            .prepare(
+              'SELECT id, created_at AS createdAt, admin, action, report_id AS reportId, detail FROM admin_actions WHERE report_id = ? ORDER BY id DESC LIMIT ?',
+            )
+            .all(reportId, capped) as Record<string, unknown>[])
+        : (this.db
+            .prepare(
+              'SELECT id, created_at AS createdAt, admin, action, report_id AS reportId, detail FROM admin_actions ORDER BY id DESC LIMIT ?',
+            )
+            .all(capped) as Record<string, unknown>[]);
+    return rows.filter(isRecord).map((row) => ({
+      id: typeof row.id === 'number' ? row.id : 0,
+      createdAt: typeof row.createdAt === 'number' ? row.createdAt : Date.now(),
+      admin: typeof row.admin === 'string' ? row.admin : 'admin',
+      action: (ADMIN_ACTIONS as readonly string[]).includes(String(row.action))
+        ? (row.action as AdminActionType)
+        : ('resolve' as const),
+      reportId: typeof row.reportId === 'string' ? row.reportId : null,
+      detail: typeof row.detail === 'string' ? row.detail : null,
+    }));
+  }
+
+  prune(before: number): void {
+    if (!Number.isFinite(before)) return;
+    this.db.prepare('DELETE FROM report_messages WHERE created_at < ?').run(before);
+    this.db.prepare('DELETE FROM report_contexts WHERE created_at < ?').run(before);
+    this.db
+      .prepare(
+        "DELETE FROM admin_actions WHERE created_at < ? AND action NOT IN ('ban', 'unban', 'unbanIp')",
+      )
+      .run(before);
+  }
+}

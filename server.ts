@@ -13,6 +13,7 @@ import {
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { SafetyStore, moderateText } from './safety';
+import { ModerationDb, resolveModerationDbPath } from './moderationDb';
 import {
   constantTimeEqual,
   logEvent,
@@ -38,6 +39,10 @@ const safety = new SafetyStore({
   secret: moderationSecret,
   ...(process.env.DATA_DIR ? { path: path.resolve(process.env.DATA_DIR, 'moderation.json') } : {}),
 });
+// Persistent review database: MODERATION_DB_PATH wins, else DATA_DIR/moderation.db,
+// else memory-only (development/tests). Production must set DATA_DIR.
+const moderationDbPath = resolveModerationDbPath(process.env);
+const moderationDb = new ModerationDb(moderationDbPath);
 const origin = process.env.APP_URL?.replace(/\/$/, '');
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
 if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 5)
@@ -75,6 +80,7 @@ app.use('/api', (_req, res, next) => {
 const server = http.createServer(app);
 const stopRuntime = attachRuntime(app, server, {
   safety,
+  moderationDb,
   origin,
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD,
@@ -845,6 +851,11 @@ function shutdown() {
   stopping = true;
   logEvent('server_draining');
   stopRuntime();
+  try {
+    moderationDb.close();
+  } catch {
+    /* Best effort on shutdown. */
+  }
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 }

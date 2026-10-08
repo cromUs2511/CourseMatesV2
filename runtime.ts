@@ -17,7 +17,8 @@ import type { ChatVoice } from './src/data/chatVoice';
 import { normalizeMusicSnippet, type MusicSnippet } from './src/data/musicSnippet';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { WindowLimiter, constantTimeEqual, metrics } from './serverSecurity';
-import { moderateText, normalizeIpAddress, type SafetyStore } from './safety';
+import { moderateText, normalizeIpAddress, REPORT_STATUSES, type SafetyStore } from './safety';
+import { ModerationDb, type AdminActionType } from './moderationDb';
 import {
   createUnoChallenge,
   joinArena,
@@ -868,6 +869,7 @@ export function attachRuntime(
   server: Server,
   options: {
     safety?: SafetyStore;
+    moderationDb?: ModerationDb;
     limits?: Partial<typeof defaultLimits>;
     origin?: string;
     adminUsername?: string;
@@ -878,6 +880,8 @@ export function attachRuntime(
   safety = options.safety;
   limits = { ...defaultLimits, ...options.limits };
   draining = false;
+  const moderationDb = options.moderationDb ?? new ModerationDb();
+  const ownsModerationDb = !options.moderationDb;
   const unoLimiter = new WindowLimiter();
   const adminLoginLimiter = new WindowLimiter();
   const adminSessions = new Map<string, number>();
@@ -1609,12 +1613,66 @@ export function attachRuntime(
       const peer = identities.get(room.peers.find((p) => p.id !== session.id)!.id)!;
       try {
         if (action === 'report') {
+          const reason =
+            req.body.reason === undefined || req.body.reason === ''
+              ? undefined
+              : typeof req.body.reason === 'string'
+                ? req.body.reason.slice(0, 500)
+                : null;
+          if (reason === null)
+            return res.status(400).json({ error: 'Report details are invalid.' });
+          const reporterPeer = room.peers.find((p) => p.id === session.id);
+          const targetPeer = room.peers.find((p) => p.id !== session.id);
           const report = safety.report(
             session.actor,
             peer.actor,
             req.body.category,
             peer.ipAddress,
+            {
+              ...(typeof req.body.roomId === 'string'
+                ? { roomId: req.body.roomId.slice(0, 100) }
+                : {}),
+              ...(typeof room.topic === 'string' ? { topic: room.topic.slice(0, 200) } : {}),
+              ...(reason !== undefined ? { reason } : {}),
+              ...(reporterPeer ? { reporterHandle: reporterPeer.handle.slice(0, 100) } : {}),
+              ...(targetPeer ? { targetHandle: targetPeer.handle.slice(0, 100) } : {}),
+            },
           );
+          try {
+            const excerpt = room.messages.slice(-50).map((message) => {
+              const senderRole =
+                message.type === 'system'
+                  ? ('system' as const)
+                  : message.senderId === session.id
+                    ? ('reporter' as const)
+                    : ('target' as const);
+              let text = typeof message.text === 'string' ? message.text : '';
+              if (message.images?.length) text += (text ? ' ' : '') + '[photo attached]';
+              if (message.voice) text += (text ? ' ' : '') + '[voice message attached]';
+              if (message.musicSnippet)
+                text += (text ? ' ' : '') + `♫ ${message.musicSnippet.title}`;
+              return {
+                messageId: String(message.id).slice(0, 200),
+                senderRole,
+                senderHandle: String(message.senderHandle ?? '').slice(0, 100),
+                text: text.slice(0, 4000),
+                createdAt: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
+              };
+            });
+            moderationDb.saveReportContext(
+              report.id,
+              {
+                roomId: typeof req.body.roomId === 'string' ? req.body.roomId.slice(0, 100) : null,
+                topic: typeof room.topic === 'string' ? room.topic.slice(0, 200) : null,
+                reporterHandle: reporterPeer ? reporterPeer.handle.slice(0, 100) : null,
+                targetHandle: targetPeer ? targetPeer.handle.slice(0, 100) : null,
+                createdAt: report.createdAt,
+              },
+              excerpt,
+            );
+          } catch {
+            /* Conversation context is best-effort; the report itself already persisted. */
+          }
           return res.json({ success: true, reportId: report.id });
         }
         safety.block(session.actor, peer.actor);
@@ -1631,21 +1689,98 @@ export function attachRuntime(
       return res.status(401).json({ error: 'Administrator authentication required.' });
     next();
   });
+  const adminName = () => options.adminUsername || 'admin';
+  const audit = (action: AdminActionType, reportId?: string | null, detail?: string | null) => {
+    try {
+      moderationDb.logAdminAction({ admin: adminName(), action, reportId, detail });
+    } catch {
+      /* Audit writes are best-effort and never block enforcement. */
+    }
+  };
   app.get('/api/admin/metrics', (_req, res) =>
     res.json({ ...metrics, ...runtimeStats(), memory: process.memoryUsage().rss }),
   );
-  app.get('/api/admin/reports', (_req, res) => {
+  app.get('/api/admin/reports', (req, res) => {
     try {
-      const reports = safety?.listReports() || [];
+      const statusFilter =
+        typeof req.query.status === 'string' && req.query.status !== 'all'
+          ? req.query.status
+          : undefined;
+      if (
+        statusFilter !== undefined &&
+        !(REPORT_STATUSES as readonly string[]).includes(statusFilter)
+      )
+        return res.status(400).json({ error: 'Invalid report status filter.' });
+      const reports = (safety?.listReports() || [])
+        .filter((report) => !statusFilter || report.status === statusFilter)
+        .sort((a, b) => b.createdAt - a.createdAt);
       const bans = safety?.listBans() || [];
+      let counts: Record<string, { messageCount: number }> = {};
+      try {
+        counts = moderationDb.contextMetaFor(reports.map((report) => report.id));
+      } catch {
+        counts = {};
+      }
       res.json({
         bans,
         reports: reports.map((report) => ({
           ...report,
           actorBanned: safety?.isActorBanned(report.target) ?? false,
           ipBanned: safety?.isIpBanned(report.ipAddress) ?? false,
+          messageCount: counts[report.id]?.messageCount ?? 0,
+          hasContext: (counts[report.id]?.messageCount ?? 0) > 0,
         })),
       });
+    } catch {
+      res.status(503).json({ error: 'Moderation storage is unavailable.' });
+    }
+  });
+  app.get('/api/admin/reports/:id', (req, res) => {
+    try {
+      const id = String(req.params.id || '');
+      if (!/^[a-f0-9-]{36}$/.test(id))
+        return res.status(400).json({ error: 'Invalid report identifier.' });
+      const report = safety?.getReport(id);
+      if (!report) return res.status(404).json({ error: 'Report not found.' });
+      let context: ReturnType<ModerationDb['getReportContext']> = undefined;
+      try {
+        context = moderationDb.getReportContext(id);
+      } catch {
+        context = undefined;
+      }
+      let actions: ReturnType<ModerationDb['listAdminActions']> = [];
+      try {
+        actions = moderationDb.listAdminActions(id, 100);
+      } catch {
+        actions = [];
+      }
+      res.json({
+        report: {
+          ...report,
+          actorBanned: safety?.isActorBanned(report.target) ?? false,
+          ipBanned: safety?.isIpBanned(report.ipAddress) ?? false,
+        },
+        context: context ?? { meta: null, messages: [] },
+        actions,
+      });
+    } catch {
+      res.status(503).json({ error: 'Moderation storage is unavailable.' });
+    }
+  });
+  app.get('/api/admin/actions', (req, res) => {
+    try {
+      const reportId =
+        typeof req.query.reportId === 'string' && req.query.reportId
+          ? req.query.reportId
+          : undefined;
+      if (reportId !== undefined && !/^[a-f0-9-]{36}$/.test(reportId))
+        return res.status(400).json({ error: 'Invalid report identifier.' });
+      const limit = Number(req.query.limit);
+      const actions = moderationDb.listAdminActions(
+        reportId,
+        Number.isSafeInteger(limit) ? limit : 100,
+      );
+      res.json({ actions });
     } catch {
       res.status(503).json({ error: 'Moderation storage is unavailable.' });
     }
@@ -1653,11 +1788,28 @@ export function attachRuntime(
   app.post('/api/admin/moderate', (req, res) => {
     if (!safety) return res.status(503).json({ error: 'Moderation storage is unavailable.' });
     try {
-      const { action, actor, reportId } = req.body;
-      if (action === 'resolve') safety.resolveReport(reportId);
-      else if (action === 'unban') safety.unban(actor);
-      else if (action === 'unbanIp') safety.unbanIp(req.body.ipAddress);
-      else if (action === 'ban') {
+      const { action, actor, reportId } = req.body ?? {};
+      const note =
+        req.body?.note === undefined || req.body?.note === ''
+          ? undefined
+          : typeof req.body.note === 'string'
+            ? req.body.note.slice(0, 1000)
+            : null;
+      if (note === null) return res.status(400).json({ error: 'Admin note is invalid.' });
+      if (action === 'resolve' || action === 'dismiss' || action === 'escalate') {
+        if (typeof reportId !== 'string' || !/^[a-f0-9-]{36}$/.test(reportId))
+          return res.status(400).json({ error: 'Select a valid report first.' });
+        if (action === 'resolve') safety.resolveReport(reportId, note);
+        else if (action === 'dismiss') safety.dismissReport(reportId, note);
+        else safety.escalateReport(reportId, note);
+        audit(action, reportId, note ?? null);
+      } else if (action === 'unban') {
+        safety.unban(actor);
+        audit('unban', typeof reportId === 'string' ? reportId : null, null);
+      } else if (action === 'unbanIp') {
+        safety.unbanIp(req.body.ipAddress);
+        audit('unbanIp', reportId ?? null, String(req.body.ipAddress ?? '').slice(0, 100));
+      } else if (action === 'ban') {
         const report = safety.listReports().find((item) => item.id === reportId);
         const durationMs = req.body.durationMs;
         if (!report || report.target !== actor)
@@ -1681,6 +1833,11 @@ export function attachRuntime(
             sessions.delete(session.token);
             identities.delete(session.id);
           }
+        audit(
+          'ban',
+          reportId,
+          `durationMs=${String(durationMs)} includeIp=${req.body.includeIp === true}${note ? ` note=${note}` : ''}`,
+        );
       } else return res.status(400).json({ error: 'Invalid moderation action.' });
       res.json({ success: true });
     } catch {
@@ -1810,6 +1967,11 @@ export function attachRuntime(
     });
   });
   const cleanup = setInterval(() => {
+    try {
+      moderationDb.prune(Date.now() - 30 * 86_400_000);
+    } catch {
+      /* Review retention pruning is best-effort. */
+    }
     for (const [id, p] of queue) if (Date.now() - p.lastSeen > 30000) queue.delete(id);
     for (const room of rooms.values()) {
       const now = Date.now();
@@ -1836,6 +1998,7 @@ export function attachRuntime(
   cleanup.unref();
   return () => {
     draining = true;
+    if (ownsModerationDb) moderationDb.close();
     clearInterval(cleanup);
     for (const ws of wss.clients) {
       notify(ws, { type: 'server_restart' });
