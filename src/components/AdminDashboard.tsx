@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Search,
   Shield,
-  ShieldAlert,
   X,
 } from 'lucide-react';
 import { apiRequest } from '../utils/api';
@@ -334,9 +333,16 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
     }
   };
 
-  const surface = isDarkMode
-    ? 'border-stone-800 bg-[#1a1917] text-stone-100'
-    : 'border-stone-200 bg-white text-stone-900';
+  // Same visual system as the main app: ui-surface cards, stone-100/stone-800
+  // body text, and the shared chat accent scope for primary buttons.
+  const surface = `ui-surface ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`;
+  const inputCls = isDarkMode
+    ? 'border-stone-700 bg-stone-900 text-stone-100'
+    : 'border-stone-300 bg-white text-stone-900';
+  const scheme = { colorScheme: isDarkMode ? 'dark' : 'light' } as const;
+  const muted = 'text-stone-500 dark:text-stone-400';
+  const secondary = isDarkMode ? 'text-stone-300' : 'text-stone-600';
+  const heading = isDarkMode ? 'text-white' : 'text-stone-950';
 
   const counts = useMemo(() => {
     const open = reports.filter((r) => r.status === 'open').length;
@@ -372,7 +378,9 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
 
   if (checking) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#141312] text-stone-100">
+      <main
+        className={`grid h-dvh place-items-center ${isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'}`}
+      >
         <p role="status">Checking administrator access…</p>
       </main>
     );
@@ -381,27 +389,29 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   if (!authenticated) {
     return (
       <main
-        className={`grid min-h-[100dvh] place-items-center px-4 py-8 ${isDarkMode ? 'bg-[#141312]' : 'bg-[#FAF8F5]'}`}
+        className={`chat-theme-scope grid h-dvh place-items-center overflow-y-auto px-4 py-8 ${isDarkMode ? 'bg-[#141312]' : 'bg-[#FAF8F5]'}`}
       >
-        <section className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl sm:p-8 ${surface}`}>
+        <section
+          className={`access-form-panel ui-surface relative w-full max-w-md rounded-2xl p-6 sm:p-8 ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
+        >
           <a
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-stone-500 hover:text-emerald-500"
+            className={`inline-flex items-center gap-2 text-sm ${secondary} hover:text-red-700 dark:hover:text-red-300`}
           >
             <ArrowLeft className="h-4 w-4" /> CourseMates
           </a>
           <div className="mb-6 mt-8 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-500/10 text-emerald-500">
+            <span className="chat-theme-accent-soft grid h-11 w-11 place-items-center rounded-xl">
               <Shield className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-500">
+              <p className="chat-theme-accent-text text-xs font-semibold uppercase tracking-[0.18em]">
                 Private access
               </p>
-              <h1 className="text-2xl font-bold">Admin sign in</h1>
+              <h1 className={`text-2xl font-bold ${heading}`}>Admin sign in</h1>
             </div>
           </div>
-          <p className="mb-5 text-sm text-stone-500 dark:text-stone-400">
+          <p className={`mb-5 text-sm ${muted}`}>
             Use the administrator credentials configured for this service.
           </p>
           {error && (
@@ -427,7 +437,8 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
               required
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-stone-300 bg-transparent px-3 py-3 font-normal outline-none focus:border-emerald-500 dark:border-stone-700"
+              style={scheme}
+              className={`mt-1.5 w-full rounded-lg border px-3 py-3 font-normal outline-none focus:border-red-700 ${inputCls}`}
             />
             <label className="block text-sm font-semibold" htmlFor="admin-password">
               Password
@@ -439,11 +450,12 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-stone-300 bg-transparent px-3 py-3 font-normal outline-none focus:border-emerald-500 dark:border-stone-700"
+              style={scheme}
+              className={`mt-1.5 w-full rounded-lg border px-3 py-3 font-normal outline-none focus:border-red-700 ${inputCls}`}
             />
             <button
               type="submit"
-              className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-bold text-white transition hover:bg-emerald-500"
+              className="chat-theme-accent-button w-full rounded-lg px-4 py-3 font-bold text-white"
             >
               Sign in
             </button>
@@ -457,19 +469,21 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
 
   return (
     <main
-      className={`min-h-[100dvh] overflow-y-auto ${isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-900'}`}
+      className={`chat-theme-scope h-dvh w-full overflow-y-auto ${isDarkMode ? 'bg-[#141312] text-stone-100' : 'bg-[#FAF8F5] text-stone-800'}`}
     >
-      <header className="sticky top-0 z-10 border-b border-stone-200/70 bg-[#FAF8F5]/90 backdrop-blur-xl dark:border-stone-800 dark:bg-[#141312]/90">
+      <header
+        className={`sticky top-0 z-10 border-b backdrop-blur-xl ${isDarkMode ? 'border-stone-800 bg-[#141312]/90' : 'border-stone-200 bg-[#fffdfa]/90'}`}
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <a href="/" className="flex min-w-0 items-center gap-3" aria-label="Back to CourseMates">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-500">
+            <span className="chat-theme-accent-soft grid h-10 w-10 shrink-0 place-items-center rounded-xl">
               <Shield className="h-5 w-5" />
             </span>
             <span>
-              <span className="block text-xs font-semibold uppercase tracking-[0.15em] text-emerald-500">
+              <span className="chat-theme-accent-text block text-xs font-semibold uppercase tracking-[0.15em]">
                 CourseMates
               </span>
-              <span className="block font-bold">Moderation</span>
+              <span className={`block font-bold ${heading}`}>Moderation</span>
             </span>
           </a>
           <div className="flex shrink-0 items-center gap-2">
@@ -496,11 +510,11 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-9">
         <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-500">
+            <p className="chat-theme-accent-text text-xs font-bold uppercase tracking-[0.18em]">
               Administrator
             </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight">Report review</h1>
-            <p className="mt-2 max-w-2xl text-sm text-stone-500 dark:text-stone-400">
+            <h1 className={`mt-1 text-3xl font-bold tracking-tight ${heading}`}>Report review</h1>
+            <p className={`mt-2 max-w-2xl text-sm ${secondary}`}>
               Open a report to read the reported conversation with surrounding context, then
               resolve, dismiss, or escalate it. Restrictions apply to a browser identity and,
               optionally, its reported IP.
@@ -552,7 +566,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
           <div
             role="tablist"
             aria-label="Report status filter"
-            className="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-stone-300 p-1 dark:border-stone-700"
+            className={`inline-flex max-w-full flex-wrap gap-1 rounded-lg border p-1 ${isDarkMode ? 'border-stone-700' : 'border-stone-300'}`}
           >
             {(['open', 'escalated', 'resolved', 'dismissed', 'all'] as const).map((item) => (
               <button
@@ -561,7 +575,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 role="tab"
                 aria-selected={filter === item}
                 onClick={() => setFilter(item)}
-                className={`rounded-md px-3 py-2 text-sm font-semibold capitalize ${filter === item ? 'bg-emerald-600 text-white' : 'text-stone-500 hover:text-stone-900 dark:hover:text-white'}`}
+                className={`rounded-md px-3 py-2 text-sm font-semibold capitalize ${filter === item ? 'chat-theme-accent-button border-transparent text-white' : `${muted} hover:text-stone-900 dark:hover:text-white`}`}
               >
                 {STATUS_LABELS[item]}
               </button>
@@ -580,7 +594,8 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search handle, topic, reason, IP…"
                 aria-label="Search reports"
-                className="w-full rounded-lg border border-stone-300 bg-transparent py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 dark:border-stone-700"
+                style={scheme}
+                className={`w-full rounded-lg border py-2 pl-9 pr-3 text-sm outline-none focus:border-red-700 ${inputCls}`}
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -589,7 +604,8 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
                 aria-label="Filter by category"
-                className="rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-emerald-500 dark:border-stone-700"
+                style={scheme}
+                className={`rounded-lg border px-3 py-2 text-sm outline-none focus:border-red-700 ${inputCls}`}
               >
                 <option value="all">All reasons</option>
                 {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -610,7 +626,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                   aria-controls="restriction-duration-menu"
                   aria-labelledby="restriction-duration-label"
                   onClick={() => setDurationMenuOpen((open) => !open)}
-                  className="inline-flex min-w-32 items-center justify-between gap-3 rounded-lg border border-stone-300 bg-white px-3 py-2 text-left font-medium text-stone-900 hover:bg-stone-100 dark:border-stone-700 dark:bg-[#1a1917] dark:text-stone-100 dark:hover:bg-stone-800"
+                  className={`inline-flex min-w-32 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left font-medium ${inputCls}`}
                 >
                   {BAN_DURATIONS.find((item) => item.value === duration)?.label}
                   <ChevronDown
@@ -623,11 +639,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                     id="restriction-duration-menu"
                     role="menu"
                     aria-label="Restriction duration"
-                    className={`absolute right-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg border p-1 shadow-xl ${
-                      isDarkMode
-                        ? 'border-stone-700 bg-[#1a1917] text-stone-100'
-                        : 'border-stone-200 bg-white text-stone-900'
-                    }`}
+                    className={`ui-surface absolute right-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg p-1 ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}
                   >
                     {BAN_DURATIONS.map((item) => (
                       <button
@@ -641,10 +653,8 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                         }}
                         className={`block w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${
                           duration === item.value
-                            ? 'bg-emerald-600 text-white'
-                            : isDarkMode
-                              ? 'text-stone-100 hover:bg-stone-800'
-                              : 'text-stone-900 hover:bg-stone-100'
+                            ? 'chat-theme-accent-button text-white'
+                            : 'hover:bg-stone-500/10'
                         }`}
                       >
                         {item.label}
@@ -681,7 +691,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 <div className="flex flex-col justify-between gap-4 lg:flex-row">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-bold text-red-500">
+                      <span className="rounded-full bg-red-800/10 px-3 py-1 text-xs font-bold text-red-700 dark:text-red-300">
                         {CATEGORY_LABELS[report.category]}
                       </span>
                       <span
@@ -711,11 +721,11 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                       {report.targetHandle ? ` · involving ${report.targetHandle}` : ''}
                     </p>
                     {report.reason && (
-                      <p className="mt-1 line-clamp-2 text-sm text-stone-600 dark:text-stone-300">
+                      <p className="mt-1 line-clamp-2 border-l-2 border-red-800/40 pl-2 text-sm">
                         “{report.reason}”
                       </p>
                     )}
-                    <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                    <p className={`mt-2 text-xs ${muted}`}>
                       Reported {new Date(report.createdAt).toLocaleString()}
                       {report.updatedAt && report.updatedAt !== report.createdAt
                         ? ` · updated ${new Date(report.updatedAt).toLocaleString()}`
@@ -723,18 +733,23 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                     </p>
                     <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
                       <div className="min-w-0">
-                        <dt className="text-stone-500">Reported person</dt>
+                        <dt className={muted}>Reported person</dt>
                         <dd className="mt-0.5 break-all font-mono">
                           {report.targetHandle ?? report.target}
                         </dd>
                       </div>
                       <div className="min-w-0">
-                        <dt className="text-stone-500">Reporter</dt>
+                        <dt className={muted}>Reporter</dt>
                         <dd className="mt-0.5 break-all font-mono">
                           {report.reporterHandle ?? report.reporter}
                         </dd>
                       </div>
                     </dl>
+                    <p className={`mt-2 text-xs ${muted}`}>
+                      {(report.messageCount ?? 0) > 0
+                        ? 'Conversation excerpt available for review.'
+                        : 'The chat room already expired; only metadata is available.'}
+                    </p>
                   </div>
                   <div className="flex flex-wrap content-start gap-2 lg:max-w-[320px] lg:justify-end">
                     <button
@@ -745,7 +760,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                       type="button"
                       onClick={() => setSelectedId(report.id)}
                       aria-haspopup="dialog"
-                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"
+                      className="chat-theme-accent-button rounded-lg px-3 py-2 text-xs font-bold text-white"
                     >
                       Review conversation
                     </button>
@@ -834,7 +849,9 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
             tabIndex={-1}
             className={`flex max-h-[95dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border shadow-2xl outline-none sm:rounded-2xl ${surface}`}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 dark:border-stone-800 sm:px-6">
+            <div
+              className={`flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
+            >
               <h2 id="report-detail-title" className="truncate text-base font-bold sm:text-lg">
                 {activeReport
                   ? `${CATEGORY_LABELS[activeReport.category]} · ${activeReport.status}`
@@ -866,38 +883,40 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
               {detail && (
                 <div className="space-y-6">
                   <section aria-label="Report details" className="space-y-2 text-sm">
-                    <dl className="grid gap-3 rounded-xl border border-stone-200 p-4 text-xs dark:border-stone-800 sm:grid-cols-2 sm:text-sm">
+                    <dl
+                      className={`grid gap-3 rounded-xl border p-4 text-xs sm:grid-cols-2 sm:text-sm ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
+                    >
                       <div>
-                        <dt className="font-semibold text-stone-500">Reason</dt>
+                        <dt className={`font-semibold ${muted}`}>Reason</dt>
                         <dd className="mt-1">
                           {CATEGORY_LABELS[detail.report.category]}
                           {detail.report.reason ? ` — “${detail.report.reason}”` : ''}
                         </dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-stone-500">Report date</dt>
+                        <dt className={`font-semibold ${muted}`}>Report date</dt>
                         <dd className="mt-1">
                           {new Date(detail.report.createdAt).toLocaleString()}
                         </dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-stone-500">Reporter</dt>
+                        <dt className={`font-semibold ${muted}`}>Reporter</dt>
                         <dd className="mt-1 break-all font-mono text-xs">
                           {detail.report.reporterHandle ??
                             detail.context.meta?.reporterHandle ??
                             '—'}
-                          <span className="block text-stone-500">{detail.report.reporter}</span>
+                          <span className={`block ${muted}`}>{detail.report.reporter}</span>
                         </dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-stone-500">Reported person</dt>
+                        <dt className={`font-semibold ${muted}`}>Reported person</dt>
                         <dd className="mt-1 break-all font-mono text-xs">
                           {detail.report.targetHandle ?? detail.context.meta?.targetHandle ?? '—'}
-                          <span className="block text-stone-500">{detail.report.target}</span>
+                          <span className={`block ${muted}`}>{detail.report.target}</span>
                         </dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-stone-500">Topic</dt>
+                        <dt className={`font-semibold ${muted}`}>Topic</dt>
                         <dd className="mt-1">
                           {detail.report.topic ??
                             detail.context.meta?.topic ??
@@ -905,7 +924,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                         </dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-stone-500">Reported IP</dt>
+                        <dt className={`font-semibold ${muted}`}>Reported IP</dt>
                         <dd className="mt-1 break-all font-mono text-xs">
                           {detail.report.ipAddress ?? 'Unavailable'}
                         </dd>
@@ -922,12 +941,14 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                     <h3 className="flex items-center gap-2 text-sm font-bold">
                       <MessageSquareText className="h-4 w-4" aria-hidden="true" />
                       Reported conversation
-                      <span className="font-normal text-stone-500">
+                      <span className={`font-normal ${muted}`}>
                         ({detail.context.messages.length} messages)
                       </span>
                     </h3>
                     {detail.context.messages.length === 0 ? (
-                      <p className="mt-2 rounded-xl border border-dashed border-stone-300 p-4 text-sm text-stone-500 dark:border-stone-700">
+                      <p
+                        className={`mt-2 rounded-xl border border-dashed p-4 text-sm ${muted} ${isDarkMode ? 'border-stone-700' : 'border-stone-300'}`}
+                      >
                         The chat room already expired, so only the report metadata above is
                         available. Decide on the category, reporter history, and IP signals.
                       </p>
@@ -938,19 +959,19 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                             key={`${message.messageId}-${index}`}
                             className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${
                               message.senderRole === 'system'
-                                ? 'mx-auto bg-stone-500/10 text-center text-xs text-stone-500'
+                                ? `mx-auto bg-stone-500/10 text-center text-xs ${muted}`
                                 : message.senderRole === 'reporter'
                                   ? 'ml-auto bg-emerald-600/10'
                                   : 'mr-auto bg-stone-500/10'
                             }`}
                           >
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500">
+                            <p className={`text-[11px] font-bold uppercase tracking-wide ${muted}`}>
                               {message.senderRole === 'system'
                                 ? 'System'
                                 : `${message.senderHandle} · ${message.senderRole === 'reporter' ? 'reporter' : 'reported person'}`}
                             </p>
                             <p className="mt-0.5 whitespace-pre-wrap break-words">{message.text}</p>
-                            <p className="mt-1 text-[11px] text-stone-500">
+                            <p className={`mt-1 text-[11px] ${muted}`}>
                               {new Date(message.createdAt).toLocaleString()}
                             </p>
                           </li>
@@ -965,7 +986,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                       Admin history
                     </h3>
                     {detail.actions.length === 0 ? (
-                      <p className="mt-2 text-sm text-stone-500">
+                      <p className={`mt-2 text-sm ${muted}`}>
                         No admin decisions recorded for this report yet.
                       </p>
                     ) : (
@@ -973,10 +994,10 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                         {detail.actions.map((entry) => (
                           <li
                             key={entry.id}
-                            className="rounded-lg border border-stone-200 px-3 py-2 text-xs dark:border-stone-800"
+                            className={`rounded-lg border px-3 py-2 text-xs ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
                           >
                             <span className="font-bold capitalize">{entry.action}</span>
-                            <span className="text-stone-500">
+                            <span className={muted}>
                               {' '}
                               · {entry.admin} · {new Date(entry.createdAt).toLocaleString()}
                             </span>
@@ -1001,7 +1022,8 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                         rows={3}
                         maxLength={1000}
                         placeholder="Context for the next reviewer…"
-                        className="w-full rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-emerald-500 dark:border-stone-700"
+                        style={scheme}
+                        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-red-700 ${inputCls}`}
                       />
                       {!pendingConfirm ? (
                         <div className="flex flex-wrap gap-2">
@@ -1122,7 +1144,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                                   pendingConfirm.includeIp,
                                 )
                               }
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                              className="chat-theme-accent-button rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                             >
                               Confirm {pendingConfirm.action}
                             </button>
