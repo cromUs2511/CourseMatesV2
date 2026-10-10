@@ -13,6 +13,11 @@ import {
 import { CHAT_SEND_BODY_LIMIT } from './src/data/chatImages';
 import { createPythonOrchestratorClient, pythonOrchestratorConfig } from './pythonOrchestrator';
 import { SafetyStore, moderateText } from './safety';
+import {
+  answerStudentChatMessage,
+  createStudentChatbotState,
+  replayStudentChatHistory,
+} from './studentChatbot';
 import { ModerationDb, resolveModerationDbPath } from './moderationDb';
 import {
   constantTimeEqual,
@@ -618,15 +623,34 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
 });
 
 // AI-powered conversation partner used by the Student Chatbot Assistant.
+// Rule-based fallback: when the Gemini/Groq provider is exhausted,
+// unreachable, or unconfigured, the deterministic local engine in
+// studentChatbot.ts answers instead, so the chatbot keeps working.
+type ChatbotMemory = { userName: string | null; rememberAllowed: boolean };
+const chatbotMemory = new Map<string, ChatbotMemory>();
+function answerWithLocalChatbot(
+  message: string,
+  history: Array<{ role: 'assistant' | 'user'; text: string }>,
+  sessionToken: string,
+) {
+  const state = createStudentChatbotState();
+  replayStudentChatHistory(history, state);
+  const stored = chatbotMemory.get(sessionToken);
+  if (stored?.rememberAllowed) {
+    state.rememberAllowed = true;
+    if (stored.userName) state.userName = stored.userName;
+  }
+  const answer = answerStudentChatMessage(message, state);
+  if (state.rememberAllowed) {
+    if (chatbotMemory.size > 2000) chatbotMemory.delete(chatbotMemory.keys().next().value!);
+    chatbotMemory.set(sessionToken, { userName: state.userName, rememberAllowed: true });
+  } else if (answer.intentId === 'forget') chatbotMemory.delete(sessionToken);
+  return answer;
+}
 app.post('/api/ai/chatbot', async (req, res) => {
   const session = authenticate(req);
   if (!session)
     return res.status(401).json({ error: 'Your session expired. Please sign in again.' });
-  if (!groqApiKey && !ai)
-    return res.status(503).json({
-      error: 'The Student Chatbot Assistant is unavailable until an AI provider key is configured.',
-    });
-
   const message =
     typeof req.body.message === 'string' ? req.body.message.trim().slice(0, 4000) : '';
   const history: Array<{ role: 'assistant' | 'user'; text: string }> = Array.isArray(
@@ -645,8 +669,11 @@ app.post('/api/ai/chatbot', async (req, res) => {
     typeof req.body.topic === 'string'
       ? req.body.topic.trim().slice(0, 100)
       : 'General Peer Discovery';
-  const providerName = ai ? 'Gemini' : 'Groq';
-  const activeModel = ai ? aiModel : groqModel;
+  const fallback = () => {
+    const answer = answerWithLocalChatbot(message, history, session.token);
+    return res.json({ reply: answer.reply, source: 'local-rules', verified: answer.verified });
+  };
+  if (!groqApiKey && !ai) return fallback();
   try {
     const detailedResponseRequested =
       /\b(?:in detail|detailed|deep dive|step[- ]by[- ]step|comprehensive|thorough|long answer|essay|elaborate|show your work)\b/i.test(
@@ -769,48 +796,14 @@ Assistant:`;
     }
     res.json({ reply, source: aiModel });
   } catch (error) {
+    // The provider is exhausted or unreachable: stay conversational with the
+    // rule-based engine instead of failing the chat.
     const status =
       typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
         ? error.status
         : undefined;
-    const detail = error instanceof Error ? error.message : String(error);
     logEvent('chatbot_provider_failed', { status });
-    if (
-      status === 400 ||
-      status === 401 ||
-      status === 403 ||
-      /api key|permission|leaked/i.test(detail)
-    ) {
-      return res.status(503).json({
-        error: `${providerName} rejected the API key, request, or permissions. Check the provider dashboard.`,
-      });
-    }
-    if (status === 429 || /quota|resource_exhausted|rate limit/i.test(detail)) {
-      return res.status(503).json({
-        error: `The ${providerName} API quota is currently exhausted. Check usage and billing in the provider dashboard.`,
-      });
-    }
-    if (status === 413 || /request.*too large|entity too large/i.test(detail)) {
-      return res.status(413).json({
-        error: `${providerName} rejected the request size even after conversation context was reduced. Try a shorter message.`,
-      });
-    }
-    if (
-      status === 404 ||
-      /model.*(?:not found|unavailable|no longer available)|not found.*model/i.test(detail)
-    ) {
-      return res.status(503).json({
-        error: `The configured ${providerName} model (${activeModel}) is unavailable to this API key.`,
-      });
-    }
-    if (/fetch failed|network|timeout|timed out/i.test(detail)) {
-      return res.status(503).json({
-        error: `Render could not reach the ${providerName} API. Please try again shortly.`,
-      });
-    }
-    return res.status(503).json({
-      error: `The Student Chatbot Assistant is temporarily unavailable. Check the Render logs for the ${providerName} error.`,
-    });
+    return fallback();
   }
 });
 

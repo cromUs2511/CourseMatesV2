@@ -28,7 +28,8 @@ a quick tour of everything the app does, in the order you would meet it.
   match ranks highest). Leave it off to match with anyone.
 - **Fallback.** If nobody shares your interest, you can choose to chat normally.
 - **Chatbot while you wait.** A clearly labelled _simulated_ Student Chatbot
-  Assistant keeps you company (needs a Gemini or Groq key).
+  Assistant keeps you company (Gemini or Groq when available, built-in
+  rule-based answers when the provider is exhausted or unconfigured).
 
 ## 3. Chatting
 
@@ -59,16 +60,16 @@ a quick tour of everything the app does, in the order you would meet it.
 Open **Games** in the chat header to invite your peer. One game at a time per
 chat (UNO can run as its own table).
 
-| Game                 | In short                                                     |
-| -------------------- | ------------------------------------------------------------ |
-| UNO                  | Full card game with an arena and challenges                  |
-| Tic-Tac-Toe          | Classic 3×3                                                  |
-| Rock Paper Scissors  | Multi-round match                                            |
-| Connect Four         | Drop discs, link four                                        |
-| Chess                | Full rules, check and promotion                              |
-| Trivia               | Question rounds with scores                                  |
-| Would You Rather     | Both pick in secret, then answers reveal                     |
-| **Draw & Guess**     | Six turns, 60 s each, 1,100 prompts, mouse/touch/pen drawing |
+| Game                | In short                                                     |
+| ------------------- | ------------------------------------------------------------ |
+| UNO                 | Full card game with an arena and challenges                  |
+| Tic-Tac-Toe         | Classic 3×3                                                  |
+| Rock Paper Scissors | Multi-round match                                            |
+| Connect Four        | Drop discs, link four                                        |
+| Chess               | Full rules, check and promotion                              |
+| Trivia              | Question rounds with scores                                  |
+| Would You Rather    | Both pick in secret, then answers reveal                     |
+| **Draw & Guess**    | Six turns, 60 s each, 1,100 prompts, mouse/touch/pen drawing |
 
 Every game supports invite, accept, decline, minimize and resume, leaving (which
 posts a notice in the chat), and rematches. The server keeps all state, and
@@ -105,11 +106,11 @@ Tools: ten colors, three brush sizes, eraser, undo and clear.
 
 ## 8. AI helpers (optional)
 
-| Helper                 | What it does                                          |
-| ---------------------- | ----------------------------------------------------- |
-| Conversation starters  | Topic-aware icebreakers, with built-in fallbacks      |
-| Assistant              | Explain a concept or summarize the chat on request    |
-| Student Chatbot        | Simulated partner while you wait for a match          |
+| Helper                | What it does                                       |
+| --------------------- | -------------------------------------------------- |
+| Conversation starters | Topic-aware icebreakers, with built-in fallbacks   |
+| Assistant             | Explain a concept or summarize the chat on request |
+| Student Chatbot       | Simulated partner while you wait for a match       |
 
 Gemini is used first, Groq if Gemini is absent. Without a key, starters fall
 back to a built-in list and the other helpers report that they are unavailable.
