@@ -12,17 +12,29 @@ test('off mode never invokes the Python orchestrator', async () => {
     },
   );
 
-  await client.observeIcebreakers({ topic: 'Calculus', discipline: 'Engineering', campus: 'Main Campus' });
+  await client.observeIcebreakers({
+    topic: 'Calculus',
+    discipline: 'Engineering',
+    campus: 'Main Campus',
+  });
   assert.equal(calls, 0);
 });
 
 test('shadow mode swallows an unavailable Python orchestrator', async () => {
   const client = createPythonOrchestratorClient(
     { mode: 'shadow', baseUrl: 'http://127.0.0.1:5051', timeoutMs: 20 },
-    async () => { throw new Error('connection refused'); },
+    async () => {
+      throw new Error('connection refused');
+    },
   );
 
-  await assert.doesNotReject(() => client.observeIcebreakers({ topic: 'Calculus', discipline: 'Engineering', campus: 'Main Campus' }));
+  await assert.doesNotReject(() =>
+    client.observeIcebreakers({
+      topic: 'Calculus',
+      discipline: 'Engineering',
+      campus: 'Main Campus',
+    }),
+  );
 });
 
 test('shadow mode sends the versioned internal icebreaker contract', async () => {
@@ -31,11 +43,18 @@ test('shadow mode sends the versioned internal icebreaker contract', async () =>
     { mode: 'shadow', baseUrl: 'http://python.internal/', timeoutMs: 20 },
     async (url, init) => {
       request = { url: String(url), init };
-      return new Response(JSON.stringify({ contractVersion: 1, icebreakers: ['a', 'b', 'c', 'd'] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ contractVersion: 1, icebreakers: ['a', 'b', 'c', 'd'] }),
+        { status: 200 },
+      );
     },
   );
 
-  await client.observeIcebreakers({ topic: 'Calculus', discipline: 'Engineering', campus: 'Main Campus' });
+  await client.observeIcebreakers({
+    topic: 'Calculus',
+    discipline: 'Engineering',
+    campus: 'Main Campus',
+  });
   assert.equal(request?.url, 'http://python.internal/internal/v1/icebreakers');
   assert.deepEqual(JSON.parse(String(request?.init?.body)), {
     contractVersion: 1,

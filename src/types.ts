@@ -13,15 +13,12 @@ export type AcademicDiscipline =
 
 export interface StudentSession {
   id: string;
-  email: string;
-  hashedStudentId?: string;
   campus?: Campus;
   discipline?: AcademicDiscipline;
   interests: string[];
   sessionHandle: string; // e.g. "Astute Cardinal #8192"
   customHandle?: boolean;
   sessionAvatar: string; // emoji or avatar icon ID
-  token: string;
   createdAt: number;
 }
 
@@ -51,6 +48,8 @@ export interface ChatMessage {
   edited?: boolean;
 }
 
+export type PeerPresence = 'active' | 'inactive' | 'offline';
+
 export interface ActivePeerInfo {
   sessionId: string;
   handle: string;
@@ -60,6 +59,7 @@ export interface ActivePeerInfo {
   interests: string[];
   topic: string;
   matchedAt: number;
+  mediaUnlockAt: number;
   isSimulated?: boolean;
 }
 
@@ -105,9 +105,15 @@ export interface MusicTrack {
 }
 
 export interface RoomMusicState {
+  /** Position at updatedAt; serverNow avoids device clock skew. */
+  position?: number;
+  updatedAt?: number;
+  serverNow?: number;
   trackId: string;
   track?: MusicTrack;
+  queue?: MusicTrack[];
   isPlaying: boolean;
+  ended?: boolean;
   volume: number;
   isMuted: boolean;
   revision: number;

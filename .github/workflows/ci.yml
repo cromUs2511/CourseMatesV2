@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: typecheck, lint, format, unit coverage, build, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test:coverage
+      - run: npm run build
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  browser:
+    name: browser (${{ matrix.channel }})
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [chrome, chromium]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - if: matrix.channel == 'chromium'
+        run: npx playwright install --with-deps chromium
+      - name: Run the production-mode browser suite
+        run: npx playwright test
+        env:
+          PW_CHANNEL: ${{ matrix.channel }}
+
+  python:
+    name: python shadow service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -p no:cacheprovider services/python-orchestrator/tests -q
+
+  native:
+    name: native module (build, smoke, boundary, sanitizer)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Build the pybind11 module
+        run: pip install ./native
+      - name: Compiler smoke tests
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -I native/src native/tests/smoke.cpp -o "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke"
+      - name: Python boundary tests
+        run: python -m pytest -p no:cacheprovider native/tests/test_native.py -q
+      - name: Latency benchmark
+        run: python native/tests/bench.py
+      - name: Sanitizer smoke tests (ASan + UBSan)
+        run: |
+          g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I native/src native/tests/smoke.cpp -o "$RUNNER_TEMP/smoke-san"
+          "$RUNNER_TEMP/smoke-san"
+
+  container:
+    name: container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose configuration
+        run: APP_URL=https://coursemates.example MODERATION_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ADMIN_TOKEN=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb docker compose config -q
+      - name: Build the Node edge image
+        run: docker build -t coursemates-web:ci .
+      - name: Build the Python orchestrator image
+        run: docker build -f services/python-orchestrator/Dockerfile -t coursemates-python:ci .

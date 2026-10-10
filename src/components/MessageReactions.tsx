@@ -3,7 +3,16 @@ import { createPortal } from 'react-dom';
 import { Smile, X } from 'lucide-react';
 import { MESSAGE_REACTIONS } from '../data/reactions';
 
-export function MessageReactions({ children, reactions = {}, sessionId, onReact, actions, onLongPress, align = 'start', showQuickBar = false }: {
+export function MessageReactions({
+  children,
+  reactions = {},
+  sessionId,
+  onReact,
+  actions,
+  onLongPress,
+  align = 'start',
+  showQuickBar = false,
+}: {
   children: React.ReactNode;
   reactions?: Record<string, string>;
   sessionId: string;
@@ -20,14 +29,22 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
-  const clearPress = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; setIsHolding(false); };
+  const clearPress = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setIsHolding(false);
+  };
   const open = (longPress = false) => {
     if (longPress && onLongPress) {
       onLongPress();
       return;
     }
     const box = anchor.current?.getBoundingClientRect();
-    if (box) setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - 304)), top: Math.max(8, Math.min(box.top - 100, window.innerHeight - 108)) });
+    if (box)
+      setPosition({
+        left: Math.max(8, Math.min(box.left, window.innerWidth - 304)),
+        top: Math.max(8, Math.min(box.top - 100, window.innerHeight - 108)),
+      });
   };
   useEffect(() => () => clearPress(), []);
   useEffect(() => {
@@ -58,70 +75,173 @@ export function MessageReactions({ children, reactions = {}, sessionId, onReact,
     if (pending) return;
     setPosition(null);
     setPending(true);
-    try { await onReact(reactions[sessionId] === emoji ? null : emoji); }
-    finally { setPending(false); }
+    try {
+      await onReact(reactions[sessionId] === emoji ? null : emoji);
+    } finally {
+      setPending(false);
+    }
   };
-  return <>
-    <div className={`relative flex min-w-0 w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}>
-      <div ref={anchor} className={`reaction-message-anchor relative min-w-0 w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''}`}
-      onTouchStart={event => {
-        clearPress();
-        if (event.touches.length !== 1) return;
-        const touch = event.touches[0];
-        start.current = { x: touch.clientX, y: touch.clientY };
-        setIsHolding(true);
-        timer.current = setTimeout(() => open(true), 450);
-      }}
-      onTouchMove={event => {
-        const touch = event.touches[0];
-        if (!touch || !start.current || Math.hypot(touch.clientX - start.current.x, touch.clientY - start.current.y) > 10) clearPress();
-      }}
-      onTouchEnd={clearPress} onTouchCancel={clearPress}
-      onContextMenu={event => { event.preventDefault(); clearPress(); open(true); }}
+  const hasVisibleReactions = MESSAGE_REACTIONS.some(({ emoji }) =>
+    Object.values(reactions).includes(emoji),
+  );
+  return (
+    <>
+      <div
+        className={`relative flex min-w-0 w-fit max-w-full flex-col ${align === 'end' ? 'self-end items-end' : 'self-start items-start'}`}
       >
-        {children}
-        {MESSAGE_REACTIONS.some(({ emoji }) => Object.values(reactions).includes(emoji)) && (
-          <div className={`pointer-events-none relative z-10 -mt-1.5 flex flex-wrap gap-1 px-2 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
-          {MESSAGE_REACTIONS.map(({ emoji, label }) => {
-            const count = Object.values(reactions).filter(value => value === emoji).length;
-            return count > 0 && (
+        <div
+          ref={anchor}
+          className={`reaction-message-anchor relative min-w-0 w-fit max-w-full [&>*]:[-webkit-touch-callout:none] max-sm:select-none ${isHolding ? 'is-holding' : ''} ${hasVisibleReactions ? 'mb-3' : ''}`}
+          onTouchStart={(event) => {
+            clearPress();
+            if (event.touches.length !== 1) return;
+            const touch = event.touches[0];
+            if (!touch) return;
+            start.current = { x: touch.clientX, y: touch.clientY };
+            setIsHolding(true);
+            timer.current = setTimeout(() => open(true), 450);
+          }}
+          onTouchMove={(event) => {
+            const touch = event.touches[0];
+            if (
+              !touch ||
+              !start.current ||
+              Math.hypot(touch.clientX - start.current.x, touch.clientY - start.current.y) > 10
+            )
+              clearPress();
+          }}
+          onTouchEnd={clearPress}
+          onTouchCancel={clearPress}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            clearPress();
+            open(true);
+          }}
+        >
+          {children}
+          {hasVisibleReactions && (
+            <div
+              className={`pointer-events-none absolute -bottom-3 z-10 flex max-w-[calc(100%-8px)] flex-wrap gap-1 ${align === 'end' ? 'right-2 justify-end' : 'left-2 justify-start'}`}
+            >
+              {MESSAGE_REACTIONS.map(({ emoji, label }) => {
+                const count = Object.values(reactions).filter((value) => value === emoji).length;
+                return (
+                  count > 0 && (
+                    <button
+                      key={emoji}
+                      type="button"
+                      aria-label={`${label} reaction, ${count}`}
+                      aria-pressed={reactions[sessionId] === emoji}
+                      onClick={() => void choose(emoji)}
+                      className="pointer-events-auto inline-flex min-h-6 items-center gap-0.5 rounded-full border border-stone-300 bg-white px-1.5 text-xs shadow-sm dark:border-stone-700 dark:bg-stone-900"
+                    >
+                      {emoji}{' '}
+                      {count > 1 && (
+                        <span className="text-[10px] text-stone-500 dark:text-stone-400">
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  )
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {showQuickBar && (
+          <div
+            className="mt-1 flex max-w-full items-center gap-0.5 rounded-full border border-stone-200 bg-white/95 p-0.5 shadow-sm dark:border-stone-700 dark:bg-stone-900/95"
+            aria-label="Music snippet reactions"
+          >
+            {MESSAGE_REACTIONS.map(({ emoji, label }) => (
               <button
                 key={emoji}
                 type="button"
-                aria-label={`${label} reaction, ${count}`}
-                aria-pressed={reactions[sessionId] === emoji}
                 onClick={() => void choose(emoji)}
-                className="pointer-events-auto inline-flex min-h-6 items-center gap-0.5 rounded-full border border-stone-300 bg-white px-1.5 text-xs shadow-sm dark:border-stone-700 dark:bg-stone-900"
+                aria-label={label}
+                aria-pressed={reactions[sessionId] === emoji}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-stone-200 aria-pressed:bg-rose-100 dark:hover:bg-stone-700 dark:aria-pressed:bg-rose-950"
               >
-                {emoji} {count > 1 && <span className="text-[10px] text-stone-500 dark:text-stone-400">{count}</span>}
+                {emoji}
               </button>
-            );
-          })}
+            ))}
+            <button
+              type="button"
+              aria-label="More reactions"
+              onClick={() => open()}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700"
+            >
+              +
+            </button>
           </div>
         )}
+        <div
+          className={`message-action-rail absolute top-1/2 z-20 -translate-y-1/2 items-center gap-0.5 rounded-full border border-stone-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur-md transition-[opacity,transform] duration-150 dark:border-stone-700/80 dark:bg-stone-900/90 ${align === 'end' ? 'right-full mr-1.5' : 'left-full ml-1.5'} ${position ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'}`}
+        >
+          <button
+            type="button"
+            aria-label="React to message"
+            aria-haspopup="dialog"
+            aria-expanded={Boolean(position)}
+            disabled={pending}
+            onClick={() => open()}
+            title="React"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
+          >
+            <Smile className="h-4 w-4" />
+          </button>
+          {actions}
+        </div>
       </div>
-      {showQuickBar && <div className="mt-1 flex max-w-full items-center gap-0.5 rounded-full border border-stone-200 bg-white/95 p-0.5 shadow-sm dark:border-stone-700 dark:bg-stone-900/95" aria-label="Music snippet reactions">
-        {MESSAGE_REACTIONS.map(({ emoji, label }) => <button key={emoji} type="button" onClick={() => void choose(emoji)} aria-label={label} aria-pressed={reactions[sessionId] === emoji}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-stone-200 aria-pressed:bg-rose-100 dark:hover:bg-stone-700 dark:aria-pressed:bg-rose-950">{emoji}</button>)}
-        <button type="button" aria-label="More reactions" onClick={() => open()} className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700">+</button>
-      </div>}
-      <div className={`message-action-rail absolute top-1/2 z-20 -translate-y-1/2 items-center gap-0.5 rounded-full border border-stone-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur-md transition-[opacity,transform] duration-150 dark:border-stone-700/80 dark:bg-stone-900/90 ${align === 'end' ? 'right-full mr-1.5' : 'left-full ml-1.5'} ${position ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'}`}>
-      <button type="button" aria-label="React to message" aria-haspopup="dialog" aria-expanded={Boolean(position)} disabled={pending} onClick={() => open()}
-        title="React"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800">
-        <Smile className="h-4 w-4" />
-      </button>
-      {actions}
-      </div>
-    </div>
-    {position && createPortal(<div className="reaction-picker-layer fixed inset-0 z-[100]" onTouchStart={event => event.stopPropagation()} onTouchEnd={event => event.stopPropagation()}>
-      <div className="reaction-picker-backdrop absolute inset-0 bg-black/10" onClick={() => setPosition(null)} />
-      <div ref={menu} role="dialog" aria-modal="true" aria-label="React to message" style={position}
-        className="reaction-picker fixed w-[296px] max-w-[calc(100vw-16px)] rounded-2xl border border-stone-200 bg-[#FAF8F5] p-2 text-stone-800 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
-        <div className="mb-1 flex items-center justify-between px-2 text-xs font-medium">React to message<button type="button" aria-label="Close reactions" className="p-1" onClick={() => setPosition(null)}><X className="h-4 w-4" /></button></div>
-        <div className="flex justify-between">{MESSAGE_REACTIONS.map(({ emoji, label }, index) => <button key={emoji} type="button" aria-label={label} aria-pressed={reactions[sessionId] === emoji} onClick={() => void choose(emoji)} style={{ '--reaction-delay': `${index * 32}ms` } as React.CSSProperties}
-          className="reaction-picker-option flex h-11 flex-1 items-center justify-center rounded-full text-2xl transition-transform hover:scale-110 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 aria-pressed:bg-red-100 dark:hover:bg-stone-700 dark:aria-pressed:bg-red-950">{emoji}</button>)}</div>
-      </div>
-    </div>, document.fullscreenElement || document.body)}
-  </>;
+      {position &&
+        createPortal(
+          <div
+            className="reaction-picker-layer fixed inset-0 z-[100]"
+            onTouchStart={(event) => event.stopPropagation()}
+            onTouchEnd={(event) => event.stopPropagation()}
+          >
+            <div
+              className="reaction-picker-backdrop absolute inset-0 bg-black/10"
+              onClick={() => setPosition(null)}
+            />
+            <div
+              ref={menu}
+              role="dialog"
+              aria-modal="true"
+              aria-label="React to message"
+              style={position}
+              className="reaction-picker fixed w-[296px] max-w-[calc(100vw-16px)] rounded-2xl border border-stone-200 bg-[#FAF8F5] p-2 text-stone-800 shadow-xl dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+            >
+              <div className="mb-1 flex items-center justify-between px-2 text-xs font-medium">
+                React to message
+                <button
+                  type="button"
+                  aria-label="Close reactions"
+                  className="p-1"
+                  onClick={() => setPosition(null)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex justify-between">
+                {MESSAGE_REACTIONS.map(({ emoji, label }, index) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={reactions[sessionId] === emoji}
+                    onClick={() => void choose(emoji)}
+                    style={{ '--reaction-delay': `${index * 32}ms` } as React.CSSProperties}
+                    className="reaction-picker-option flex h-11 flex-1 items-center justify-center rounded-full text-2xl transition-transform hover:scale-110 hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-red-500 aria-pressed:bg-red-100 dark:hover:bg-stone-700 dark:aria-pressed:bg-red-950"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.fullscreenElement || document.body,
+        )}
+    </>
+  );
 }

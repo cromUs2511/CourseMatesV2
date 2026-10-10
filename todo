@@ -1,0 +1,25 @@
+Upgrade the existing admin system in my Coursemates app. First inspect the codebase and preserve its existing framework, authentication, and features where practical.
+
+Implement these improvements:
+
+1. Reported chat review
+- Let authorized admins open a report and view the relevant conversation, including enough surrounding messages to understand the context.
+- Show report details such as the reason, reporter, people involved, and report date.
+-Let admins see the conversation 
+
+- Let admins resolve, dismiss, or escalate reports, with confirmation for consequential actions.
+
+2. Modern, responsive admin dashboard
+- Refresh the dashboard with a polished design that fits the app’s existing style.
+- Make it work well on desktop, tablet, and mobile.
+- Make reports and their statuses easy to find and manage.
+- Include clear loading, empty, error, and success states.
+- Use accessible labels and keyboard-friendly controls.
+
+3. Persistent database storage
+- Store records in the project’s database, or set up a suitable persistent database if none exists. Do not rely on in-memory data or temporary files for records that must survive restarts.
+- Persist reports, report statuses, relevant chat data, and admin actions as appropriate.
+- Add migrations or an equivalent schema update process, and load records from the database when the app starts.
+- Keep credentials and database configuration in environment variables; never hardcode secrets.
+
+Enforce authorization on the server, validate inputs, and handle existing data safely. After implementation, summarize the changes, files modified, setup or migration steps, and any limitations.

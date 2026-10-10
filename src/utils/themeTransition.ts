@@ -4,7 +4,10 @@ let transitioning = false;
 
 export async function toggleThemeWithReveal(button: HTMLButtonElement, toggle: () => void) {
   if (transitioning) return;
-  if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (
+    !document.startViewTransition ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
     toggle();
     return;
   }
@@ -14,7 +17,10 @@ export async function toggleThemeWithReveal(button: HTMLButtonElement, toggle: (
   const y = bounds.top + bounds.height / 2;
   root.style.setProperty('--theme-reveal-x', `${x}px`);
   root.style.setProperty('--theme-reveal-y', `${y}px`);
-  root.style.setProperty('--theme-reveal-radius', `${Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)))}px`);
+  root.style.setProperty(
+    '--theme-reveal-radius',
+    `${Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)))}px`,
+  );
   root.classList.add('theme-revealing');
   transitioning = true;
   let committed = false;
@@ -32,6 +38,7 @@ export async function toggleThemeWithReveal(button: HTMLButtonElement, toggle: (
   } finally {
     transitioning = false;
     root.classList.remove('theme-revealing');
-    for (const property of ['--theme-reveal-x', '--theme-reveal-y', '--theme-reveal-radius']) root.style.removeProperty(property);
+    for (const property of ['--theme-reveal-x', '--theme-reveal-y', '--theme-reveal-radius'])
+      root.style.removeProperty(property);
   }
 }

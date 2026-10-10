@@ -38,7 +38,7 @@ python -c "import coursemates_native as c; print(c.__version__)"
 after a source change.
 
 **Windows.** Use the MSVC toolchain: install "Desktop development with C++"
-from the Visual Studio Build Tools. MinGW/MSYS2 *can* produce a working `.pyd`
+from the Visual Studio Build Tools. MinGW/MSYS2 _can_ produce a working `.pyd`
 against a CPython built with MSVC, but only if you statically link the GCC
 runtime — otherwise the extension builds fine and then fails at import with
 `DLL load failed while importing coursemates_native`, because `libstdc++-6.dll`
@@ -91,14 +91,14 @@ would otherwise become a production segfault. Never ship a sanitized wheel.
 From `tests/bench.py` on Windows 11 / Python 3.14 / `g++ -O2`. Yours will
 differ; the ratios are the point.
 
-| Operation | Native | Python | Ratio |
-|---|---|---|---|
-| Filter, 30-word message, 309 patterns | **6.7 µs** | 31 µs (naive substring loop) | 5× |
-| " | " | 16.4 ms (regex alternation) | ~2400× |
-| Filter, 4 KB message | **119 µs** | — | — |
-| Rate limiter, 10k keys | **1.5 µs** | 1.5 µs | **1.0×** |
-| Matchmaking enqueue, shared interests | **7.9 µs** | — | — |
-| Matchmaking enqueue, 40k queue, zero affinity | **20.6 µs** | — | — |
+| Operation                                     | Native      | Python                       | Ratio    |
+| --------------------------------------------- | ----------- | ---------------------------- | -------- |
+| Filter, 30-word message, 309 patterns         | **6.7 µs**  | 31 µs (naive substring loop) | 5×       |
+| "                                             | "           | 16.4 ms (regex alternation)  | ~2400×   |
+| Filter, 4 KB message                          | **119 µs**  | —                            | —        |
+| Rate limiter, 10k keys                        | **1.5 µs**  | 1.5 µs                       | **1.0×** |
+| Matchmaking enqueue, shared interests         | **7.9 µs**  | —                            | —        |
+| Matchmaking enqueue, 40k queue, zero affinity | **20.6 µs** | —                            | —        |
 
 Read these honestly:
 
@@ -107,31 +107,31 @@ Read these honestly:
   same as 3. Grow the list to 5,000 and the number barely moves.
 - **The rate limiter is a wash.** A token bucket is ten dict operations; the
   ~1 µs pybind11 call overhead eats the entire win. It lives here for the
-  GIL-free property and the compact memory layout, *not* for speed. Do not cite
+  GIL-free property and the compact memory layout, _not_ for speed. Do not cite
   a speedup for it.
 - **Matchmaking wins on algorithm, not on C++.** The inverted index plus capped
   scan is what makes it flat; the same structure in Python would also beat a
   linear scan. C++ buys maybe another 5–10×.
 
-If you need one sentence for a project report: *the filter justified the
-native module; the other two came along because they were already there.*
+If you need one sentence for a project report: _the filter justified the
+native module; the other two came along because they were already there._
 
 ---
 
 ## Why pybind11 and not a gRPC or Redis sidecar
 
-| | pybind11 in-process | C++ sidecar (gRPC / Redis) |
-|---|---|---|
-| Call overhead | ~1 µs | ~150–400 µs gRPC loopback, ~100–200 µs Redis (published figures, not measured here) |
-| Deploy artifacts | 1 process | 2+ processes, plus a supervisor |
-| Shared state across replicas | no | **yes** |
-| A C++ crash takes down | the whole server | one sidecar |
-| Debugging | one stack trace | two logs and a correlation id |
-| Ops burden | a compiler in CI | service discovery, health checks, retries, timeouts, backpressure |
+|                              | pybind11 in-process | C++ sidecar (gRPC / Redis)                                                          |
+| ---------------------------- | ------------------- | ----------------------------------------------------------------------------------- |
+| Call overhead                | ~1 µs               | ~150–400 µs gRPC loopback, ~100–200 µs Redis (published figures, not measured here) |
+| Deploy artifacts             | 1 process           | 2+ processes, plus a supervisor                                                     |
+| Shared state across replicas | no                  | **yes**                                                                             |
+| A C++ crash takes down       | the whole server    | one sidecar                                                                         |
+| Debugging                    | one stack trace     | two logs and a correlation id                                                       |
+| Ops burden                   | a compiler in CI    | service discovery, health checks, retries, timeouts, backpressure                   |
 
 **Recommendation: pybind11.** The deciding number is the first row. The work
 being offloaded takes 1–20 µs; the cheapest possible network hop costs 100 µs+.
-A sidecar would make every one of these operations *slower* while adding a
+A sidecar would make every one of these operations _slower_ while adding a
 second thing that can be down at 2am. For a university-scale deployment on one
 box, that trade is not close.
 
@@ -140,14 +140,14 @@ than one server process.** Today `runtime.ts` keeps the queue, rooms and
 sessions in local memory, so a second replica would match
 students against a queue the first replica cannot see. If you ever scale out,
 the C++ matchmaker moving to its own process is the natural fix — not because
-C++ needs isolating, but because *the queue does*. Until then it is a solution
+C++ needs isolating, but because _the queue does_. Until then it is a solution
 looking for a problem.
 
 On memory-leak risk specifically: the sidecar argument is weaker than it looks.
 Every allocation in this module is owned by a `std::vector`, `std::string`,
 `std::unordered_map` or `shared_ptr` — there is not a single `new`, `delete`,
 `malloc` or raw owning pointer in `src/`. The leak you actually have to worry
-about is the *logical* one: unbounded growth of the rate-limiter map and the
+about is the _logical_ one: unbounded growth of the rate-limiter map and the
 match queue as anonymous sessions churn. Both have explicit reclamation
 (`gc()`, `expire()`) and the future Python coordinator must call them. A
 sidecar would not have saved you from forgetting that; it would just have
@@ -158,8 +158,8 @@ leaked in a different process.
 ## Thread safety and the GIL
 
 **Every method that can block or do real work releases the GIL** via
-`py::call_guard<py::gil_scoped_release>()`. pybind11 converts arguments *before*
-constructing the guard and converts the return value *after* destroying it, so
+`py::call_guard<py::gil_scoped_release>()`. pybind11 converts arguments _before_
+constructing the guard and converts the return value _after_ destroying it, so
 no Python object is touched while the GIL is dropped. This is what lets the
 FastAPI event loop hand a 4 KB message to the filter and keep serving other
 sockets in the meantime.
@@ -222,7 +222,7 @@ What actually reduces the risk, in order of value:
 Point 6 needs a caveat specific to this app: **restarting does not preserve
 state.** Sessions, rooms and the queue are all in-memory, so a crash drops every
 live conversation whether C++ was involved or not. Multiple uvicorn workers do
-not help either — they would each hold a *different* queue. So "a segfault must
+not help either — they would each hold a _different_ queue. So "a segfault must
 not take down the server" is not really achievable in the current architecture,
 and the native module does not make it meaningfully worse. If that guarantee
 matters more than latency, the answer is the sidecar from the section above,
@@ -267,7 +267,7 @@ q = nb.build_match_queue(general_hold_ms=8000, same_discipline=200)
 ```
 
 `general_hold_ms` is the important one. It is how long a student holds out for a
-peer with *some* affinity — shared topic, shared interest, or same discipline —
+peer with _some_ affinity — shared topic, shared interest, or same discipline —
 before the queue will pair them with a stranger. Lower it for faster matching
 and worse pairs; raise it for the opposite. `aging_per_sec` then keeps ranking
 long waiters higher so nobody starves.
@@ -295,5 +295,5 @@ caught. If your real vocabulary has a common word (`"Studies"`, `"General"`,
   an alert, not a shrug.
 - **No per-pattern metrics.** `Verdict` reports categories, but nothing counts
   hits over time. If you want a moderation dashboard, aggregate
-  `verdict.categories` in Python — and keep aggregating *categories*, not text,
+  `verdict.categories` in Python — and keep aggregating _categories_, not text,
   or you have quietly rebuilt the chat log you promised not to keep.
