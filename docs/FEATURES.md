@@ -30,6 +30,7 @@ a quick tour of everything the app does, in the order you would meet it.
 - **Chatbot while you wait.** A clearly labelled _simulated_ Student Chatbot
   Assistant keeps you company (Gemini or Groq when available, built-in
   rule-based answers when the provider is exhausted or unconfigured).
+  Type `/model` in the chatbot chat to see and switch bots.
 
 ## 3. Chatting
 

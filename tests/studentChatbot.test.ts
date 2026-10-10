@@ -4,8 +4,14 @@ import {
   answerStudentChatMessage,
   createStudentChatbotState,
   levenshteinDistance,
+  modelListReply,
+  modelSwitchReply,
+  modelUnavailableReply,
+  modelUnknownReply,
   normalizeStudentChatMessage,
+  parseModelCommand,
   replayStudentChatHistory,
+  resolveModelAlias,
   tokenizeStudentChatMessage,
 } from '../studentChatbot';
 import { STUDENT_CHATBOT_KNOWLEDGE } from '../studentChatbotKnowledge';
@@ -148,4 +154,57 @@ test('history replay restores topic context for the next message', () => {
 
 test('empty messages are handled gracefully', () => {
   assert.equal(ask(['   ']).lastIntent, 'empty');
+});
+
+test('/model parses with or without an argument, case-insensitively', () => {
+  assert.deepEqual(parseModelCommand('/model'), { arg: '' });
+  assert.deepEqual(parseModelCommand('/MODEL  local '), { arg: 'local' });
+  assert.deepEqual(parseModelCommand('/model please'), { arg: 'please' });
+  assert.equal(parseModelCommand('use model local'), null);
+  assert.equal(parseModelCommand('how do i enroll'), null);
+});
+
+test('/model aliases resolve to the four backends', () => {
+  assert.equal(resolveModelAlias('auto'), 'auto');
+  assert.equal(resolveModelAlias('default'), 'auto');
+  assert.equal(resolveModelAlias('gemini'), 'gemini');
+  assert.equal(resolveModelAlias('groq'), 'groq');
+  assert.equal(resolveModelAlias('local'), 'local');
+  assert.equal(resolveModelAlias('rules'), 'local');
+  assert.equal(resolveModelAlias('offline'), 'local');
+  assert.equal(resolveModelAlias('backup'), 'local');
+  assert.equal(resolveModelAlias('gpt'), null);
+});
+
+test('/model list shows every bot, its status, and the current one', () => {
+  const reply = modelListReply('auto', { gemini: true, groq: false });
+  assert.match(reply, /Gemini \(configured\)/);
+  assert.match(reply, /Groq \(not configured\)/);
+  assert.match(reply, /Local rules \(available\)/);
+  assert.match(reply, /Auto \(available\) — current/);
+  assert.match(
+    modelListReply('local', { gemini: false, groq: false }),
+    /Local rules \(available\) — current/,
+  );
+});
+
+test('/model switch and error replies guide the student', () => {
+  assert.match(modelSwitchReply('local'), /\/model auto/);
+  assert.match(modelSwitchReply('auto'), /local backup/);
+  assert.match(modelSwitchReply('gemini'), /Switched to Gemini/);
+  assert.match(modelUnavailableReply('groq'), /\/model local/);
+  assert.match(modelUnknownReply('auto', { gemini: false, groq: false }), /Available bots/);
+});
+
+test('slash commands never leak into rule-engine context', () => {
+  const state = createStudentChatbotState();
+  replayStudentChatHistory(
+    [
+      { role: 'user', text: '/model local' },
+      { role: 'user', text: 'how do i study effectively' },
+    ],
+    state,
+  );
+  assert.equal(state.topic, 'academics');
+  assert.equal(state.lastIntentId, 'study_tips');
 });

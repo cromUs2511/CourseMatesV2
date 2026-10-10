@@ -16,7 +16,14 @@ import { SafetyStore, moderateText } from './safety';
 import {
   answerStudentChatMessage,
   createStudentChatbotState,
+  modelListReply,
+  modelSwitchReply,
+  modelUnavailableReply,
+  modelUnknownReply,
+  parseModelCommand,
   replayStudentChatHistory,
+  resolveModelAlias,
+  type StudentChatbotModel,
 } from './studentChatbot';
 import { ModerationDb, resolveModerationDbPath } from './moderationDb';
 import {
@@ -628,6 +635,8 @@ Provide 2 friendly, non-intrusive suggestion options for what they could ask or 
 // studentChatbot.ts answers instead, so the chatbot keeps working.
 type ChatbotMemory = { userName: string | null; rememberAllowed: boolean };
 const chatbotMemory = new Map<string, ChatbotMemory>();
+/** Per-session answering backend chosen with `/model` (defaults to auto). */
+const chatbotModelPref = new Map<string, StudentChatbotModel>();
 function answerWithLocalChatbot(
   message: string,
   history: Array<{ role: 'assistant' | 'user'; text: string }>,
@@ -673,6 +682,32 @@ app.post('/api/ai/chatbot', async (req, res) => {
     const answer = answerWithLocalChatbot(message, history, session.token);
     return res.json({ reply: answer.reply, source: 'local-rules', verified: answer.verified });
   };
+  // Bot switching inside the chatbot chat: `/model` lists backends,
+  // `/model <name>` switches this session between auto, gemini, groq, local.
+  const currentModel = chatbotModelPref.get(session.token) ?? 'auto';
+  const availability = { gemini: !!ai, groq: !!groqApiKey };
+  const modelCommand = parseModelCommand(message);
+  if (modelCommand) {
+    if (!modelCommand.arg)
+      return res.json({ reply: modelListReply(currentModel, availability), source: 'command' });
+    const requested = resolveModelAlias(modelCommand.arg);
+    if (!requested)
+      return res.json({
+        reply: modelUnknownReply(currentModel, availability),
+        source: 'command',
+      });
+    if ((requested === 'gemini' && !ai) || (requested === 'groq' && !groqApiKey))
+      return res.json({ reply: modelUnavailableReply(requested), source: 'command' });
+    if (chatbotModelPref.size > 2000)
+      chatbotModelPref.delete(chatbotModelPref.keys().next().value!);
+    chatbotModelPref.set(session.token, requested);
+    return res.json({ reply: modelSwitchReply(requested), source: 'command' });
+  }
+  if (currentModel === 'local') return fallback();
+  if (currentModel === 'gemini' && !ai)
+    return res.json({ reply: modelUnavailableReply('gemini'), source: 'command' });
+  if (currentModel === 'groq' && !groqApiKey)
+    return res.json({ reply: modelUnavailableReply('groq'), source: 'command' });
   if (!groqApiKey && !ai) return fallback();
   try {
     const detailedResponseRequested =
@@ -687,7 +722,7 @@ app.post('/api/ai/chatbot', async (req, res) => {
 For normal questions, answer in 1-2 short sentences and under 60 words. Do not over-explain, show reasoning, use headings, or make lists unless requested.
 Only give a longer structured answer when the user explicitly asks for detail, steps, or an essay. Always finish your sentence. Be accurate, honest, helpful, and conversational.`;
 
-    if (groqApiKey && !ai) {
+    if (groqApiKey && (currentModel === 'groq' || (currentModel === 'auto' && !ai))) {
       const contextBudget = 6000;
       let usedCharacters = 0;
       const compactHistory: typeof history = [];

@@ -573,8 +573,94 @@ export function replayStudentChatHistory(
 ): void {
   const userTexts = history
     .filter((turn) => turn.role === 'user' && typeof turn.text === 'string' && turn.text.trim())
+    // Slash commands are answered by the server, never the rule engine.
+    .filter((turn) => !turn.text.trimStart().startsWith('/'))
     .map((turn) => turn.text.slice(0, 1000))
     .slice(-MAX_HISTORY_REPLAY_TURNS);
   for (const text of userTexts) answerStudentChatMessage(text, state);
   state.counts = {};
+}
+
+/** Which answering backend a session wants for the Student Chatbot Assistant. */
+export type StudentChatbotModel = 'auto' | 'gemini' | 'groq' | 'local';
+
+export type StudentChatbotModelAvailability = { gemini: boolean; groq: boolean };
+
+const MODEL_CHOICES: Array<{
+  id: StudentChatbotModel;
+  label: string;
+  aliases: string[];
+  description: string;
+}> = [
+  {
+    id: 'auto',
+    label: 'Auto',
+    aliases: ['auto', 'default'],
+    description: 'AI first, local backup',
+  },
+  { id: 'gemini', label: 'Gemini', aliases: ['gemini'], description: 'Google AI provider' },
+  { id: 'groq', label: 'Groq', aliases: ['groq'], description: 'Groq AI provider' },
+  {
+    id: 'local',
+    label: 'Local rules',
+    aliases: ['local', 'rules', 'offline', 'backup'],
+    description: 'Built-in answers, always available, no AI',
+  },
+];
+
+/** Parse a `/model` command. Returns the raw argument ('' when bare) or null. */
+export function parseModelCommand(rawMessage: string): { arg: string } | null {
+  const match = rawMessage.trim().match(/^\/model(?:\s+(\S+))?\s*$/i);
+  if (!match) return null;
+  return { arg: (match[1] ?? '').toLowerCase() };
+}
+
+export function resolveModelAlias(arg: string): StudentChatbotModel | null {
+  const choice = MODEL_CHOICES.find((item) => item.aliases.includes(arg.toLowerCase()));
+  return choice?.id ?? null;
+}
+
+function modelStatus(
+  id: StudentChatbotModel,
+  availability: StudentChatbotModelAvailability,
+): string {
+  if (id === 'local' || id === 'auto') return 'available';
+  if (id === 'gemini') return availability.gemini ? 'configured' : 'not configured';
+  return availability.groq ? 'configured' : 'not configured';
+}
+
+/** Reply listing every bot backend, its status, and the active one. */
+export function modelListReply(
+  current: StudentChatbotModel,
+  availability: StudentChatbotModelAvailability,
+): string {
+  const lines = MODEL_CHOICES.map(
+    (choice) =>
+      `- ${choice.label} (${modelStatus(choice.id, availability)})${choice.id === current ? ' — current' : ''}`,
+  );
+  return `Available bots:\n${lines.join('\n')}\nSwitch with /model <name>, e.g. /model local. Use /model auto to go back to AI first with local backup.`;
+}
+
+/** Reply confirming a backend switch. */
+export function modelSwitchReply(model: StudentChatbotModel): string {
+  if (model === 'auto')
+    return 'Switched to Auto: I will use AI first and the local backup when the provider is exhausted.';
+  if (model === 'local')
+    return 'Switched to Local rules: built-in answers from now on, no AI involved. Use /model auto to go back.';
+  const label = model === 'gemini' ? 'Gemini' : 'Groq';
+  return `Switched to ${label}: AI answers from now on. If the provider is exhausted, the local backup still steps in. Use /model auto to go back.`;
+}
+
+/** Reply when the requested backend exists but is not usable right now. */
+export function modelUnavailableReply(model: StudentChatbotModel): string {
+  const label = model === 'gemini' ? 'Gemini' : 'Groq';
+  return `${label} is not configured on this server, so I kept your current bot. Ask an admin to set the key, or switch to /model local which always works.`;
+}
+
+/** Reply when `/model` gets an unknown name. */
+export function modelUnknownReply(
+  current: StudentChatbotModel,
+  availability: StudentChatbotModelAvailability,
+): string {
+  return `I do not know that bot. ${modelListReply(current, availability)}`;
 }
