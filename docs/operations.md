@@ -116,7 +116,7 @@ coverage number.
 
 `GET /api/admin/metrics` requires an authenticated admin session or the optional legacy `ADMIN_TOKEN` Bearer credential and returns only counters: `requests`, `errors`, `rateLimited`, `rejectedOrigins`, `providerFailures`, `startedAt`, plus `sessions`, `queued`, `rooms`, `sockets`, `mediaBytes`, `draining` and `memory` (RSS).
 
-It never contains chat text, media, tokens, emails, IPs or report bodies. `GET /api/admin/reports` returns report metadata (category, optional reporter note, anonymous actor identifiers and handles, topic, reported IP, status, timestamps, conversation message count), plus active actor/IP restrictions. `GET /api/admin/reports/:id` returns one report with its recent text conversation excerpt (up to 50 messages, no photo/voice bytes) and its admin decision history. `GET /api/admin/actions` returns the audit trail, optionally filtered by report. Reports, excerpts, and decisions retain for up to 30 days. `POST /api/admin/moderate` resolves, dismisses, or escalates reports (optional decision note), applies 1-, 2- or 3-day restrictions or permanent actor/IP bans, and lifts bans. The dashboard lists active restrictions separately so permanent bans can still be lifted after the originating report expires.
+It never contains chat text, media, tokens, emails, IPs or report bodies. `GET /api/admin/reports` returns report metadata (category, optional reporter note, anonymous actor identifiers and handles, topic, reported IP, status, timestamps, conversation message count, triage score, attached photo count), plus active actor/IP restrictions. `GET /api/admin/reports/:id` returns one report with its recent text conversation excerpt (up to 50 messages, no photo/voice bytes), its admin decision history, its triage flag, and attached photo fingerprints with their ban state. `GET /api/admin/images` lists banned photo fingerprints. `GET /api/admin/actions` returns the audit trail, optionally filtered by report. Reports, excerpts, and decisions retain for up to 30 days. `POST /api/admin/moderate` resolves, dismisses, or escalates reports (optional decision note), applies 1-, 2- or 3-day restrictions or permanent actor/IP bans, and lifts bans. The dashboard lists active restrictions separately so permanent bans can still be lifted after the originating report expires.
 
 ### Logs
 
@@ -167,7 +167,16 @@ NOT EXISTS` on startup, so fresh volumes self-initialize and existing files
 - Report statuses: `open`, `resolved`, `dismissed`, `escalated`. Categories:
   `harassment`, `spam`, `sexual`, `threats`, `other`. A report may flag one
   peer message (`messageId`) or the whole chat; single-message excerpts center
-  on the flagged message.
+  on the flagged message. Reports may also carry SHA-256 fingerprints of peer
+  photos (`report_image_hashes`); image bytes are never stored.
+- Photo safety is two layers. Outgoing photos are pre-screened on the reporter's
+  own device (`src/data/imageNudity.ts`, canvas decode in `prepareChatImage.ts`):
+  blatant full-frame skin exposure cannot attach. It is conservative by design
+  (small images, grayscale, and ordinary portraits always pass) and bypassable
+  by a determined client, so confirmed photos are banned by fingerprint instead:
+  `POST /api/admin/moderate` with `banImage`/`unbanImage` maintains the
+  `banned_image_hashes` denylist, enforced for every sender in `send()` before
+  the media lock. Fingerprint bans persist until lifted.
 - Automatic triage (`autoModeration.ts`, deterministic, no external calls):
   every report is scored 0–100 from the existing content filter plus
   behavioral signals (spam bursts, repetition, category prior, target

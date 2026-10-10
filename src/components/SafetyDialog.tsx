@@ -15,6 +15,7 @@ export function SafetyDialog({
   roomId,
   messageId,
   messagePreview,
+  imageHashes,
   onClose,
   onBlocked,
 }: {
@@ -22,6 +23,8 @@ export function SafetyDialog({
   /** When set, the report flags this one peer message instead of the whole chat. */
   messageId?: string;
   messagePreview?: string;
+  /** SHA-256 fingerprints of peer photos in the room; bytes never leave the device. */
+  imageHashes?: string[];
   onClose: () => void;
   onBlocked: () => void;
 }) {
@@ -62,11 +65,15 @@ export function SafetyDialog({
         onBlocked();
       } else {
         const reason = details.trim();
+        const hashes = (imageHashes ?? []).filter(
+          (hash): hash is string => typeof hash === 'string' && /^[a-f0-9]{64}$/.test(hash),
+        );
         await apiRequest('/api/safety/report', {
           roomId,
           category,
           ...(reason ? { reason: reason.slice(0, 500) } : {}),
           ...(messageId ? { messageId } : {}),
+          ...(hashes.length ? { imageHashes: hashes.slice(0, 20) } : {}),
         });
         setSubmitted(true);
       }
@@ -103,9 +110,9 @@ export function SafetyDialog({
         </button>
       </div>
       <p className="text-sm">
-        Reports send the reason, anonymous session identifiers, the peer’s connection IP, and the
-        recent text conversation for safety review. Photos and voice recordings are never attached;
-        excerpts are retained for up to 30 days.
+        Reports send the reason, anonymous session identifiers, the peer’s connection IP, the recent
+        text conversation, and fingerprint hashes of peer photos for safety review. Photos and voice
+        recordings are never attached; excerpts are retained for up to 30 days.
       </p>
       {messageId && messagePreview && (
         <blockquote className="mt-3 rounded-lg border-l-2 border-red-800/40 bg-stone-500/10 px-3 py-2 text-sm">

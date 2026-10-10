@@ -17,7 +17,8 @@ export type ReportContextMeta = {
   targetHandle: string | null;
   createdAt: number;
 };
-export type AdminActionType = 'resolve' | 'dismiss' | 'escalate' | 'ban' | 'unban' | 'unbanIp';
+export type AdminActionType =
+  'resolve' | 'dismiss' | 'escalate' | 'ban' | 'unban' | 'unbanIp' | 'banImage' | 'unbanImage';
 export type AdminActionRecord = {
   id: number;
   createdAt: number;
@@ -33,6 +34,13 @@ export type AutoFlag = {
   signals: Array<{ code: string; detail: string; weight: number }>;
   createdAt: number;
 };
+export type BannedImage = {
+  hash: string;
+  createdAt: number;
+  reportId: string | null;
+};
+
+const IMAGE_HASH_PATTERN = /^[a-f0-9]{64}$/;
 
 const ADMIN_ACTIONS: readonly AdminActionType[] = [
   'resolve',
@@ -41,6 +49,8 @@ const ADMIN_ACTIONS: readonly AdminActionType[] = [
   'ban',
   'unban',
   'unbanIp',
+  'banImage',
+  'unbanImage',
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -138,6 +148,19 @@ export class ModerationDb {
         signals TEXT NOT NULL,
         created_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS banned_image_hashes (
+        image_hash TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        report_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS report_image_hashes (
+        report_id TEXT NOT NULL,
+        image_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (report_id, image_hash)
+      );
+      CREATE INDEX IF NOT EXISTS idx_report_image_hashes_report
+        ON report_image_hashes(report_id);
     `);
     const row = this.db.prepare('SELECT version FROM schema_migrations WHERE version = 1').get() as
       { version?: number } | undefined;
@@ -406,14 +429,100 @@ export class ModerationDb {
     return flags;
   }
 
+  imageHashBanned(hash: string): boolean {
+    if (typeof hash !== 'string' || !IMAGE_HASH_PATTERN.test(hash)) return false;
+    const row = this.db
+      .prepare('SELECT image_hash FROM banned_image_hashes WHERE image_hash = ?')
+      .get(hash) as Record<string, unknown> | undefined;
+    return !!row && isRecord(row);
+  }
+
+  banImageHash(hash: string, reportId?: string | null): void {
+    if (typeof hash !== 'string' || !IMAGE_HASH_PATTERN.test(hash)) return;
+    this.db
+      .prepare(
+        `INSERT INTO banned_image_hashes(image_hash, created_at, report_id)
+         VALUES (?, ?, ?) ON CONFLICT(image_hash) DO NOTHING`,
+      )
+      .run(
+        hash,
+        Date.now(),
+        typeof reportId === 'string' && reportId ? reportId.slice(0, 100) : null,
+      );
+  }
+
+  unbanImageHash(hash: string): void {
+    if (typeof hash !== 'string' || !IMAGE_HASH_PATTERN.test(hash)) return;
+    this.db.prepare('DELETE FROM banned_image_hashes WHERE image_hash = ?').run(hash);
+  }
+
+  listBannedImageHashes(limit = 200): BannedImage[] {
+    const capped = Number.isSafeInteger(limit) ? Math.max(1, Math.min(1000, limit)) : 200;
+    const rows = this.db
+      .prepare(
+        'SELECT image_hash AS hash, created_at AS createdAt, report_id AS reportId FROM banned_image_hashes ORDER BY created_at DESC LIMIT ?',
+      )
+      .all(capped) as Record<string, unknown>[];
+    return rows.filter(isRecord).map((row) => ({
+      hash: typeof row.hash === 'string' ? row.hash : '',
+      createdAt: typeof row.createdAt === 'number' ? row.createdAt : Date.now(),
+      reportId: typeof row.reportId === 'string' ? row.reportId : null,
+    }));
+  }
+
+  saveReportImageHashes(reportId: string, hashes: string[]): void {
+    if (typeof reportId !== 'string' || !reportId || !Array.isArray(hashes)) return;
+    const insert = this.db.prepare(
+      `INSERT INTO report_image_hashes(report_id, image_hash, created_at)
+       VALUES (?, ?, ?) ON CONFLICT(report_id, image_hash) DO NOTHING`,
+    );
+    const now = Date.now();
+    for (const hash of [...new Set(hashes)].slice(0, 20)) {
+      if (typeof hash === 'string' && IMAGE_HASH_PATTERN.test(hash))
+        insert.run(reportId, hash, now);
+    }
+  }
+
+  getReportImageHashes(reportId: string): string[] {
+    if (typeof reportId !== 'string' || !reportId) return [];
+    const rows = this.db
+      .prepare(
+        'SELECT image_hash AS hash FROM report_image_hashes WHERE report_id = ? ORDER BY rowid ASC',
+      )
+      .all(reportId) as Record<string, unknown>[];
+    return rows
+      .filter(isRecord)
+      .map((row) => row.hash)
+      .filter((hash): hash is string => typeof hash === 'string');
+  }
+
+  reportImageHashCounts(reportIds: string[]): Record<string, number> {
+    const counts: Record<string, number> = {};
+    const ids = [...new Set(reportIds.filter((id) => typeof id === 'string' && id))].slice(0, 500);
+    if (!ids.length) return counts;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT report_id AS reportId, COUNT(*) AS hashCount FROM report_image_hashes
+         WHERE report_id IN (${placeholders}) GROUP BY report_id`,
+      )
+      .all(...ids) as Record<string, unknown>[];
+    for (const row of rows) {
+      if (isRecord(row) && typeof row.reportId === 'string' && typeof row.hashCount === 'number')
+        counts[row.reportId] = row.hashCount;
+    }
+    return counts;
+  }
+
   prune(before: number): void {
     if (!Number.isFinite(before)) return;
     this.db.prepare('DELETE FROM report_messages WHERE created_at < ?').run(before);
     this.db.prepare('DELETE FROM report_contexts WHERE created_at < ?').run(before);
     this.db.prepare('DELETE FROM auto_flags WHERE created_at < ?').run(before);
+    this.db.prepare('DELETE FROM report_image_hashes WHERE created_at < ?').run(before);
     this.db
       .prepare(
-        "DELETE FROM admin_actions WHERE created_at < ? AND action NOT IN ('ban', 'unban', 'unbanIp')",
+        "DELETE FROM admin_actions WHERE created_at < ? AND action NOT IN ('ban', 'unban', 'unbanIp', 'banImage', 'unbanImage')",
       )
       .run(before);
   }

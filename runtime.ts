@@ -111,6 +111,7 @@ const matches = new Map<string, string>();
 const sockets = new Map<string, WebSocket>();
 const identities = new Map<string, Identity>();
 let safety: SafetyStore | undefined;
+let moderationDbStore: ModerationDb | undefined;
 const defaultLimits = {
   sessions: 2000,
   rooms: 500,
@@ -612,6 +613,21 @@ function send(session: Identity, room: Room, data: any) {
   if (duplicate) return duplicate;
   const images = parseImages(data.images);
   const voice = parseVoice(data.voice);
+  // Banned photo fingerprints are rejected before anything else, including the
+  // media lock: a confirmed image never sends, no matter the room state.
+  for (const image of images) {
+    let restricted: boolean;
+    try {
+      restricted =
+        moderationDbStore?.imageHashBanned(
+          crypto.createHash('sha256').update(image.bytes).digest('hex'),
+        ) ?? false;
+    } catch {
+      restricted = false;
+    }
+    if (restricted)
+      throw new Error('This photo has been restricted by moderators and can’t be sent.');
+  }
   const mediaRemaining = chatMediaRemainingSeconds(room.mediaUnlockAt);
   if ((images.length || voice) && mediaRemaining > 0)
     throw new Error(
@@ -889,6 +905,7 @@ export function attachRuntime(
   draining = false;
   const moderationDb = options.moderationDb ?? new ModerationDb();
   const ownsModerationDb = !options.moderationDb;
+  moderationDbStore = moderationDb;
   const unoLimiter = new WindowLimiter();
   const adminLoginLimiter = new WindowLimiter();
   const adminSessions = new Map<string, number>();
@@ -1636,6 +1653,15 @@ export function attachRuntime(
                 : null;
           if (messageId === null)
             return res.status(400).json({ error: 'Reported message is invalid.' });
+          // Photo fingerprints (SHA-256 hex) only; image bytes never reach storage.
+          const imageHashes = req.body.imageHashes === undefined ? undefined : req.body.imageHashes;
+          if (imageHashes !== undefined && !Array.isArray(imageHashes))
+            return res.status(400).json({ error: 'Reported photo data is invalid.' });
+          const cleanHashes = ((imageHashes ?? []) as unknown[])
+            .filter(
+              (hash): hash is string => typeof hash === 'string' && /^[a-f0-9]{64}$/.test(hash),
+            )
+            .slice(0, 20);
           // A single message can be flagged: it must be a live peer text message,
           // and the excerpt centers on it so reviewers see what it answered.
           let focusIndex = -1;
@@ -1700,6 +1726,7 @@ export function attachRuntime(
               },
               excerpt,
             );
+            if (cleanHashes.length) moderationDb.saveReportImageHashes(report.id, cleanHashes);
             // Automatic triage: score the excerpt and persist the flag. A
             // critical score auto-escalates for human review; it never bans.
             if (safety && (REPORT_CATEGORIES as readonly string[]).includes(report.category)) {
@@ -1793,6 +1820,12 @@ export function attachRuntime(
       } catch {
         flags = {};
       }
+      let hashCounts: Record<string, number> = {};
+      try {
+        hashCounts = moderationDb.reportImageHashCounts(reports.map((report) => report.id));
+      } catch {
+        hashCounts = {};
+      }
       res.json({
         bans,
         reports: reports.map((report) => ({
@@ -1803,6 +1836,7 @@ export function attachRuntime(
           hasContext: (counts[report.id]?.messageCount ?? 0) > 0,
           autoScore: flags[report.id]?.score ?? null,
           autoLabel: flags[report.id]?.label ?? null,
+          imageHashCount: hashCounts[report.id] ?? 0,
         })),
       });
     } catch {
@@ -1834,6 +1868,14 @@ export function attachRuntime(
       } catch {
         triage = undefined;
       }
+      let imageHashes: Array<{ hash: string; banned: boolean }> = [];
+      try {
+        imageHashes = moderationDb
+          .getReportImageHashes(id)
+          .map((hash) => ({ hash, banned: moderationDb.imageHashBanned(hash) }));
+      } catch {
+        imageHashes = [];
+      }
       res.json({
         report: {
           ...report,
@@ -1843,7 +1885,15 @@ export function attachRuntime(
         context: context ?? { meta: null, messages: [] },
         actions,
         triage: triage ?? null,
+        imageHashes,
       });
+    } catch {
+      res.status(503).json({ error: 'Moderation storage is unavailable.' });
+    }
+  });
+  app.get('/api/admin/images', (_req, res) => {
+    try {
+      res.json({ bannedImages: moderationDb.listBannedImageHashes() });
     } catch {
       res.status(503).json({ error: 'Moderation storage is unavailable.' });
     }
@@ -1918,6 +1968,19 @@ export function attachRuntime(
           'ban',
           reportId,
           `durationMs=${String(durationMs)} includeIp=${req.body.includeIp === true}${note ? ` note=${note}` : ''}`,
+        );
+      } else if (action === 'banImage' || action === 'unbanImage') {
+        const imageHash = typeof req.body.imageHash === 'string' ? req.body.imageHash : '';
+        if (!/^[a-f0-9]{64}$/.test(imageHash))
+          return res.status(400).json({ error: 'Select a valid photo fingerprint first.' });
+        const linkedReport =
+          typeof reportId === 'string' && /^[a-f0-9-]{36}$/.test(reportId) ? reportId : null;
+        if (action === 'banImage') moderationDb.banImageHash(imageHash, linkedReport);
+        else moderationDb.unbanImageHash(imageHash);
+        audit(
+          action,
+          linkedReport,
+          `imageHash=${imageHash.slice(0, 12)}…${note ? ` note=${note}` : ''}`,
         );
       } else return res.status(400).json({ error: 'Invalid moderation action.' });
       res.json({ success: true });
@@ -2079,7 +2142,10 @@ export function attachRuntime(
   cleanup.unref();
   return () => {
     draining = true;
-    if (ownsModerationDb) moderationDb.close();
+    if (ownsModerationDb) {
+      moderationDb.close();
+      if (moderationDbStore === moderationDb) moderationDbStore = undefined;
+    }
     clearInterval(cleanup);
     for (const ws of wss.clients) {
       notify(ws, { type: 'server_restart' });

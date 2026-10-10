@@ -6,6 +6,29 @@ import {
   MAX_SOURCE_IMAGE_BYTES,
   type ImageUpload,
 } from '../data/chatImages';
+import { screenImagePixels } from '../data/imageNudity';
+
+/** On-device nudity pre-screen. Runs on a 64 px thumbnail so it costs almost
+ * nothing, and refuses blatant exposure before a photo can even attach.
+ * Determined senders can bypass any client check, so user reports plus the
+ * server image-hash denylist remain the enforcement backstop.
+ */
+async function screenPreparedPhoto(image: HTMLImageElement): Promise<void> {
+  const naturalWidth = image.naturalWidth;
+  const naturalHeight = image.naturalHeight;
+  const side = 64;
+  const scale = Math.min(1, side / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(1, Math.round(naturalWidth * scale));
+  const height = Math.max(1, Math.round(naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return;
+  context.drawImage(image, 0, 0, width, height);
+  const verdict = screenImagePixels(context.getImageData(0, 0, width, height).data, width, height);
+  if (!verdict.allowed) throw new Error('This photo appears to contain nudity and can’t be sent.');
+}
 
 const readDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -32,6 +55,7 @@ export async function prepareChatImage(file: File): Promise<ImageUpload> {
     });
     if (!image.naturalWidth || !image.naturalHeight)
       throw new Error('This image has invalid dimensions.');
+    await screenPreparedPhoto(image);
     if (file.type === 'image/gif') {
       if (Math.max(image.naturalWidth, image.naturalHeight) > MAX_IMAGE_DIMENSION)
         throw new Error('GIFs must be no larger than 1600 pixels on either side.');

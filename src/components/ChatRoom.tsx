@@ -41,6 +41,7 @@ import { ChatAttachments } from './ChatAttachments';
 import { PhotoDialog, ZoomablePhoto } from './PhotoDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { SafetyDialog } from './SafetyDialog';
+import { collectPeerImageHashes } from '../utils/imageReportHashes';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { MusicSnippetPicker } from './MusicSnippetPicker';
 import { MusicSnippetCard } from './MusicSnippetCard';
@@ -149,6 +150,19 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [safetyMessageId, setSafetyMessageId] = useState<string | null>(null);
+  const [safetyImageHashes, setSafetyImageHashes] = useState<string[]>([]);
+  const openSafetyDialog = useCallback(
+    (messageId: string | null) => {
+      setSafetyMessageId(messageId);
+      setSafetyImageHashes([]);
+      setSafetyOpen(true);
+      // Fingerprint peer photos in the background; the dialog never waits for it.
+      void collectPeerImageHashes(messages)
+        .then(setSafetyImageHashes)
+        .catch(() => {});
+    },
+    [messages],
+  );
   const musicBarRef = useRef<TopMusicBarHandle>(null);
   const [mediaRemainingSeconds, setMediaRemainingSeconds] = useState(() =>
     chatMediaRemainingSeconds(peer.mediaUnlockAt),
@@ -330,6 +344,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     setMusicPickerOpen(false);
     setSafetyOpen(false);
     setSafetyMessageId(null);
+    setSafetyImageHashes([]);
     setActiveSnippetId(null);
     setSnippetPlaying(false);
     setReplyingTo(null);
@@ -1346,10 +1361,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                 {!peer.isSimulated && !peerDisconnected && roomId && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setSafetyMessageId(null);
-                      setSafetyOpen(true);
-                    }}
+                    onClick={() => openSafetyDialog(null)}
                     aria-label="Report or block peer"
                     title="Report or block peer"
                     className="chat-display-control flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#c8bb8d] hover:bg-white/10"
@@ -2035,10 +2047,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
                       onClick={() => {
                         const id = deleteMenuMessageId;
                         closeMessageActions();
-                        if (id) {
-                          setSafetyMessageId(id);
-                          setSafetyOpen(true);
-                        }
+                        if (id) openSafetyDialog(id);
                       }}
                       className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg text-[10px] text-amber-300 transition-colors hover:bg-white/10 hover:text-amber-200 focus-visible:outline-2 focus-visible:outline-red-400"
                     >
@@ -2436,9 +2445,11 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               ? messages.find((item) => item.id === safetyMessageId)?.text.slice(0, 280)
               : undefined
           }
+          imageHashes={safetyImageHashes}
           onClose={() => {
             setSafetyOpen(false);
             setSafetyMessageId(null);
+            setSafetyImageHashes([]);
           }}
           onBlocked={markDisconnected}
         />

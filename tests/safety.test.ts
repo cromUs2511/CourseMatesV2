@@ -207,6 +207,74 @@ test('whole-word moderation avoids course vocabulary false positives and reports
   assert.deepEqual(moderateText('That was stupid'), { allowed: true, categories: ['harassment'] });
 });
 
+test('explicit sexual content is blocked, including evasions and solicitation', () => {
+  for (const text of [
+    'porn',
+    'watch hentai tonight',
+    'you are so horny',
+    'send nudes please',
+    'send me nudes',
+    'hook up tonight?',
+    'looking for a hookup',
+    'sugar daddy wanted',
+    'check my pornhub',
+    'time for sexting',
+    'want a threesome',
+    'buy a dildo',
+    'hiring escorts now',
+    'fwb wanted',
+    'are you dtf',
+    'you slut',
+    'stupid cunt',
+    'p o r n links here',
+    'h o r n y and ready',
+    's3nd nud3s',
+    'blowjob pics',
+    'only blow job offers',
+    'incest stories',
+    'rape threats work',
+    'loli content banned',
+    'rule 34 of everything',
+    'thirst trap posted',
+    'netflix and chill?',
+    'my place or yours',
+    'what are you wearing right now',
+    'bra size poll',
+    'strip poker night',
+  ]) {
+    assert.equal(moderateText(text).allowed, false, text);
+  }
+  assert.deepEqual(moderateText('send nudes please').categories, ['sexual']);
+  for (const text of ['massage parlor review', 'condom safety talk', 'missionary trip']) {
+    const verdict = moderateText(text);
+    assert.equal(verdict.allowed, true, text);
+    assert.ok(verdict.categories.includes('sexual'), text);
+  }
+});
+
+test('sexual filter keeps innocent lookalikes and identity talk allowed', () => {
+  for (const text of [
+    'Have you read Moby Dick for class?',
+    'She graduated cum laude with honors.',
+    "Anyone watch Bob's Burgers last night?",
+    'My oral exam is tomorrow morning.',
+    'I love trap music and house.',
+    'We covered sex education in health class.',
+    'My gay friends are visiting this weekend.',
+    'Trans rights are human rights.',
+    'The analysis shows strong results.',
+    'Submit the class assignment by Friday.',
+    'Going on a missionary trip this summer.',
+    'Wearing cowgirl boots to the concert.',
+    'Kinky curly hair needs extra care.',
+    'Fried catfish for dinner tonight.',
+    'Solve for x in this equation.',
+    'Bikini shopping for summer break.',
+  ]) {
+    assert.equal(moderateText(text).allowed, true, text);
+  }
+});
+
 test('moderation handles repeated-letter input without excessive regex backtracking', () => {
   const start = performance.now();
   assert.equal(moderateText('k'.repeat(24)).allowed, true);

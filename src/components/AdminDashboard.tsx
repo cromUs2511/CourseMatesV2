@@ -37,6 +37,16 @@ type AdminReport = {
   hasContext?: boolean;
   autoScore?: number | null;
   autoLabel?: TriageLabel | null;
+  imageHashCount?: number;
+};
+type ImageHashEntry = {
+  hash: string;
+  banned: boolean;
+};
+type BannedImageEntry = {
+  hash: string;
+  createdAt: number;
+  reportId: string | null;
 };
 type TriageFlag = {
   reportId: string;
@@ -79,6 +89,7 @@ type ReportDetail = {
     detail: string | null;
   }>;
   triage: TriageFlag | null;
+  imageHashes: ImageHashEntry[];
 };
 
 const CATEGORY_LABELS: Record<AdminReport['category'], string> = {
@@ -101,7 +112,8 @@ const BAN_DURATIONS = [
   { label: '3 days', value: 259_200_000 },
   { label: 'Permanent', value: null },
 ] as const;
-type StatusAction = 'resolve' | 'dismiss' | 'escalate' | 'ban' | 'unban' | 'unbanIp';
+type StatusAction =
+  'resolve' | 'dismiss' | 'escalate' | 'ban' | 'unban' | 'unbanIp' | 'banImage' | 'unbanImage';
 
 function statusStyles(status: ReportStatus): string {
   if (status === 'open') return 'bg-amber-500/10 text-amber-600 dark:text-amber-300';
@@ -124,6 +136,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   const [password, setPassword] = useState('');
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [bans, setBans] = useState<AdminBan[]>([]);
+  const [bannedImages, setBannedImages] = useState<BannedImageEntry[]>([]);
   const [filter, setFilter] = useState<ReportStatus | 'all'>('open');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [query, setQuery] = useState('');
@@ -144,6 +157,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
   const [pendingConfirm, setPendingConfirm] = useState<{
     action: StatusAction;
     includeIp?: boolean;
+    imageHash?: string;
   } | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const reviewButtonRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -153,11 +167,15 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
     setLoading(true);
     setError('');
     try {
-      const data = await apiRequest<{ reports: AdminReport[]; bans: AdminBan[] }>(
-        '/api/admin/reports',
-      );
+      const [data, images] = await Promise.all([
+        apiRequest<{ reports: AdminReport[]; bans: AdminBan[] }>('/api/admin/reports'),
+        apiRequest<{ bannedImages: BannedImageEntry[] }>('/api/admin/images').catch(() => ({
+          bannedImages: [],
+        })),
+      ]);
       setReports(data.reports);
       setBans(data.bans);
+      setBannedImages(images.bannedImages);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load reports.');
       if (loadError instanceof Error && loadError.message.includes('Administrator authentication'))
@@ -175,7 +193,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
     setPendingConfirm(null);
     try {
       const data = await apiRequest<ReportDetail>('/api/admin/reports/' + encodeURIComponent(id));
-      setDetail(data);
+      setDetail({ ...data, imageHashes: Array.isArray(data.imageHashes) ? data.imageHashes : [] });
       setNote(data.report.adminNote ?? '');
     } catch (detailFetchError) {
       setDetailError(
@@ -288,9 +306,39 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
       setAuthenticated(false);
       setReports([]);
       setBans([]);
+      setBannedImages([]);
       setNotice('You have signed out.');
     } catch (logoutError) {
       setError(logoutError instanceof Error ? logoutError.message : 'Unable to sign out.');
+    }
+  };
+
+  const moderateImage = async (
+    hash: string,
+    action: 'banImage' | 'unbanImage',
+    reportId?: string,
+  ) => {
+    setBusyId(hash + action);
+    setError('');
+    setNotice('');
+    try {
+      await apiRequest('/api/admin/moderate', {
+        action,
+        imageHash: hash,
+        ...(reportId ? { reportId } : {}),
+      });
+      setNotice(
+        action === 'banImage'
+          ? 'Photo fingerprint banned. Any message carrying it is now rejected on send.'
+          : 'Photo fingerprint ban lifted.',
+      );
+      setPendingConfirm(null);
+      await loadReports();
+      if (selectedId) await loadDetail(selectedId);
+    } catch (moderationError) {
+      setError(moderationError instanceof Error ? moderationError.message : 'Action failed.');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -315,7 +363,11 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
     }
   };
 
-  const moderate = async (report: AdminReport, action: StatusAction, includeIp = false) => {
+  const moderate = async (
+    report: AdminReport,
+    action: Exclude<StatusAction, 'banImage' | 'unbanImage'>,
+    includeIp = false,
+  ) => {
     setBusyId(report.id + action + String(includeIp));
     setError('');
     setNotice('');
@@ -330,7 +382,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
           ? { note: note.trim().slice(0, 1000) }
           : {}),
       });
-      const messages: Record<StatusAction, string> = {
+      const messages: Record<Exclude<StatusAction, 'banImage' | 'unbanImage'>, string> = {
         resolve: 'Report marked resolved.',
         dismiss: 'Report dismissed.',
         escalate: 'Report escalated for further review.',
@@ -766,6 +818,12 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                           Single message flagged
                         </span>
                       )}
+                      {(report.imageHashCount ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-3 py-1 text-xs font-bold text-sky-600 dark:text-sky-300">
+                          {report.imageHashCount} photo
+                          {report.imageHashCount === 1 ? '' : 's'} attached
+                        </span>
+                      )}
                     </div>
                     <p className="mt-3 text-sm font-semibold">
                       {report.topic ?? 'General Peer Discovery'}
@@ -840,7 +898,7 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
               expires.
             </p>
           </div>
-          {bans.length === 0 ? (
+          {bans.length === 0 && bannedImages.length === 0 ? (
             <div className={`rounded-xl border px-4 py-5 text-sm text-stone-500 ${surface}`}>
               No active restrictions.
             </div>
@@ -877,6 +935,39 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                 </article>
               );
             })
+          )}
+          {bannedImages.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold">
+                Banned photos{' '}
+                <span className={`font-normal ${muted}`}>({bannedImages.length})</span>
+              </h3>
+              {bannedImages.map((entry) => (
+                <article
+                  key={entry.hash}
+                  className={`flex flex-col justify-between gap-3 rounded-xl border p-4 sm:flex-row sm:items-center ${surface}`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Photo fingerprint ban</p>
+                    <p className="mt-1 break-all font-mono text-xs text-stone-500 dark:text-stone-400">
+                      {entry.hash}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Banned {new Date(entry.createdAt).toLocaleString()} · rejected on send
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busyId === entry.hash + 'unbanImage'}
+                    onClick={() => void moderateImage(entry.hash, 'unbanImage')}
+                    aria-label={`Lift photo ban for fingerprint ${entry.hash.slice(0, 12)}`}
+                    className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-bold hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800"
+                  >
+                    Lift photo ban
+                  </button>
+                </article>
+              ))}
+            </div>
           )}
         </section>
         <p className="pb-4 text-center text-xs text-stone-500 dark:text-stone-400">
@@ -1030,6 +1121,61 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                           by itself.
                         </p>
                       </div>
+                    )}
+                  </section>
+
+                  <section aria-label="Attached photos">
+                    <h3 className="flex items-center gap-2 text-sm font-bold">
+                      <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+                      Attached photos
+                      <span className={`font-normal ${muted}`}>
+                        ({detail.imageHashes.length} fingerprint
+                        {detail.imageHashes.length === 1 ? '' : 's'})
+                      </span>
+                    </h3>
+                    {detail.imageHashes.length === 0 ? (
+                      <p className={`mt-2 text-sm ${muted}`}>
+                        No photo fingerprints were attached to this report. Only hashes are stored —
+                        never the photos themselves.
+                      </p>
+                    ) : (
+                      <ol className="mt-2 space-y-1.5">
+                        {detail.imageHashes.map((entry) => (
+                          <li
+                            key={entry.hash}
+                            className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${isDarkMode ? 'border-stone-800' : 'border-stone-200'}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block break-all font-mono">
+                                {entry.hash.slice(0, 24)}…
+                              </span>
+                              <span className={muted}>
+                                {entry.banned ? 'Banned — rejected on send' : 'Not banned'}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              disabled={
+                                busyId === entry.hash + 'banImage' ||
+                                busyId === entry.hash + 'unbanImage'
+                              }
+                              onClick={() =>
+                                setPendingConfirm({
+                                  action: entry.banned ? 'unbanImage' : 'banImage',
+                                  imageHash: entry.hash,
+                                })
+                              }
+                              className={
+                                entry.banned
+                                  ? 'rounded-lg border border-stone-300 px-3 py-2 text-xs font-bold hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800'
+                                  : 'rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-600 disabled:opacity-50'
+                              }
+                            >
+                              {entry.banned ? 'Lift photo ban' : 'Ban this photo'}
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
                     )}
                   </section>
 
@@ -1232,6 +1378,13 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                               <>Dismiss this report without action? The reporter is not notified.</>
                             ) : pendingConfirm.action === 'resolve' ? (
                               <>Mark this report resolved?</>
+                            ) : pendingConfirm.action === 'banImage' ? (
+                              <>
+                                Ban this photo fingerprint ({pendingConfirm.imageHash?.slice(0, 12)}
+                                …)? Any message carrying it will be rejected on send.
+                              </>
+                            ) : pendingConfirm.action === 'unbanImage' ? (
+                              <>Lift this photo ban? The photo can be sent again.</>
                             ) : (
                               <>Lift this restriction? The person can match and chat again.</>
                             )}
@@ -1240,14 +1393,37 @@ export function AdminDashboard({ isDarkMode }: { isDarkMode: boolean }) {
                             <button
                               ref={confirmButtonRef}
                               type="button"
-                              disabled={busyId?.startsWith(activeReport.id)}
-                              onClick={() =>
-                                void moderate(
-                                  activeReport,
-                                  pendingConfirm.action,
-                                  pendingConfirm.includeIp,
-                                )
+                              disabled={
+                                busyId?.startsWith(activeReport.id) ||
+                                (pendingConfirm.imageHash
+                                  ? busyId === pendingConfirm.imageHash + pendingConfirm.action
+                                  : false)
                               }
+                              onClick={() => {
+                                if (
+                                  (pendingConfirm.action === 'banImage' ||
+                                    pendingConfirm.action === 'unbanImage') &&
+                                  pendingConfirm.imageHash
+                                )
+                                  void moderateImage(
+                                    pendingConfirm.imageHash,
+                                    pendingConfirm.action,
+                                    activeReport.id,
+                                  );
+                                else if (
+                                  pendingConfirm.action === 'resolve' ||
+                                  pendingConfirm.action === 'dismiss' ||
+                                  pendingConfirm.action === 'escalate' ||
+                                  pendingConfirm.action === 'ban' ||
+                                  pendingConfirm.action === 'unban' ||
+                                  pendingConfirm.action === 'unbanIp'
+                                )
+                                  void moderate(
+                                    activeReport,
+                                    pendingConfirm.action,
+                                    pendingConfirm.includeIp,
+                                  );
+                              }}
                               className="chat-theme-accent-button rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                             >
                               Confirm {pendingConfirm.action}
